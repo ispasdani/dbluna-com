@@ -2,15 +2,15 @@
 
 import { motion } from "motion/react";
 import Link from "next/link";
-import { Container } from "../general/container";
-import { Heading } from "../general/heading";
-import { SubHeading } from "../general/subHeading";
-import { Button } from "../general/button";
-import { Badge } from "../general/badge";
-import { GartnerLogo } from "../uiAssets/gartnerLogo";
-import { Star } from "../uiAssets/star";
-import { GartnerLogoText } from "../uiAssets/gartnerLogoText";
-import { ButtonWithIdGenerator } from "../general/buttonWithIdgenerator";
+import { Container } from "../marketing-general/container";
+import { Badge } from "../marketing-general/badge";
+import { Heading } from "../marketing-general/heading";
+import { SubHeading } from "../marketing-general/subHeading";
+import { ButtonWithIdGenerator } from "../marketing-general/buttonWithIdGenerator";
+import { Button } from "../marketing-general/button";
+import { GartnerLogo } from "../uiJsxAssets/gartnerLogo";
+import { GartnerLogoText } from "../uiJsxAssets/gartnerLogoText";
+import { Star } from "../uiJsxAssets/star";
 
 export const Hero = () => {
   return (

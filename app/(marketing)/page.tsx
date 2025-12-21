@@ -1,7 +1,12 @@
-import React from "react";
+import { DivideX } from "@/components/marketing-general/divideX";
+import { Hero } from "@/components/sections/hero";
 
-const Home = () => {
-  return <div>Home</div>;
-};
-
-export default Home;
+export default function Home() {
+  return (
+    <main>
+      <DivideX />
+      <Hero />
+      <DivideX />
+    </main>
+  );
+}
