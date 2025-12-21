@@ -85,6 +85,13 @@
   --divide: oklch(0.928 0.006 264.531);
 }
 
+html[data-palette="blue"] {
+  --brand: 210 100% 50%;
+}
+html[data-palette="cyberpunk"] {
+  --brand: 290 100% 55%;
+}
+
 .dark {
   --background: oklch(0.13 0.028 261.692);
   --foreground: oklch(0.985 0.002 247.839);
