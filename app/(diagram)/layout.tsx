@@ -1,6 +1,6 @@
 import { PlatformPaletteProvider } from "@/themeProviders/platformPaletteProvider";
 
-export default function MarketingLayout({
+export default function DiagramLayout({
   children,
 }: {
   children: React.ReactNode;
