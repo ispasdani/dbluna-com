@@ -15,6 +15,7 @@ import { CloseIcon } from "../uiJsxAssets/closeIcon";
 import { ModeToggle } from "./modeToggle";
 import { HamburgerIcon } from "../uiJsxAssets/hamburgerIcon";
 import { Logo } from "../uiJsxAssets/logo";
+import { Text } from "./text";
 
 const items = [
   {
@@ -96,7 +97,7 @@ const MobileNav = ({ items }: { items: { title: string; href: string }[] }) => {
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ duration: 0.2, delay: index * 0.1 }}
                   >
-                    {item.title}
+                    <Text>{item.title}</Text>
                   </motion.div>
                 </Link>
               ))}
