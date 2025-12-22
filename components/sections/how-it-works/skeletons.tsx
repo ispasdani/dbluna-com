@@ -1,4 +1,4 @@
-import { Card } from "@/components/marketing-general/card";
+import { Card } from "@/components/marketing-general/tech-card";
 import { DeployCard } from "@/components/marketing-general/deploy-card";
 import { DivideX } from "@/components/marketing-general/divideX";
 import { Scale } from "@/components/marketing-general/scale";
