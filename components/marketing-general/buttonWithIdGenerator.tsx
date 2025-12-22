@@ -31,7 +31,7 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
     <Component
       {...props}
       className={cn(
-        "block rounded-xl px-6 py-2 text-center text-sm font-medium transition duration-150 active:scale-[0.98] sm:text-base cursor-pointer",
+        "block rounded-xl px-6 py-2 text-center text-sm font-medium transition duration-150 active:scale-[0.98] sm:text-base hover:bg-charcoal-700 hover:dark:bg-neutral-300 cursor-pointer",
         variant === "primary"
           ? "bg-charcoal-900 text-white dark:bg-white dark:text-black"
           : variant === "brand"
