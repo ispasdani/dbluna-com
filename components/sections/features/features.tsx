@@ -1,10 +1,6 @@
 "use client";
+
 import React from "react";
-import {
-  LLMModelSelectorSkeleton,
-  NativeToolsIntegrationSkeleton,
-  TextToWorkflowBuilderSkeleton,
-} from "./skeletons";
 import { FileText, FlaskConical, Users } from "lucide-react";
 import { Container } from "@/components/marketing-general/container";
 import { SectionHeading } from "@/components/marketing-general/section-heading";
@@ -16,6 +12,11 @@ import { MouseBoxIcon } from "@/components/uiJsxAssets/mouse-box-icon";
 import { Card } from "@/components/marketing-general/card";
 import { CardTitle } from "@/components/marketing-general/cart-title";
 import { CardDescription } from "@/components/marketing-general/card-description";
+import {
+  LLMModelSelectorSkeleton,
+  NativeToolsIntegrationSkeleton,
+  TextToWorkflowBuilderSkeleton,
+} from "./skeletons";
 
 type Tab = {
   title: string;

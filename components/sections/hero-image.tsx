@@ -1,9 +1,9 @@
 "use client";
 import React, { useRef } from "react";
-import { Container } from "./container";
 import Image from "next/image";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { Dot } from "./dot";
+import { Container } from "../marketing-general/container";
+import { Dot } from "../marketing-general/dot";
 
 const springConfig = {
   stiffness: 300,
