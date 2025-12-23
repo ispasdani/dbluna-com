@@ -8,6 +8,7 @@ import { HeroImage } from "@/components/marketing-sections/hero-image";
 import { HowItWorks } from "@/components/marketing-sections/how-it-works/how-it-works";
 import { Pricing } from "@/components/marketing-sections/pricing";
 import { UseCases } from "@/components/marketing-sections/use-cases";
+import VideoSec from "@/components/marketing-sections/video-sec";
 
 export default function Home() {
   return (
@@ -30,6 +31,8 @@ export default function Home() {
       <Pricing />
       <DivideX />
       <FAQs />
+      <DivideX />
+      <VideoSec />
       <DivideX />
     </main>
   );
