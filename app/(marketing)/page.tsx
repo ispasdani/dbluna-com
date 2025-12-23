@@ -1,12 +1,12 @@
 import { DivideX } from "@/components/marketing-general/divideX";
 import { LogoCloud } from "@/components/marketing-general/logo-cloud";
-import { Benefits } from "@/components/sections/benefits/benefits";
-import { Features } from "@/components/sections/features/features";
-import { Hero } from "@/components/sections/hero";
-import { HeroImage } from "@/components/sections/hero-image";
-import { HowItWorks } from "@/components/sections/how-it-works/how-it-works";
-import { Pricing } from "@/components/sections/pricing";
-import { UseCases } from "@/components/sections/use-cases";
+import { Benefits } from "@/components/marketing-sections/benefits/benefits";
+import { Features } from "@/components/marketing-sections/features/features";
+import { Hero } from "@/components/marketing-sections/hero";
+import { HeroImage } from "@/components/marketing-sections/hero-image";
+import { HowItWorks } from "@/components/marketing-sections/how-it-works/how-it-works";
+import { Pricing } from "@/components/marketing-sections/pricing";
+import { UseCases } from "@/components/marketing-sections/use-cases";
 
 export default function Home() {
   return (
