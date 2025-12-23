@@ -1,6 +1,7 @@
 import { DivideX } from "@/components/marketing-general/divideX";
 import { LogoCloud } from "@/components/marketing-general/logo-cloud";
 import { Benefits } from "@/components/marketing-sections/benefits/benefits";
+import { FAQs } from "@/components/marketing-sections/faq";
 import { Features } from "@/components/marketing-sections/features/features";
 import { Hero } from "@/components/marketing-sections/hero";
 import { HeroImage } from "@/components/marketing-sections/hero-image";
@@ -27,6 +28,8 @@ export default function Home() {
       <Benefits />
       <DivideX />
       <Pricing />
+      <DivideX />
+      <FAQs />
       <DivideX />
     </main>
   );
