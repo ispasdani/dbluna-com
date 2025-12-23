@@ -11,11 +11,11 @@ import {
   useTransform,
 } from "motion/react";
 import { Container } from "./container";
-import { CloseIcon } from "../uiJsxAssets/closeIcon";
 import { ModeToggle } from "./modeToggle";
 import { HamburgerIcon } from "../uiJsxAssets/hamburgerIcon";
 import { Logo } from "../uiJsxAssets/logo";
 import { Text } from "./text";
+import { CloseIcon } from "../uiJsxAssets/close-icon";
 
 const items = [
   {
