@@ -4,6 +4,7 @@ import { Features } from "@/components/sections/features/features";
 import { Hero } from "@/components/sections/hero";
 import { HeroImage } from "@/components/sections/hero-image";
 import { HowItWorks } from "@/components/sections/how-it-works/how-it-works";
+import { UseCases } from "@/components/sections/use-cases";
 
 export default function Home() {
   return (
@@ -18,6 +19,9 @@ export default function Home() {
       <HowItWorks />
       <DivideX />
       <Features />
+      <DivideX />
+      <UseCases />
+      <DivideX />
     </main>
   );
 }
