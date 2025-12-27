@@ -1,0 +1,228 @@
+import { useState } from "react";
+import {
+  Database,
+  ChevronDown,
+  Plus,
+  Pencil,
+  Sun,
+  Moon,
+  Contrast,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useTheme, Theme } from "@/hooks/useTheme";
+import { useDockStore } from "@/store/useDockStore";
+
+const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "contrast", label: "High Contrast", icon: Contrast },
+];
+
+export function TopNavbar() {
+  const {
+    selectedDiagram,
+    diagrams,
+    setSelectedDiagram,
+    createDiagram,
+    renameDiagram,
+  } = useDockStore();
+  const { theme, setTheme } = useTheme();
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [newDiagramName, setNewDiagramName] = useState("");
+  const [diagramToRename, setDiagramToRename] = useState("");
+  const [renamedName, setRenamedName] = useState("");
+
+  const handleCreateNew = () => {
+    setNewDiagramName("");
+    setIsCreateOpen(true);
+  };
+
+  const handleCreateSubmit = () => {
+    if (newDiagramName.trim()) {
+      createDiagram(newDiagramName.trim());
+      setIsCreateOpen(false);
+      setNewDiagramName("");
+    }
+  };
+
+  const handleRenameClick = (diagram: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDiagramToRename(diagram);
+    setRenamedName(diagram);
+    setIsRenameOpen(true);
+  };
+
+  const handleRenameSubmit = () => {
+    if (renamedName.trim() && renamedName !== diagramToRename) {
+      renameDiagram(diagramToRename, renamedName.trim());
+    }
+    setIsRenameOpen(false);
+    setDiagramToRename("");
+    setRenamedName("");
+  };
+
+  const CurrentThemeIcon =
+    themeOptions.find((t) => t.value === theme)?.icon || Moon;
+
+  return (
+    <>
+      <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
+        {/* Logo */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Database className="w-5 h-5 text-primary" />
+          </div>
+          <span className="font-semibold text-lg tracking-tight">DbLuna</span>
+        </div>
+
+        {/* Diagram Selector */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              className="gap-2 min-w-[180px] justify-between font-mono text-sm"
+            >
+              <span className="truncate">{selectedDiagram}</span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" className="w-[220px]">
+            <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Create new diagram
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {diagrams.map((diagram) => (
+              <DropdownMenuItem
+                key={diagram}
+                onClick={() => setSelectedDiagram(diagram)}
+                className={`font-mono text-sm justify-between group ${
+                  diagram === selectedDiagram ? "bg-secondary text-primary" : ""
+                }`}
+              >
+                <span className="truncate">{diagram}</span>
+                <button
+                  onClick={(e) => handleRenameClick(diagram, e)}
+                  className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Theme Selector */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="w-9 h-9">
+              <CurrentThemeIcon className="w-5 h-5" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[160px]">
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() => setTheme(option.value)}
+                  className={`gap-2 ${theme === option.value ? "bg-secondary text-primary" : ""}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {option.label}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {/* Create Diagram Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Create New Diagram</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="diagram-name" className="text-sm font-medium">
+              Diagram Name
+            </Label>
+            <Input
+              id="diagram-name"
+              value={newDiagramName}
+              onChange={(e) => setNewDiagramName(e.target.value)}
+              placeholder="Enter diagram name..."
+              className="mt-2"
+              onKeyDown={(e) => e.key === "Enter" && handleCreateSubmit()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateSubmit}
+              disabled={!newDiagramName.trim()}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Diagram Dialog */}
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Rename Diagram</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="rename-diagram" className="text-sm font-medium">
+              New Name
+            </Label>
+            <Input
+              id="rename-diagram"
+              value={renamedName}
+              onChange={(e) => setRenamedName(e.target.value)}
+              placeholder="Enter new name..."
+              className="mt-2"
+              onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRenameSubmit}
+              disabled={!renamedName.trim() || renamedName === diagramToRename}
+            >
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
