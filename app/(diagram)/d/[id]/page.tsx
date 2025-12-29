@@ -10,7 +10,6 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { TopNavbar } from "./TopNavbar";
 import { TabLauncherBar } from "./TabLauncherBar";
 import { DockPanel, DropZone } from "./DockPanel";
 import { CanvasPlaceholder } from "./CanvasPlaceholder";
@@ -72,7 +71,6 @@ export function DiagramPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <TopNavbar />
       <TabLauncherBar />
 
       <DndContext
