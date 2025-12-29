@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  Database,
-  ChevronDown,
-  Plus,
-  Pencil,
-  Sun,
-  Moon,
-  Contrast,
-} from "lucide-react";
+import { Database, ChevronDown, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,14 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useTheme, Theme } from "@/hooks/useTheme";
 import { useDockStore } from "@/store/useDockStore";
-
-const themeOptions: { value: Theme; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "contrast", label: "High Contrast", icon: Contrast },
-];
+import { PlatformPaletteToggle } from "@/components/diagram-general/platformPaletteToggle";
 
 export function TopNavbar() {
   const {
@@ -42,7 +28,6 @@ export function TopNavbar() {
     createDiagram,
     renameDiagram,
   } = useDockStore();
-  const { theme, setTheme } = useTheme();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -78,9 +63,6 @@ export function TopNavbar() {
     setDiagramToRename("");
     setRenamedName("");
   };
-
-  const CurrentThemeIcon =
-    themeOptions.find((t) => t.value === theme)?.icon || Moon;
 
   return (
     <>
@@ -130,30 +112,8 @@ export function TopNavbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Theme Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="w-9 h-9">
-              <CurrentThemeIcon className="w-5 h-5" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[160px]">
-            {themeOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <DropdownMenuItem
-                  key={option.value}
-                  onClick={() => setTheme(option.value)}
-                  className={`gap-2 ${theme === option.value ? "bg-secondary text-primary" : ""}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {option.label}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Palette Selector */}
+        <PlatformPaletteToggle />
       </header>
 
       {/* Create Diagram Dialog */}
