@@ -1,35 +1,53 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-type Palette = "default" | "blue" | "cyberpunk";
-const PaletteContext = createContext<{
-  palette: Palette;
-  setPalette: (p: Palette) => void;
-} | null>(null);
+export type PlatformPalette = "default" | "blue" | "cyberpunk";
+
+type Ctx = {
+  palette: PlatformPalette;
+  setPalette: (p: PlatformPalette) => void;
+  mounted: boolean;
+};
+
+const PaletteContext = createContext<Ctx | null>(null);
 
 export function PlatformPaletteProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [palette, setPalette] = useState<Palette>("default");
+  const [palette, setPalette] = useState<PlatformPalette>("default");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(
+    const stored = window.localStorage.getItem(
       "platform-palette"
-    ) as Palette | null;
-    if (saved) setPalette(saved);
+    ) as PlatformPalette | null;
+    if (stored) setPalette(stored);
+    setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     window.localStorage.setItem("platform-palette", palette);
-    document.documentElement.dataset.palette = palette;
-  }, [palette]);
+  }, [palette, mounted]);
+
+  const value = useMemo(
+    () => ({ palette, setPalette, mounted }),
+    [palette, mounted]
+  );
 
   return (
-    <PaletteContext.Provider value={{ palette, setPalette }}>
-      {children}
+    <PaletteContext.Provider value={value}>
+      {/* ✅ apply palette to a wrapper, not <html> */}
+      <div data-palette={palette}>{children}</div>
     </PaletteContext.Provider>
   );
 }
