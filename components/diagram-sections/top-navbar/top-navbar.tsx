@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDockStore } from "@/store/useDockStore";
-import { PlatformPaletteToggle } from "@/components/diagram-general/platformPaletteToggle";
+import { PlatformPaletteToggle } from "@/components/diagram-general/platform-palette-toggle";
 
 export function TopNavbar() {
   const {
