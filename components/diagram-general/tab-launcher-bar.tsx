@@ -6,7 +6,7 @@ import {
   Table,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TABS, TabId, useDockStore } from "@/stores/useDockStore";
+import { TabId, TABS, useDockStore } from "@/store/useDockStore";
 
 const iconMap = {
   Code: Code,
