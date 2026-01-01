@@ -10,11 +10,10 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { TabLauncherBar } from "./TabLauncherBar";
 import { DockPanel, DropZone } from "./DockPanel";
 import { CanvasPlaceholder } from "./CanvasPlaceholder";
 import { useState } from "react";
-import { useDockStore } from "@/store/useDockStore";
+import { TabId, TABS, useDockStore } from "@/store/useDockStore";
 
 export function DiagramPage() {
   const { leftTabs, rightTabs, activeLeftTab, activeRightTab, moveTab } =
@@ -71,8 +70,6 @@ export function DiagramPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <TabLauncherBar />
-
       <DndContext
         collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
