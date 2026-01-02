@@ -10,10 +10,10 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { DockPanel, DropZone } from "./DockPanel";
 import { CanvasPlaceholder } from "./CanvasPlaceholder";
 import { useState } from "react";
 import { TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { DockPanel } from "@/components/diagram-general/dock-panel";
 
 export function DiagramPage() {
   const { leftTabs, rightTabs, activeLeftTab, activeRightTab, moveTab } =
