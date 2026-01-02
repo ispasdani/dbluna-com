@@ -1,3 +1,5 @@
+"use client";
+
 import {
   DndContext,
   DragEndEvent,
@@ -10,12 +12,15 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { CanvasPlaceholder } from "./CanvasPlaceholder";
+
 import { useState } from "react";
 import { TabId, TABS, useDockStore } from "@/store/useDockStore";
-import { DockPanel } from "@/components/diagram-general/dock-panel";
+import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
+import { TabLauncherBar } from "@/components/diagram-sections/tab-launcher-bar";
+import { DockPanel, DropZone } from "@/components/diagram-general/dock-panel";
+import { CanvasPlaceholder } from "@/components/diagram-sections/canvas";
 
-export function DiagramPage() {
+export default function DiagramPage() {
   const { leftTabs, rightTabs, activeLeftTab, activeRightTab, moveTab } =
     useDockStore();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -70,6 +75,9 @@ export function DiagramPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
+      <TopNavbar />
+      <TabLauncherBar />
+
       <DndContext
         collisionDetection={pointerWithin}
         onDragStart={handleDragStart}
@@ -82,16 +90,10 @@ export function DiagramPage() {
 
           {/* Main content layout */}
           {hasLeftTabs || hasRightTabs ? (
-            <ResizablePanelGroup direction="horizontal" className="flex-1">
+            <ResizablePanelGroup orientation="horizontal" className="flex-1">
               {hasLeftTabs && (
                 <>
-                  <ResizablePanel
-                    id="left-dock"
-                    order={1}
-                    defaultSize={25}
-                    minSize={15}
-                    maxSize={40}
-                  >
+                  <ResizablePanel id="left-dock" defaultSize={25} minSize={30}>
                     <DockPanel
                       side="left"
                       tabs={leftTabs}
@@ -104,7 +106,6 @@ export function DiagramPage() {
 
               <ResizablePanel
                 id="canvas"
-                order={2}
                 defaultSize={hasLeftTabs && hasRightTabs ? 50 : 75}
               >
                 <CanvasPlaceholder />
@@ -113,13 +114,7 @@ export function DiagramPage() {
               {hasRightTabs && (
                 <>
                   <ResizableHandle withHandle />
-                  <ResizablePanel
-                    id="right-dock"
-                    order={3}
-                    defaultSize={25}
-                    minSize={15}
-                    maxSize={40}
-                  >
+                  <ResizablePanel id="right-dock" defaultSize={25} minSize={30}>
                     <DockPanel
                       side="right"
                       tabs={rightTabs}

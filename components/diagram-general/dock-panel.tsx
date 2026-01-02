@@ -1,6 +1,7 @@
+"use client";
+
 import { forwardRef } from "react";
-import { useDroppable } from "@dnd-kit/core";
-import { useDraggable } from "@dnd-kit/core";
+import { useDroppable, useDraggable } from "@dnd-kit/core";
 import { X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS, useDockStore } from "@/store/useDockStore";
@@ -29,6 +30,7 @@ function DraggableTab({ tabId, isActive, side }: DraggableTabProps) {
       {...attributes}
       className={cn(
         "dock-tab flex items-center gap-1.5 group cursor-grab active:cursor-grabbing",
+        "select-none", // avoid text selection while dragging
         isActive && "dock-tab-active",
         isDragging && "opacity-50"
       )}
@@ -36,7 +38,9 @@ function DraggableTab({ tabId, isActive, side }: DraggableTabProps) {
     >
       <GripVertical className="w-3 h-3 text-muted-foreground/50" />
       <span className="select-none">{tab.label}</span>
+
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           closeTab(tabId);
@@ -73,13 +77,14 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
           else if (ref) ref.current = node;
         }}
         className={cn(
-          "h-full bg-dock-bg flex flex-col transition-all duration-200",
+          // ✅ CRITICAL: allow shrinking inside resizable panels
+          "h-full min-h-0 min-w-0 bg-dock-bg flex flex-col transition-all duration-200",
           side === "left" ? "border-r border-border" : "border-l border-border",
           isOver && "ring-2 ring-primary/50 ring-inset bg-primary/5"
         )}
       >
         {/* Tab Headers */}
-        <div className="dock-header flex items-center gap-1 px-2 py-2 overflow-x-auto">
+        <div className="dock-header shrink-0 flex items-center gap-1 px-2 py-2 overflow-x-auto">
           {tabs.map((tabId) => (
             <DraggableTab
               key={tabId}
@@ -91,7 +96,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 min-h-0 p-4 overflow-auto">
           {activeTabInfo && (
             <div className="animate-fade-in">
               <h3 className="font-medium text-foreground mb-2">

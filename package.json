@@ -22,7 +22,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "react-resizable-panels": "^4.0.15",
+    "react-resizable-panels": "^4.2.0",
     "react-use-measure": "^2.1.7",
     "shadcn": "^3.6.2",
     "svix": "^1.82.0",

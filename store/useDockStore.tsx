@@ -6,7 +6,7 @@ export type DockSide = "left" | "right";
 export interface TabInfo {
   id: TabId;
   label: string;
-  icon: string;
+  icon: string; // keep as string if you're mapping to lucide later
 }
 
 export const TABS: TabInfo[] = [
@@ -22,6 +22,7 @@ interface DockState {
   rightTabs: TabId[];
   activeLeftTab: TabId | null;
   activeRightTab: TabId | null;
+
   selectedDiagram: string;
   diagrams: string[];
 }
@@ -31,6 +32,7 @@ interface DockActions {
   moveTab: (tabId: TabId, toSide: DockSide) => void;
   setActiveTab: (side: DockSide, tabId: TabId) => void;
   closeTab: (tabId: TabId) => void;
+
   setSelectedDiagram: (diagram: string) => void;
   createDiagram: (name: string) => void;
   renameDiagram: (oldName: string, newName: string) => void;
@@ -38,18 +40,25 @@ interface DockActions {
 
 type DockStore = DockState & DockActions;
 
+function nextActive(tabs: TabId[], prevActive: TabId | null): TabId | null {
+  if (!tabs.length) return null;
+  if (prevActive && tabs.includes(prevActive)) return prevActive;
+  return tabs[0];
+}
+
 export const useDockStore = create<DockStore>((set, get) => ({
   leftTabs: [],
   rightTabs: [],
   activeLeftTab: null,
   activeRightTab: null,
+
   selectedDiagram: "Diagram A",
   diagrams: ["Diagram A", "Diagram B", "Diagram C"],
 
   openTab: (tabId, side = "right") => {
     const { leftTabs, rightTabs } = get();
 
-    // Check if tab is already open somewhere
+    // If already open, just focus it (on whichever side it is)
     if (leftTabs.includes(tabId)) {
       set({ activeLeftTab: tabId });
       return;
@@ -59,7 +68,7 @@ export const useDockStore = create<DockStore>((set, get) => ({
       return;
     }
 
-    // Open in specified side
+    // Otherwise open on requested side
     if (side === "left") {
       set({
         leftTabs: [...leftTabs, tabId],
@@ -74,33 +83,47 @@ export const useDockStore = create<DockStore>((set, get) => ({
   },
 
   moveTab: (tabId, toSide) => {
-    const { leftTabs, rightTabs } = get();
+    const { leftTabs, rightTabs, activeLeftTab, activeRightTab } = get();
 
-    // Remove from current location
+    // Remove from both sides first
     const newLeftTabs = leftTabs.filter((t) => t !== tabId);
     const newRightTabs = rightTabs.filter((t) => t !== tabId);
 
     if (toSide === "left") {
+      const finalLeftTabs = [...newLeftTabs, tabId];
+
       set({
-        leftTabs: [...newLeftTabs, tabId],
+        leftTabs: finalLeftTabs,
         rightTabs: newRightTabs,
+
+        // focus moved tab on destination side
         activeLeftTab: tabId,
-        activeRightTab: newRightTabs.length > 0 ? newRightTabs[0] : null,
+
+        // keep right active if still valid, otherwise pick first
+        activeRightTab: nextActive(newRightTabs, activeRightTab),
       });
     } else {
+      const finalRightTabs = [...newRightTabs, tabId];
+
       set({
         leftTabs: newLeftTabs,
-        rightTabs: [...newRightTabs, tabId],
+        rightTabs: finalRightTabs,
+
         activeRightTab: tabId,
-        activeLeftTab: newLeftTabs.length > 0 ? newLeftTabs[0] : null,
+        activeLeftTab: nextActive(newLeftTabs, activeLeftTab),
       });
     }
   },
 
   setActiveTab: (side, tabId) => {
+    const { leftTabs, rightTabs } = get();
+
+    // (Optional safety) only allow activating a tab that exists on that side
     if (side === "left") {
+      if (!leftTabs.includes(tabId)) return;
       set({ activeLeftTab: tabId });
     } else {
+      if (!rightTabs.includes(tabId)) return;
       set({ activeRightTab: tabId });
     }
   },
@@ -114,43 +137,46 @@ export const useDockStore = create<DockStore>((set, get) => ({
     set({
       leftTabs: newLeftTabs,
       rightTabs: newRightTabs,
+
       activeLeftTab:
-        activeLeftTab === tabId
-          ? newLeftTabs.length > 0
-            ? newLeftTabs[0]
-            : null
-          : activeLeftTab,
+        activeLeftTab === tabId ? nextActive(newLeftTabs, null) : activeLeftTab,
       activeRightTab:
         activeRightTab === tabId
-          ? newRightTabs.length > 0
-            ? newRightTabs[0]
-            : null
+          ? nextActive(newRightTabs, null)
           : activeRightTab,
     });
   },
 
-  setSelectedDiagram: (diagram) => {
-    set({ selectedDiagram: diagram });
-  },
+  setSelectedDiagram: (diagram) => set({ selectedDiagram: diagram }),
 
   createDiagram: (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
     const { diagrams } = get();
-    if (!diagrams.includes(name) && name.trim()) {
-      set({
-        diagrams: [...diagrams, name],
-        selectedDiagram: name,
-      });
+    if (diagrams.includes(trimmed)) {
+      set({ selectedDiagram: trimmed });
+      return;
     }
+
+    set({
+      diagrams: [...diagrams, trimmed],
+      selectedDiagram: trimmed,
+    });
   },
 
   renameDiagram: (oldName, newName) => {
-    const { diagrams, selectedDiagram } = get();
-    if (!newName.trim() || diagrams.includes(newName)) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
 
-    const newDiagrams = diagrams.map((d) => (d === oldName ? newName : d));
+    const { diagrams, selectedDiagram } = get();
+    if (diagrams.includes(trimmed)) return;
+
+    const newDiagrams = diagrams.map((d) => (d === oldName ? trimmed : d));
+
     set({
       diagrams: newDiagrams,
-      selectedDiagram: selectedDiagram === oldName ? newName : selectedDiagram,
+      selectedDiagram: selectedDiagram === oldName ? trimmed : selectedDiagram,
     });
   },
 }));
