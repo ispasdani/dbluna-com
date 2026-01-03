@@ -109,10 +109,13 @@
 }
 
 /* =========================================================
-   PALETTE: Default (Light / clean white)
-   Inspired by shadcn light defaults (your current setup)
+   PLATFORM PALETTES
+   NOTE: Radix portals render under <body>,
+   so palette tokens must live on body[data-palette="..."]
 ========================================================= */
-[data-palette="default"] {
+
+/* ---------- Default (Light) ---------- */
+body[data-palette="default"] {
   --background: #ffffff;
   --foreground: #111827;
 
@@ -122,7 +125,7 @@
   --popover: #ffffff;
   --popover-foreground: #111827;
 
-  --primary: #6366f1; /* indigo-ish */
+  --primary: #6366f1;
   --primary-foreground: #ffffff;
 
   --secondary: #f3f4f6;
@@ -151,21 +154,16 @@
 
   --divide: #e5e7eb;
 
-  /* Diagram tokens */
   --dock-bg: #f9fafb;
   --dock-header: #ffffff;
   --canvas-bg: #f3f4f6;
   --tab-hover: #e5e7eb;
   --drop-zone: var(--primary);
-  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 28%, transparent);
+  --glow-primary: 0 0 18px color-mix(in oklch, var(--primary) 25%, transparent);
 }
 
-/* =========================================================
-   PALETTE: Dark Blue (Tokyo Night - Storm inspired)
-   Tokyo Night “Storm” palette is widely used in VS Code
-========================================================= */
-[data-palette="blue"] {
-  /* Tokyo Night Storm-ish */
+/* ---------- Tokyo Night (Storm) / Dark Blue ---------- */
+body[data-palette="blue"] {
   --background: #24283b;
   --foreground: #c0caf5;
 
@@ -175,7 +173,7 @@
   --popover: #1f2335;
   --popover-foreground: #c0caf5;
 
-  --primary: #7aa2f7; /* tokyo blue */
+  --primary: #7aa2f7;
   --primary-foreground: #1a1b26;
 
   --secondary: #2f334d;
@@ -184,6 +182,7 @@
   --muted: #2a2e44;
   --muted-foreground: #9aa5ce;
 
+  /* Used by DropdownMenu focus: focus:bg-accent focus:text-accent-foreground */
   --accent: #2f334d;
   --accent-foreground: #c0caf5;
 
@@ -204,7 +203,6 @@
 
   --divide: #3b4261;
 
-  /* Diagram tokens */
   --dock-bg: #1f2335;
   --dock-header: #24283b;
   --canvas-bg: #1a1b26;
@@ -213,115 +211,8 @@
   --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
-/* =========================================================
-   PALETTE: Cyberpunk (VS Code cyberpunk theme inspired)
-   Pulled from the theme’s published color theme JSON
-========================================================= */
-[data-palette="cyberpunk"] {
-  --background: #261d45; /* editor.background */
-  --foreground: #00ff9c; /* editor.foreground (neon green) */
-
-  --card: #100d23; /* widget/panel bg used in theme */
-  --card-foreground: #00ff9c;
-
-  --popover: #002212; /* inputs/dropdowns in theme */
-  --popover-foreground: #00ff9c;
-
-  --primary: #00ff9c; /* neon */
-  --primary-foreground: #00140b;
-
-  --secondary: #372963; /* tabs/sidebar base */
-  --secondary-foreground: #b08bff;
-
-  --muted: #1e1d45;
-  --muted-foreground: #7877b3;
-
-  --accent: #00c3ff; /* cyber blue */
-  --accent-foreground: #001107;
-
-  --destructive: #ff004c;
-
-  --border: #00ff9c;
-  --input: #00ff9c;
-  --ring: #00ff9c;
-
-  --sidebar: #372963;
-  --sidebar-foreground: #b08bff;
-  --sidebar-primary: #00ff9c;
-  --sidebar-primary-foreground: #00140b;
-  --sidebar-accent: #100d23;
-  --sidebar-accent-foreground: #00ffc8;
-  --sidebar-border: #1d1833;
-  --sidebar-ring: #00ff9c;
-
-  --divide: #1d1833;
-
-  /* Diagram tokens */
-  --dock-bg: #372963;
-  --dock-header: #261d45;
-  --canvas-bg: #100d23;
-  --tab-hover: #3f2c70;
-  --drop-zone: var(--primary);
-  --glow-primary: 0 0 26px color-mix(in oklch, var(--primary) 40%, transparent);
-}
-
-/* =========================================================
-   PALETTE: High Contrast (HC Dark)
-   True-black base with bright accents
-========================================================= */
-[data-palette="contrast"] {
-  --background: #000000;
-  --foreground: #ffffff;
-
-  --card: #0b0b0b;
-  --card-foreground: #ffffff;
-
-  --popover: #0b0b0b;
-  --popover-foreground: #ffffff;
-
-  --primary: #ffff00; /* high-visibility yellow */
-  --primary-foreground: #000000;
-
-  --secondary: #111111;
-  --secondary-foreground: #ffffff;
-
-  --muted: #111111;
-  --muted-foreground: #e5e5e5;
-
-  --accent: #00ffff; /* cyan accent */
-  --accent-foreground: #000000;
-
-  --destructive: #ff0000;
-
-  --border: #ffffff;
-  --input: #ffffff;
-  --ring: #ffff00;
-
-  --sidebar: #000000;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #ffff00;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #111111;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #ffffff;
-  --sidebar-ring: #ffff00;
-
-  --divide: #ffffff;
-
-  /* Diagram tokens */
-  --dock-bg: #000000;
-  --dock-header: #0b0b0b;
-  --canvas-bg: #000000;
-  --tab-hover: #1a1a1a;
-  --drop-zone: var(--primary);
-  --glow-primary: 0 0 0 3px #ffff00;
-}
-
-/* =========================================================
-   PALETTE: tokyo-night (Moon)
-   VS Code Tokyo Night – Moon
-========================================================= */
-[data-palette="tokio-night"] {
+/* ---------- Tokyo Night (Moon) ---------- */
+body[data-palette="tokio-night"] {
   --background: #1a1b26;
   --foreground: #c0caf5;
 
@@ -340,8 +231,8 @@
   --muted: #1f2335;
   --muted-foreground: #9aa5ce;
 
-  --accent: #bb9af7;
-  --accent-foreground: #1a1b26;
+  --accent: #2a2e3f;
+  --accent-foreground: #c0caf5;
 
   --destructive: #f7768e;
 
@@ -360,7 +251,6 @@
 
   --divide: #2a2e3f;
 
-  /* Diagram tokens */
   --dock-bg: #16161e;
   --dock-header: #1a1b26;
   --canvas-bg: #0f111a;
@@ -369,11 +259,8 @@
   --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
-/* =========================================================
-   PALETTE: dracula
-   Official Dracula VS Code Theme
-========================================================= */
-[data-palette="dracula"] {
+/* ---------- Dracula ---------- */
+body[data-palette="dracula"] {
   --background: #282a36;
   --foreground: #f8f8f2;
 
@@ -390,10 +277,10 @@
   --secondary-foreground: #f8f8f2;
 
   --muted: #44475a;
-  --muted-foreground: #9aa0b3;
+  --muted-foreground: #b8b8c6;
 
-  --accent: #ff79c6;
-  --accent-foreground: #282a36;
+  --accent: #44475a;
+  --accent-foreground: #f8f8f2;
 
   --destructive: #ff5555;
 
@@ -412,13 +299,108 @@
 
   --divide: #44475a;
 
-  /* Diagram tokens */
   --dock-bg: #21222c;
   --dock-header: #282a36;
   --canvas-bg: #1b1c26;
   --tab-hover: #44475a;
   --drop-zone: var(--primary);
   --glow-primary: 0 0 24px color-mix(in oklch, var(--primary) 40%, transparent);
+}
+
+/* ---------- Cyberpunk ---------- */
+body[data-palette="cyberpunk"] {
+  --background: #261d45;
+  --foreground: #00ff9c;
+
+  --card: #100d23;
+  --card-foreground: #00ff9c;
+
+  --popover: #100d23;
+  --popover-foreground: #00ff9c;
+
+  --primary: #00ff9c;
+  --primary-foreground: #00140b;
+
+  --secondary: #372963;
+  --secondary-foreground: #b08bff;
+
+  --muted: #1e1d45;
+  --muted-foreground: #9b8dd6;
+
+  --accent: #00c3ff;
+  --accent-foreground: #001107;
+
+  --destructive: #ff004c;
+
+  --border: #1d1833;
+  --input: #1d1833;
+  --ring: #00ff9c;
+
+  --sidebar: #372963;
+  --sidebar-foreground: #b08bff;
+  --sidebar-primary: #00ff9c;
+  --sidebar-primary-foreground: #00140b;
+  --sidebar-accent: #100d23;
+  --sidebar-accent-foreground: #00ffc8;
+  --sidebar-border: #1d1833;
+  --sidebar-ring: #00ff9c;
+
+  --divide: #1d1833;
+
+  --dock-bg: #372963;
+  --dock-header: #261d45;
+  --canvas-bg: #100d23;
+  --tab-hover: #3f2c70;
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 28px color-mix(in oklch, var(--primary) 45%, transparent);
+}
+
+/* ---------- High Contrast ---------- */
+body[data-palette="contrast"] {
+  --background: #000000;
+  --foreground: #ffffff;
+
+  --card: #0b0b0b;
+  --card-foreground: #ffffff;
+
+  --popover: #0b0b0b;
+  --popover-foreground: #ffffff;
+
+  --primary: #ffff00;
+  --primary-foreground: #000000;
+
+  --secondary: #111111;
+  --secondary-foreground: #ffffff;
+
+  --muted: #111111;
+  --muted-foreground: #f0f0f0;
+
+  --accent: #1a1a1a;
+  --accent-foreground: #ffffff;
+
+  --destructive: #ff0000;
+
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #ffff00;
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffff00;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #111111;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #ffff00;
+
+  --divide: #ffffff;
+
+  --dock-bg: #000000;
+  --dock-header: #0b0b0b;
+  --canvas-bg: #000000;
+  --tab-hover: #1a1a1a;
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 0 3px #ffff00;
 }
 
 .dark {

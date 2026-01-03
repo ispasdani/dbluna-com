@@ -32,17 +32,29 @@ export function PlatformPaletteProvider({
   const [palette, setPalette] = useState<PlatformPalette>("default");
   const [mounted, setMounted] = useState(false);
 
+  // Load ONLY for diagram area (optional)
   useEffect(() => {
     const stored = window.localStorage.getItem(
-      "platform-palette"
+      "diagram-palette"
     ) as PlatformPalette | null;
     if (stored) setPalette(stored);
     setMounted(true);
   }, []);
 
+  // Apply palette while mounted + cleanup on unmount
   useEffect(() => {
     if (!mounted) return;
-    window.localStorage.setItem("platform-palette", palette);
+
+    // apply
+    document.body.dataset.palette = palette;
+
+    // optionally persist (diagram-only)
+    window.localStorage.setItem("diagram-palette", palette);
+
+    // ✅ critical: reset when leaving diagram routes
+    return () => {
+      delete document.body.dataset.palette;
+    };
   }, [palette, mounted]);
 
   const value = useMemo(
@@ -51,10 +63,7 @@ export function PlatformPaletteProvider({
   );
 
   return (
-    <PaletteContext.Provider value={value}>
-      {/* ✅ apply palette to a wrapper, not <html> */}
-      <div data-palette={palette}>{children}</div>
-    </PaletteContext.Provider>
+    <PaletteContext.Provider value={value}>{children}</PaletteContext.Provider>
   );
 }
 

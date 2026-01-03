@@ -38,7 +38,10 @@ export function PlatformPaletteToggle() {
           <span className="sr-only">Change palette</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent
+        align="end"
+        className="bg-popover text-popover-foreground"
+      >
         {options.map(({ value, label, icon: Icon }) => (
           <DropdownMenuItem
             key={value}
