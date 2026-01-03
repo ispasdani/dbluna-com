@@ -8,7 +8,13 @@ import React, {
   useState,
 } from "react";
 
-export type PlatformPalette = "default" | "blue" | "cyberpunk" | "contrast";
+export type PlatformPalette =
+  | "default"
+  | "blue"
+  | "cyberpunk"
+  | "contrast"
+  | "tokio-night"
+  | "dracula";
 
 type Ctx = {
   palette: PlatformPalette;

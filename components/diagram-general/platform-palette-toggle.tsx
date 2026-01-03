@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Contrast, Palette, Sparkles, Zap } from "lucide-react";
+import { Contrast, Flame, Moon, Palette, Sparkles, Zap } from "lucide-react";
 import {
   PlatformPalette,
   usePlatformPalette,
@@ -18,6 +18,8 @@ const options: { value: PlatformPalette; label: string; icon: any }[] = [
   { value: "blue", label: "Blue", icon: Sparkles },
   { value: "cyberpunk", label: "Cyberpunk", icon: Zap },
   { value: "contrast", label: "Contrast", icon: Contrast },
+  { value: "tokio-night", label: "Tokyo Night", icon: Moon },
+  { value: "dracula", label: "Dracula", icon: Flame },
 ];
 
 export function PlatformPaletteToggle() {
