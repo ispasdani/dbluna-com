@@ -111,125 +111,215 @@
 /* ---------------------------------------
    PALETTE: default (your baseline)
 ---------------------------------------- */
+/* =========================================================
+   PALETTE: Default (Light / clean white)
+   Inspired by shadcn light defaults (your current setup)
+========================================================= */
 [data-palette="default"] {
-  /* You can keep this identical to :root, or tweak */
-  --primary: oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.97 0.014 254.604);
+  --background: #ffffff;
+  --foreground: #111827;
 
-  --dock-bg: oklch(0.985 0 0);
-  --dock-header: oklch(1 0 0);
-  --canvas-bg: oklch(0.97 0 0);
-  --tab-hover: oklch(0.922 0 0);
+  --card: #ffffff;
+  --card-foreground: #111827;
+
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+
+  --primary: #6366f1; /* indigo-ish */
+  --primary-foreground: #ffffff;
+
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+
+  --accent: #f3f4f6;
+  --accent-foreground: #111827;
+
+  --destructive: #ef4444;
+
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #6366f1;
+
+  --sidebar: #f9fafb;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #6366f1;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #6366f1;
+
+  --divide: #e5e7eb;
+
+  /* Diagram tokens */
+  --dock-bg: #f9fafb;
+  --dock-header: #ffffff;
+  --canvas-bg: #f3f4f6;
+  --tab-hover: #e5e7eb;
   --drop-zone: var(--primary);
-  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
-
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --border: oklch(0.922 0 0);
-
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 28%, transparent);
 }
 
-/* ---------------------------------------
-   PALETTE: blue (clean light / blue accent)
----------------------------------------- */
+/* =========================================================
+   PALETTE: Dark Blue (Tokyo Night - Storm inspired)
+   Tokyo Night “Storm” palette is widely used in VS Code
+========================================================= */
 [data-palette="blue"] {
-  --primary: oklch(0.62 0.2 255);
-  --primary-foreground: oklch(1 0 0);
+  /* Tokyo Night Storm-ish */
+  --background: #24283b;
+  --foreground: #c0caf5;
 
-  --accent: color-mix(in oklch, var(--primary) 15%, oklch(1 0 0));
-  --accent-foreground: oklch(0.145 0 0);
+  --card: #1f2335;
+  --card-foreground: #c0caf5;
 
-  --dock-bg: oklch(0.985 0 0);
-  --dock-header: oklch(1 0 0);
-  --canvas-bg: oklch(0.975 0 0);
-  --tab-hover: oklch(0.93 0 0);
+  --popover: #1f2335;
+  --popover-foreground: #c0caf5;
+
+  --primary: #7aa2f7; /* tokyo blue */
+  --primary-foreground: #1a1b26;
+
+  --secondary: #2f334d;
+  --secondary-foreground: #c0caf5;
+
+  --muted: #2a2e44;
+  --muted-foreground: #9aa5ce;
+
+  --accent: #2f334d;
+  --accent-foreground: #c0caf5;
+
+  --destructive: #f7768e;
+
+  --border: #3b4261;
+  --input: #3b4261;
+  --ring: #7aa2f7;
+
+  --sidebar: #1f2335;
+  --sidebar-foreground: #c0caf5;
+  --sidebar-primary: #7aa2f7;
+  --sidebar-primary-foreground: #1a1b26;
+  --sidebar-accent: #2f334d;
+  --sidebar-accent-foreground: #c0caf5;
+  --sidebar-border: #3b4261;
+  --sidebar-ring: #7aa2f7;
+
+  --divide: #3b4261;
+
+  /* Diagram tokens */
+  --dock-bg: #1f2335;
+  --dock-header: #24283b;
+  --canvas-bg: #1a1b26;
+  --tab-hover: #2f334d;
   --drop-zone: var(--primary);
-  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 25%, transparent);
-
-  --card: oklch(0.995 0.005 255);
-  --card-foreground: oklch(0.145 0 0);
-  --border: oklch(0.9 0.02 255);
-
-  --secondary: oklch(0.965 0.01 255);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-
-  --muted: oklch(0.97 0.005 255);
-  --muted-foreground: oklch(0.56 0.01 255);
-
-  --accent: oklch(0.965 0.02 255);
-  --accent-foreground: oklch(0.145 0 0);
+  --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
-/* ---------------------------------------
-   PALETTE: cyberpunk (neon magenta accent)
----------------------------------------- */
+/* =========================================================
+   PALETTE: Cyberpunk (VS Code cyberpunk theme inspired)
+   Pulled from the theme’s published color theme JSON
+========================================================= */
 [data-palette="cyberpunk"] {
-  --primary: oklch(0.7 0.28 330);
-  --primary-foreground: oklch(0.1 0 0);
+  --background: #261d45; /* editor.background */
+  --foreground: #00ff9c; /* editor.foreground (neon green) */
 
-  --accent: color-mix(in oklch, var(--primary) 18%, oklch(1 0 0));
-  --accent-foreground: oklch(0.145 0 0);
+  --card: #100d23; /* widget/panel bg used in theme */
+  --card-foreground: #00ff9c;
 
-  --dock-bg: oklch(0.985 0 0);
-  --dock-header: oklch(1 0 0);
-  --canvas-bg: oklch(0.975 0 0);
-  --tab-hover: oklch(0.93 0 0);
+  --popover: #002212; /* inputs/dropdowns in theme */
+  --popover-foreground: #00ff9c;
+
+  --primary: #00ff9c; /* neon */
+  --primary-foreground: #00140b;
+
+  --secondary: #372963; /* tabs/sidebar base */
+  --secondary-foreground: #b08bff;
+
+  --muted: #1e1d45;
+  --muted-foreground: #7877b3;
+
+  --accent: #00c3ff; /* cyber blue */
+  --accent-foreground: #001107;
+
+  --destructive: #ff004c;
+
+  --border: #00ff9c;
+  --input: #00ff9c;
+  --ring: #00ff9c;
+
+  --sidebar: #372963;
+  --sidebar-foreground: #b08bff;
+  --sidebar-primary: #00ff9c;
+  --sidebar-primary-foreground: #00140b;
+  --sidebar-accent: #100d23;
+  --sidebar-accent-foreground: #00ffc8;
+  --sidebar-border: #1d1833;
+  --sidebar-ring: #00ff9c;
+
+  --divide: #1d1833;
+
+  /* Diagram tokens */
+  --dock-bg: #372963;
+  --dock-header: #261d45;
+  --canvas-bg: #100d23;
+  --tab-hover: #3f2c70;
   --drop-zone: var(--primary);
-  --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 30%, transparent);
-
-  --card: oklch(0.99 0.01 330);
-  --card-foreground: oklch(0.145 0 0);
-  --border: oklch(0.9 0.03 330);
-
-  --secondary: oklch(0.96 0.02 330);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-
-  --muted: oklch(0.97 0.01 330);
-  --muted-foreground: oklch(0.56 0.02 330);
-
-  --accent: oklch(0.965 0.03 330);
-  --accent-foreground: oklch(0.145 0 0);
+  --glow-primary: 0 0 26px color-mix(in oklch, var(--primary) 40%, transparent);
 }
 
-/* ---------------------------------------
-   PALETTE: contrast (high contrast)
----------------------------------------- */
+/* =========================================================
+   PALETTE: High Contrast (HC Dark)
+   True-black base with bright accents
+========================================================= */
 [data-palette="contrast"] {
-  --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.12 0 0);
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.1 0 0);
-  --popover-foreground: oklch(1 0 0);
+  --background: #000000;
+  --foreground: #ffffff;
 
-  --primary: oklch(0.9 0.2 100);
-  --primary-foreground: oklch(0 0 0);
+  --card: #0b0b0b;
+  --card-foreground: #ffffff;
 
-  --secondary: oklch(0.18 0 0);
-  --secondary-foreground: oklch(1 0 0);
+  --popover: #0b0b0b;
+  --popover-foreground: #ffffff;
 
-  --muted: oklch(0.2 0 0);
-  --muted-foreground: oklch(0.8 0 0);
+  --primary: #ffff00; /* high-visibility yellow */
+  --primary-foreground: #000000;
 
-  --border: oklch(0.35 0 0);
-  --input: oklch(0.25 0 0);
-  --ring: var(--primary);
+  --secondary: #111111;
+  --secondary-foreground: #ffffff;
 
-  --dock-bg: oklch(0.06 0 0);
-  --dock-header: oklch(0.14 0 0);
-  --canvas-bg: oklch(0 0 0);
-  --tab-hover: oklch(0.25 0 0);
+  --muted: #111111;
+  --muted-foreground: #e5e5e5;
+
+  --accent: #00ffff; /* cyan accent */
+  --accent-foreground: #000000;
+
+  --destructive: #ff0000;
+
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #ffff00;
+
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffff00;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #111111;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #ffff00;
+
+  --divide: #ffffff;
+
+  /* Diagram tokens */
+  --dock-bg: #000000;
+  --dock-header: #0b0b0b;
+  --canvas-bg: #000000;
+  --tab-hover: #1a1a1a;
   --drop-zone: var(--primary);
-  --glow-primary: 0 0 24px color-mix(in oklch, var(--primary) 35%, transparent);
+  --glow-primary: 0 0 0 3px #ffff00;
 }
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
