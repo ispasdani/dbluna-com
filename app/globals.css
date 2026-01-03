@@ -98,15 +98,138 @@
   --divide: oklch(0.928 0.006 264.531);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+
+  /* ✅ Your old “diagram tokens” (now in the new system) */
+  --dock-bg: oklch(0.985 0 0);
+  --dock-header: oklch(1 0 0);
+  --canvas-bg: oklch(0.97 0 0);
+  --tab-hover: oklch(0.922 0 0);
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
 }
 
-html[data-palette="blue"] {
-  --brand: 210 100% 50%;
-}
-html[data-palette="cyberpunk"] {
-  --brand: 290 100% 55%;
+/* ---------------------------------------
+   PALETTE: default (your baseline)
+---------------------------------------- */
+[data-palette="default"] {
+  /* You can keep this identical to :root, or tweak */
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.97 0.014 254.604);
+
+  --dock-bg: oklch(0.985 0 0);
+  --dock-header: oklch(1 0 0);
+  --canvas-bg: oklch(0.97 0 0);
+  --tab-hover: oklch(0.922 0 0);
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --border: oklch(0.922 0 0);
+
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
 }
 
+/* ---------------------------------------
+   PALETTE: blue (clean light / blue accent)
+---------------------------------------- */
+[data-palette="blue"] {
+  --primary: oklch(0.62 0.2 255);
+  --primary-foreground: oklch(1 0 0);
+
+  --accent: color-mix(in oklch, var(--primary) 15%, oklch(1 0 0));
+  --accent-foreground: oklch(0.145 0 0);
+
+  --dock-bg: oklch(0.985 0 0);
+  --dock-header: oklch(1 0 0);
+  --canvas-bg: oklch(0.975 0 0);
+  --tab-hover: oklch(0.93 0 0);
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 25%, transparent);
+
+  --card: oklch(0.995 0.005 255);
+  --card-foreground: oklch(0.145 0 0);
+  --border: oklch(0.9 0.02 255);
+
+  --secondary: oklch(0.965 0.01 255);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+
+  --muted: oklch(0.97 0.005 255);
+  --muted-foreground: oklch(0.56 0.01 255);
+
+  --accent: oklch(0.965 0.02 255);
+  --accent-foreground: oklch(0.145 0 0);
+}
+
+/* ---------------------------------------
+   PALETTE: cyberpunk (neon magenta accent)
+---------------------------------------- */
+[data-palette="cyberpunk"] {
+  --primary: oklch(0.7 0.28 330);
+  --primary-foreground: oklch(0.1 0 0);
+
+  --accent: color-mix(in oklch, var(--primary) 18%, oklch(1 0 0));
+  --accent-foreground: oklch(0.145 0 0);
+
+  --dock-bg: oklch(0.985 0 0);
+  --dock-header: oklch(1 0 0);
+  --canvas-bg: oklch(0.975 0 0);
+  --tab-hover: oklch(0.93 0 0);
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 30%, transparent);
+
+  --card: oklch(0.99 0.01 330);
+  --card-foreground: oklch(0.145 0 0);
+  --border: oklch(0.9 0.03 330);
+
+  --secondary: oklch(0.96 0.02 330);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+
+  --muted: oklch(0.97 0.01 330);
+  --muted-foreground: oklch(0.56 0.02 330);
+
+  --accent: oklch(0.965 0.03 330);
+  --accent-foreground: oklch(0.145 0 0);
+}
+
+/* ---------------------------------------
+   PALETTE: contrast (high contrast)
+---------------------------------------- */
+[data-palette="contrast"] {
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.12 0 0);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.1 0 0);
+  --popover-foreground: oklch(1 0 0);
+
+  --primary: oklch(0.9 0.2 100);
+  --primary-foreground: oklch(0 0 0);
+
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(1 0 0);
+
+  --muted: oklch(0.2 0 0);
+  --muted-foreground: oklch(0.8 0 0);
+
+  --border: oklch(0.35 0 0);
+  --input: oklch(0.25 0 0);
+  --ring: var(--primary);
+
+  --dock-bg: oklch(0.06 0 0);
+  --dock-header: oklch(0.14 0 0);
+  --canvas-bg: oklch(0 0 0);
+  --tab-hover: oklch(0.25 0 0);
+  --drop-zone: var(--primary);
+  --glow-primary: 0 0 24px color-mix(in oklch, var(--primary) 35%, transparent);
+}
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -150,5 +273,23 @@ html[data-palette="cyberpunk"] {
   body {
     @apply bg-background text-foreground;
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-dock-bg {
+    background: var(--dock-bg);
+  }
+  .bg-dock-header {
+    background: var(--dock-header);
+  }
+  .bg-canvas-bg {
+    background: var(--canvas-bg);
+  }
+  .bg-tab-hover {
+    background: var(--tab-hover);
+  }
+  .glow-accent {
+    box-shadow: var(--glow-primary);
   }
 }
