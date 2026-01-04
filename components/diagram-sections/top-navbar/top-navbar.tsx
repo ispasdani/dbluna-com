@@ -75,7 +75,7 @@ export function TopNavbar() {
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Database className="w-5 h-5 text-primary" />
           </div>
-          <DbLuna />
+          <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
         </div>
 
         {/* Diagram Selector */}
