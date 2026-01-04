@@ -71,49 +71,48 @@ export function TopNavbar() {
     <>
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Database className="w-5 h-5 text-primary" />
-          </div>
+        <div className="flex items-center gap-6">
           <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
-        </div>
 
-        {/* Diagram Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="gap-2 min-w-[180px] justify-between font-mono text-sm"
-            >
-              <span className="truncate">{selectedDiagram}</span>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="w-[220px]">
-            <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Create new diagram
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {diagrams.map((diagram) => (
-              <DropdownMenuItem
-                key={diagram}
-                onClick={() => setSelectedDiagram(diagram)}
-                className={`font-mono text-sm justify-between group ${
-                  diagram === selectedDiagram ? "bg-secondary text-primary" : ""
-                }`}
+          {/* Diagram Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2 min-w-[180px] justify-between font-mono text-sm"
               >
-                <span className="truncate">{diagram}</span>
-                <button
-                  onClick={(e) => handleRenameClick(diagram, e)}
-                  className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
+                <span className="truncate">{selectedDiagram}</span>
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className="w-[220px]">
+              <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Create new diagram
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              {diagrams.map((diagram) => (
+                <DropdownMenuItem
+                  key={diagram}
+                  onClick={() => setSelectedDiagram(diagram)}
+                  className={`font-mono text-sm justify-between group ${
+                    diagram === selectedDiagram
+                      ? "bg-secondary text-primary"
+                      : ""
+                  }`}
+                >
+                  <span className="truncate">{diagram}</span>
+                  <button
+                    onClick={(e) => handleRenameClick(diagram, e)}
+                    className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* Palette Selector */}
         <PlatformPaletteToggle />
