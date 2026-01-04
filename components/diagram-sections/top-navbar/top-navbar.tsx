@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDockStore } from "@/store/useDockStore";
 import { PlatformPaletteToggle } from "@/components/diagram-general/platform-palette-toggle";
+import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 export function TopNavbar() {
   const {
@@ -74,7 +75,7 @@ export function TopNavbar() {
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Database className="w-5 h-5 text-primary" />
           </div>
-          <span className="font-semibold text-lg tracking-tight">DbLuna</span>
+          <DbLuna />
         </div>
 
         {/* Diagram Selector */}
