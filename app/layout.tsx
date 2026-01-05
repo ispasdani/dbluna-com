@@ -1,20 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConvexClientProvider } from "./providers/ConvexClientProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-sans",
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
@@ -24,14 +22,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
-      <body
-        className={`font-primary h-full  ${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html
+      lang="en"
+      className={`${inter.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-dvh font-sans antialiased">
         <AppThemeProvider>
           <ClerkProvider>
             <ConvexClientProvider>{children}</ConvexClientProvider>
