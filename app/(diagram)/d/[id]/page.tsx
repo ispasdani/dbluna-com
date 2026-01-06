@@ -15,14 +15,18 @@ import {
 
 import { useState } from "react";
 import { TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
-import { TabLauncherBar } from "@/components/diagram-sections/tab-launcher-bar";
 import { DockPanel, DropZone } from "@/components/diagram-general/dock-panel";
 import { CanvasPlaceholder } from "@/components/diagram-sections/canvas";
+import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 
 export default function DiagramPage() {
   const { leftTabs, rightTabs, activeLeftTab, activeRightTab, moveTab } =
     useDockStore();
+
+  const { isTopNavbarVisible, isLeftDockVisible } = useViewStore();
+
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -32,7 +36,6 @@ export default function DiagramPage() {
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveDragId(null);
     const { active, over } = event;
-
     if (!over) return;
 
     const activeData = active.data.current as {
@@ -41,8 +44,8 @@ export default function DiagramPage() {
     };
     const overId = over.id as string;
 
-    // Determine target side
     let targetSide: "left" | "right" | null = null;
+
     if (
       overId === "left" ||
       overId === "dropzone-left" ||
@@ -69,13 +72,12 @@ export default function DiagramPage() {
     return tab?.label || null;
   };
 
-  const hasLeftTabs = leftTabs.length > 0;
   const hasRightTabs = rightTabs.length > 0;
   const isDragging = activeDragId !== null;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <TopNavbar />
+      {isTopNavbarVisible && <TopNavbar />}
       <TabLauncherBar />
 
       <DndContext
@@ -84,50 +86,49 @@ export default function DiagramPage() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex-1 flex overflow-hidden relative">
-          {/* Drop zones - shown when dragging and no tabs on that side */}
-          {isDragging && !hasLeftTabs && <DropZone side="left" />}
+          {/* Drop zones */}
+          {isDragging && isLeftDockVisible === false && (
+            <DropZone side="left" />
+          )}
           {isDragging && !hasRightTabs && <DropZone side="right" />}
 
-          {/* Main content layout */}
-          {hasLeftTabs || hasRightTabs ? (
-            <ResizablePanelGroup orientation="horizontal" className="flex-1">
-              {hasLeftTabs && (
-                <>
-                  <ResizablePanel id="left-dock" defaultSize={25} minSize={30}>
-                    <DockPanel
-                      side="left"
-                      tabs={leftTabs}
-                      activeTab={activeLeftTab}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle />
-                </>
-              )}
+          <ResizablePanelGroup orientation="horizontal" className="flex-1">
+            {/* LEFT DOCK: always present unless hidden */}
+            {isLeftDockVisible && (
+              <>
+                <ResizablePanel id="left-dock" defaultSize={25} minSize={20}>
+                  <DockPanel
+                    side="left"
+                    tabs={leftTabs}
+                    activeTab={activeLeftTab}
+                  />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+              </>
+            )}
 
-              <ResizablePanel
-                id="canvas"
-                defaultSize={hasLeftTabs && hasRightTabs ? 50 : 75}
-              >
-                <CanvasPlaceholder />
-              </ResizablePanel>
+            {/* CANVAS: always present */}
+            <ResizablePanel
+              id="canvas"
+              defaultSize={isLeftDockVisible && hasRightTabs ? 50 : 75}
+            >
+              <CanvasPlaceholder />
+            </ResizablePanel>
 
-              {hasRightTabs && (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel id="right-dock" defaultSize={25} minSize={30}>
-                    <DockPanel
-                      side="right"
-                      tabs={rightTabs}
-                      activeTab={activeRightTab}
-                    />
-                  </ResizablePanel>
-                </>
-              )}
-            </ResizablePanelGroup>
-          ) : (
-            /* No tabs at all - just canvas */
-            <CanvasPlaceholder />
-          )}
+            {/* RIGHT DOCK: only when it has tabs (for now) */}
+            {hasRightTabs && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel id="right-dock" defaultSize={25} minSize={20}>
+                  <DockPanel
+                    side="right"
+                    tabs={rightTabs}
+                    activeTab={activeRightTab}
+                  />
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
         </div>
 
         <DragOverlay>

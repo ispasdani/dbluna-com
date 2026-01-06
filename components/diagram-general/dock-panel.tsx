@@ -2,9 +2,10 @@
 
 import { forwardRef } from "react";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
-import { X, GripVertical } from "lucide-react";
+import { X, GripVertical, Dock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { DockTabsHeader } from "./dock-tabs-header";
 
 interface DraggableTabProps {
   tabId: TabId;
@@ -84,16 +85,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         )}
       >
         {/* Tab Headers */}
-        <div className="dock-header shrink-0 flex items-center gap-1 px-2 py-2 overflow-x-auto">
-          {tabs.map((tabId) => (
-            <DraggableTab
-              key={tabId}
-              tabId={tabId}
-              isActive={tabId === activeTab}
-              side={side}
-            />
-          ))}
-        </div>
+        <DockTabsHeader side={side} tabs={tabs} activeTab={activeTab} />
 
         {/* Tab Content */}
         <div className="flex-1 min-h-0 p-4 overflow-auto">
