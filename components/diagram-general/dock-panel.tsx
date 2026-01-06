@@ -13,8 +13,13 @@ interface DraggableTabProps {
   side: DockSide;
 }
 
-function DraggableTab({ tabId, isActive, side }: DraggableTabProps) {
-  const { setActiveTab, closeTab } = useDockStore();
+function DraggableTab({
+  tabId,
+  isActive,
+  side,
+  isOpen,
+}: DraggableTabProps & { isOpen: boolean }) {
+  const { setActiveTab, closeTab, openTab } = useDockStore();
   const tab = TABS.find((t) => t.id === tabId);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -30,27 +35,32 @@ function DraggableTab({ tabId, isActive, side }: DraggableTabProps) {
       {...listeners}
       {...attributes}
       className={cn(
-        "dock-tab flex items-center gap-1.5 group cursor-grab active:cursor-grabbing",
-        "select-none", // avoid text selection while dragging
+        "dock-tab flex items-center gap-1.5 group cursor-grab active:cursor-grabbing select-none",
         isActive && "dock-tab-active",
-        isDragging && "opacity-50"
+        isDragging && "opacity-50",
+        !isOpen && "opacity-70" // optional: visually show “closed”
       )}
-      onClick={() => setActiveTab(side, tabId)}
+      onClick={() => {
+        if (!isOpen) openTab(tabId, side); // <-- important
+        setActiveTab(side, tabId);
+      }}
     >
       <GripVertical className="w-3 h-3 text-muted-foreground/50" />
       <span className="select-none">{tab.label}</span>
 
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          closeTab(tabId);
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="w-4 h-4 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-      >
-        <X className="w-3 h-3" />
-      </button>
+      {isOpen && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            closeTab(tabId);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="w-4 h-4 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -70,6 +80,12 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
 
     const activeTabInfo = TABS.find((t) => t.id === activeTab);
 
+    const openSet = new Set(tabs);
+
+    // LEFT dock shows ALL tabs always
+    const headerTabIds: TabId[] =
+      side === "left" ? TABS.map((t) => t.id) : tabs;
+
     return (
       <div
         ref={(node) => {
@@ -78,18 +94,28 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
           else if (ref) ref.current = node;
         }}
         className={cn(
-          // ✅ CRITICAL: allow shrinking inside resizable panels
           "h-full min-h-0 min-w-0 bg-dock-bg flex flex-col transition-all duration-200",
           side === "left" ? "border-r border-border" : "border-l border-border",
           isOver && "ring-2 ring-primary/50 ring-inset bg-primary/5"
         )}
       >
         {/* Tab Headers */}
-        <DockTabsHeader side={side} tabs={tabs} activeTab={activeTab} />
+        <DockTabsHeader
+          tabs={headerTabIds}
+          renderTab={(tabId) => (
+            <DraggableTab
+              key={tabId}
+              tabId={tabId}
+              isActive={tabId === activeTab}
+              side={side}
+              isOpen={openSet.has(tabId)}
+            />
+          )}
+        />
 
         {/* Tab Content */}
         <div className="flex-1 min-h-0 p-4 overflow-auto">
-          {activeTabInfo && (
+          {activeTabInfo ? (
             <div className="animate-fade-in">
               <h3 className="font-medium text-foreground mb-2">
                 {activeTabInfo.label} Panel
@@ -98,6 +124,10 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
                 Content for {activeTabInfo.label.toLowerCase()} will appear
                 here.
               </p>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Select a panel from the tabs above.
             </div>
           )}
         </div>

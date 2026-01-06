@@ -22,8 +22,14 @@ import { CanvasPlaceholder } from "@/components/diagram-sections/canvas";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 
 export default function DiagramPage() {
-  const { leftTabs, rightTabs, activeLeftTab, activeRightTab, moveTab } =
-    useDockStore();
+  const {
+    leftTabs,
+    rightTabs,
+    activeLeftTab,
+    openTab,
+    activeRightTab,
+    moveTab,
+  } = useDockStore();
 
   const { isTopNavbarVisible, isLeftDockVisible } = useViewStore();
 
@@ -60,8 +66,20 @@ export default function DiagramPage() {
       targetSide = "right";
     }
 
-    if (targetSide && targetSide !== activeData.fromSide) {
-      moveTab(activeData.tabId as TabId, targetSide);
+    if (!targetSide) return;
+
+    const tabId = activeData.tabId as TabId;
+    const fromSide = activeData.fromSide as "left" | "right";
+
+    // ✅ If the tab is not open anywhere (because left header shows ALL tabs),
+    // open it on the fromSide first so moveTab has something to move.
+    const isOpen = leftTabs.includes(tabId) || rightTabs.includes(tabId);
+    if (!isOpen) {
+      openTab(tabId, fromSide); // <-- make sure openTab(tabId, preferredSide) exists
+    }
+
+    if (targetSide !== fromSide) {
+      moveTab(tabId, targetSide);
     }
   };
 
