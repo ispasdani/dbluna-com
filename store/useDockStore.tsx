@@ -47,7 +47,7 @@ function nextActive(tabs: TabId[], prevActive: TabId | null): TabId | null {
 }
 
 export const useDockStore = create<DockStore>((set, get) => ({
-  leftTabs: [],
+  leftTabs: TABS.map((t) => t.id) as TabId[],
   rightTabs: [],
   activeLeftTab: null,
   activeRightTab: null,
