@@ -31,7 +31,7 @@ interface DockActions {
   openTab: (tabId: TabId, side?: DockSide) => void;
   moveTab: (tabId: TabId, toSide: DockSide) => void;
   setActiveTab: (side: DockSide, tabId: TabId) => void;
-  closeTab: (tabId: TabId) => void;
+  closeTab: (tabId: TabId, fromSide: "left" | "right") => void;
 
   setSelectedDiagram: (diagram: string) => void;
   createDiagram: (name: string) => void;
@@ -125,24 +125,38 @@ export const useDockStore = create<DockStore>((set, get) => ({
     }
   },
 
-  closeTab: (tabId) => {
-    const { leftTabs, rightTabs, activeLeftTab, activeRightTab } = get();
+  closeTab: (tabId, fromSide) =>
+    set((state) => {
+      if (fromSide === "right") {
+        const nextRight = state.rightTabs.filter((t) => t !== tabId);
 
-    const newLeftTabs = leftTabs.filter((t) => t !== tabId);
-    const newRightTabs = rightTabs.filter((t) => t !== tabId);
+        const alreadyLeft = state.leftTabs.includes(tabId);
+        const nextLeft = alreadyLeft
+          ? state.leftTabs
+          : [...state.leftTabs, tabId];
 
-    set({
-      leftTabs: newLeftTabs,
-      rightTabs: newRightTabs,
+        return {
+          rightTabs: nextRight,
+          activeRightTab:
+            state.activeRightTab === tabId
+              ? (nextRight[0] ?? null)
+              : state.activeRightTab,
+          leftTabs: nextLeft,
+          activeLeftTab: tabId,
+        };
+      }
 
-      activeLeftTab:
-        activeLeftTab === tabId ? nextActive(newLeftTabs, null) : activeLeftTab,
-      activeRightTab:
-        activeRightTab === tabId
-          ? nextActive(newRightTabs, null)
-          : activeRightTab,
-    });
-  },
+      // from left -> actually close
+      const nextLeft = state.leftTabs.filter((t) => t !== tabId);
+
+      return {
+        leftTabs: nextLeft,
+        activeLeftTab:
+          state.activeLeftTab === tabId
+            ? (nextLeft[0] ?? null)
+            : state.activeLeftTab,
+      };
+    }),
 
   setSelectedDiagram: (diagram) => set({ selectedDiagram: diagram }),
 

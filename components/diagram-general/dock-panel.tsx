@@ -53,7 +53,7 @@ function DraggableTab({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            closeTab(tabId);
+            closeTab(tabId, side);
           }}
           onPointerDown={(e) => e.stopPropagation()}
           className="w-4 h-4 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
@@ -83,8 +83,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
     const openSet = new Set(tabs);
 
     // LEFT dock shows ALL tabs always
-    const headerTabIds: TabId[] =
-      side === "left" ? TABS.map((t) => t.id) : tabs;
+    const headerTabIds: TabId[] = tabs;
 
     return (
       <div
