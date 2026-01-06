@@ -55,31 +55,28 @@ export const useDockStore = create<DockStore>((set, get) => ({
   selectedDiagram: "Diagram A",
   diagrams: ["Diagram A", "Diagram B", "Diagram C"],
 
-  openTab: (tabId, side = "right") => {
-    const { leftTabs, rightTabs } = get();
+  openTab: (tabId: TabId, preferredSide: "left" | "right" = "left") => {
+    set((state) => {
+      const alreadyLeft = state.leftTabs.includes(tabId);
+      const alreadyRight = state.rightTabs.includes(tabId);
 
-    // If already open, just focus it (on whichever side it is)
-    if (leftTabs.includes(tabId)) {
-      set({ activeLeftTab: tabId });
-      return;
-    }
-    if (rightTabs.includes(tabId)) {
-      set({ activeRightTab: tabId });
-      return;
-    }
+      // if already open, just activate it on that side
+      if (alreadyLeft) return { activeLeftTab: tabId };
+      if (alreadyRight) return { activeRightTab: tabId };
 
-    // Otherwise open on requested side
-    if (side === "left") {
-      set({
-        leftTabs: [...leftTabs, tabId],
-        activeLeftTab: tabId,
-      });
-    } else {
-      set({
-        rightTabs: [...rightTabs, tabId],
+      // open new tab on preferred side
+      if (preferredSide === "left") {
+        return {
+          leftTabs: [...state.leftTabs, tabId],
+          activeLeftTab: tabId,
+        };
+      }
+
+      return {
+        rightTabs: [...state.rightTabs, tabId],
         activeRightTab: tabId,
-      });
-    }
+      };
+    });
   },
 
   moveTab: (tabId, toSide) => {
