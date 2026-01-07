@@ -1,3 +1,4 @@
+// CanvasStage.tsx
 "use client";
 
 import { useEditorStore } from "@/store/useEditorStore";
@@ -40,13 +41,12 @@ export function CanvasStage() {
     return () => ro.disconnect();
   }, []);
 
-  // Space-to-pan (like many editors)
+  // Space-to-pan
   const [spaceDown, setSpaceDown] = useState(false);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
 
-      // don’t steal space from inputs
       const t = e.target as HTMLElement | null;
       const isTyping =
         t?.tagName === "INPUT" ||
@@ -81,7 +81,6 @@ export function CanvasStage() {
   }>({ active: false, lastX: 0, lastY: 0, pointerId: null });
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // middle mouse OR space+left mouse
     const shouldPan = e.button === 1 || (e.button === 0 && spaceDown);
     if (!shouldPan) return;
 
@@ -111,29 +110,59 @@ export function CanvasStage() {
     drag.current.pointerId = null;
   };
 
-  // Wheel zoom (trackpad-friendly)
-  const onWheel = (e: React.WheelEvent) => {
-    if (!rootRef.current) return;
+  /**
+   * DrawDB-like wheel behavior:
+   * - wheel => pan (trackpads will include deltaX too)
+   * - shift+wheel => horizontal pan (use deltaY as horizontal)
+   * - ctrl/meta+wheel => zoom at cursor (pinch zoom typically sets ctrlKey)
+   */
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
 
-    // If user is panning with trackpad (shift/ctrl patterns differ by OS),
-    // we keep it simple: wheel => zoom.
-    e.preventDefault();
+    const onWheel = (e: WheelEvent) => {
+      // Prevent page scroll
+      e.preventDefault();
 
-    const rect = rootRef.current.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
+      const rect = el.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
 
-    // smooth zoom factor
-    const delta = clamp(-e.deltaY, -120, 120);
-    const factor = delta > 0 ? 1.08 : 1 / 1.08;
+      const isZoomGesture = e.ctrlKey || e.metaKey;
 
-    zoomAt(factor, sx, sy);
-  };
+      if (isZoomGesture) {
+        // Smooth exponential zoom
+        // deltaY > 0 => zoom out, deltaY < 0 => zoom in
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        const safeFactor = clamp(factor, 0.85, 1.15); // keeps wheel steps reasonable
+        zoomAt(safeFactor, sx, sy);
+        return;
+      }
+
+      // Pan in screen space:
+      // scrolling down should move viewport down => world up => camera.y decreases
+      let dx = -e.deltaX;
+      let dy = -e.deltaY;
+
+      // Shift+wheel => horizontal pan (common UX)
+      // Many mice give deltaX=0; use deltaY as horizontal in that case
+      if (e.shiftKey) {
+        dx = -e.deltaY;
+        dy = 0;
+      }
+
+      // Optional: tame very “spiky” mouse wheel deltas
+      dx = clamp(dx, -120, 120);
+      dy = clamp(dy, -120, 120);
+
+      panBy(dx, dy);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [panBy, zoomAt]);
 
   const worldTransform = useMemo(() => {
-    // Camera convention:
-    // - camera.x/y are screen-space translation of the world container
-    // - camera.zoom is scale
     return `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
   }, [camera.x, camera.y, camera.zoom]);
 
@@ -141,7 +170,6 @@ export function CanvasStage() {
     <div
       ref={rootRef}
       className="relative h-full w-full overflow-hidden bg-background"
-      onWheel={onWheel}
     >
       {/* World */}
       <div
@@ -161,14 +189,12 @@ export function CanvasStage() {
             transform: worldTransform,
           }}
         >
-          {/* World background (moves + zooms with camera) */}
           <WorldBackground
             w={WORLD_WIDTH}
             h={WORLD_HEIGHT}
             variant={background}
           />
 
-          {/* put your diagram nodes/edges here; this is just a placeholder */}
           <div className="absolute left-[300px] top-[240px] rounded-lg border bg-card px-3 py-2 shadow-sm">
             Table: users
           </div>
@@ -185,7 +211,6 @@ export function CanvasStage() {
         viewport={viewport}
         camera={camera}
         onRecenter={(worldX, worldY) => {
-          // Recenter by moving camera so that world point appears at viewport center
           const targetScreenX = viewport.w / 2;
           const targetScreenY = viewport.h / 2;
 
