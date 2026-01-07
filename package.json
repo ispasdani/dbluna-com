@@ -24,6 +24,7 @@
     "react-dom": "19.2.1",
     "react-resizable-panels": "^4.2.0",
     "react-use-measure": "^2.1.7",
+    "sass": "^1.97.2",
     "shadcn": "^3.6.2",
     "svix": "^1.82.0",
     "tailwind-merge": "^3.4.0",

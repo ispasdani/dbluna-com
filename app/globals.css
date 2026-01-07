@@ -106,6 +106,8 @@
   --tab-hover: oklch(0.922 0 0);
   --drop-zone: var(--primary);
   --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
+  --canvas-grid: rgba(0, 0, 0, 0.12);
+  --canvas-dots: rgba(0, 0, 0, 0.18);
 }
 
 /* =========================================================
@@ -118,6 +120,9 @@
 body[data-palette="default"] {
   --background: #ffffff;
   --foreground: #111827;
+
+  --canvas-grid: rgba(17, 24, 39, 0.10); /* subtle on light */
+  --canvas-dots: rgba(17, 24, 39, 0.14);
 
   --card: #ffffff;
   --card-foreground: #111827;
@@ -166,6 +171,9 @@ body[data-palette="default"] {
 body[data-palette="blue"] {
   --background: #24283b;
   --foreground: #c0caf5;
+
+  --canvas-grid: rgba(192, 202, 245, 0.10); /* subtle on dark */
+  --canvas-dots: rgba(192, 202, 245, 0.14);
 
   --card: #1f2335;
   --card-foreground: #c0caf5;
@@ -263,6 +271,9 @@ body[data-palette="tokio-night"] {
 body[data-palette="dracula"] {
   --background: #282a36;
   --foreground: #f8f8f2;
+
+  --canvas-grid: rgba(248, 248, 242, 0.09);
+  --canvas-dots: rgba(248, 248, 242, 0.13);
 
   --card: #21222c;
   --card-foreground: #f8f8f2;

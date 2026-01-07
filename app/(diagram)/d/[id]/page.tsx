@@ -18,7 +18,7 @@ import { TabId, TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
 import { DockPanel, DropZone } from "@/components/diagram-general/dock-panel";
-import { CanvasPlaceholder } from "@/components/diagram-sections/canvas";
+import { CanvasPlaceholder } from "@/components/diagram-sections/canvas/canvas";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 
 export default function DiagramPage() {

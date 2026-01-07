@@ -1,69 +1,17 @@
 "use client";
 
 import { forwardRef } from "react";
-import { useDroppable, useDraggable } from "@dnd-kit/core";
-import { X, GripVertical, Dock } from "lucide-react";
+import { useDroppable } from "@dnd-kit/core";
+import dynamic from "next/dynamic";
+
 import { cn } from "@/lib/utils";
-import { DockSide, TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { DockSide, TabId, TABS } from "@/store/useDockStore";
 import { DockTabsHeader } from "./dock-tabs-header";
 
-interface DraggableTabProps {
-  tabId: TabId;
-  isActive: boolean;
-  side: DockSide;
-}
-
-function DraggableTab({
-  tabId,
-  isActive,
-  side,
-  isOpen,
-}: DraggableTabProps & { isOpen: boolean }) {
-  const { setActiveTab, closeTab, openTab } = useDockStore();
-  const tab = TABS.find((t) => t.id === tabId);
-
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `${side}-${tabId}`,
-    data: { tabId, fromSide: side },
-  });
-
-  if (!tab) return null;
-
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "dock-tab flex items-center gap-1.5 group cursor-grab active:cursor-grabbing select-none",
-        isActive && "dock-tab-active",
-        isDragging && "opacity-50",
-        !isOpen && "opacity-70" // optional: visually show “closed”
-      )}
-      onClick={() => {
-        if (!isOpen) openTab(tabId, side); // <-- important
-        setActiveTab(side, tabId);
-      }}
-    >
-      <GripVertical className="w-3 h-3 text-muted-foreground/50" />
-      <span className="select-none">{tab.label}</span>
-
-      {isOpen && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            closeTab(tabId, side);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="w-4 h-4 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      )}
-    </div>
-  );
-}
+const DraggableTab = dynamic(
+  () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
+  { ssr: false }
+);
 
 interface DockPanelProps {
   side: DockSide;
@@ -79,10 +27,9 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
     });
 
     const activeTabInfo = TABS.find((t) => t.id === activeTab);
-
     const openSet = new Set(tabs);
 
-    // LEFT dock shows ALL tabs always
+    // Header shows tabs docked on this side
     const headerTabIds: TabId[] = tabs;
 
     return (

@@ -26,6 +26,7 @@ import {
 
 import { TabId, TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
+import { useCanvasStore } from "@/store/useCanvasStore";
 
 const iconMap = {
   Code,
@@ -45,6 +46,7 @@ export function TabLauncherBar() {
     toggleTopNavbar,
     toggleGrid,
   } = useViewStore();
+  const { background, setBackground } = useCanvasStore();
 
   const openSet = useMemo(
     () => new Set([...leftTabs, ...rightTabs]),
@@ -108,6 +110,30 @@ export function TabLauncherBar() {
             {/* <DropdownMenuSeparator />
             <DropdownMenuItem onClick={zoomIn}>Zoom In</DropdownMenuItem>
             ... */}
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Canvas Background
+            </DropdownMenuLabel>
+
+            <DropdownMenuItem onClick={() => setBackground("grid")}>
+              <span className="flex-1">Grid</span>
+              {background === "grid" && (
+                <span className="text-xs text-muted-foreground">✓</span>
+              )}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={() => setBackground("dots")}>
+              <span className="flex-1">Dots</span>
+              {background === "dots" && (
+                <span className="text-xs text-muted-foreground">✓</span>
+              )}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={() => setBackground("none")}>
+              <span className="flex-1">None</span>
+              {background === "none" && (
+                <span className="text-xs text-muted-foreground">✓</span>
+              )}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
