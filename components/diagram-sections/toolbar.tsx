@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 
@@ -41,10 +41,8 @@ export function TabLauncherBar() {
   const {
     isLeftDockVisible,
     isTopNavbarVisible,
-    isGridVisible,
     toggleLeftDock,
     toggleTopNavbar,
-    toggleGrid,
   } = useViewStore();
   const { background, setBackground } = useCanvasStore();
 
@@ -94,43 +92,30 @@ export function TabLauncherBar() {
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Canvas
-            </DropdownMenuLabel>
-
-            <DropdownMenuItem onClick={toggleGrid} className="gap-2">
-              <Grid3X3 className="h-4 w-4" />
-              <span className="flex-1">Grid</span>
-              {isGridVisible && (
-                <span className="text-xs text-muted-foreground">✓</span>
-              )}
-            </DropdownMenuItem>
-
             {/* Zoom actions should call useCanvasStore (add later) */}
             {/* <DropdownMenuSeparator />
             <DropdownMenuItem onClick={zoomIn}>Zoom In</DropdownMenuItem>
             ... */}
             <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Canvas Background
+              Canvas
             </DropdownMenuLabel>
 
-            <DropdownMenuItem onClick={() => setBackground("grid")}>
+            <DropdownMenuItem
+              onClick={() => setBackground("grid")}
+              className="gap-2"
+            >
               <span className="flex-1">Grid</span>
               {background === "grid" && (
                 <span className="text-xs text-muted-foreground">✓</span>
               )}
             </DropdownMenuItem>
 
-            <DropdownMenuItem onClick={() => setBackground("dots")}>
+            <DropdownMenuItem
+              onClick={() => setBackground("dots")}
+              className="gap-2"
+            >
               <span className="flex-1">Dots</span>
               {background === "dots" && (
-                <span className="text-xs text-muted-foreground">✓</span>
-              )}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem onClick={() => setBackground("none")}>
-              <span className="flex-1">None</span>
-              {background === "none" && (
                 <span className="text-xs text-muted-foreground">✓</span>
               )}
             </DropdownMenuItem>
