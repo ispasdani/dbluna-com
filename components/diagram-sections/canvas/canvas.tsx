@@ -7,7 +7,7 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 
-const WORLD_WIDTH = 7000;
+const WORLD_WIDTH = 6000;
 const WORLD_HEIGHT = 6000;
 
 function clamp(n: number, min: number, max: number) {
