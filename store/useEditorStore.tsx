@@ -11,11 +11,15 @@ export type Camera = {
 
 type EditorState = {
   camera: Camera;
-
   // actions
   panBy: (dx: number, dy: number) => void;
   zoomAt: (factor: number, screenX: number, screenY: number) => void;
+  setZoomAt: (nextZoom: number, screenX: number, screenY: number) => void;
   resetCamera: () => void;
+
+  // add in store
+  viewport: { w: number; h: number };
+  setViewport: (w: number, h: number) => void;
 };
 
 const clamp = (n: number, min: number, max: number) =>
@@ -70,6 +74,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  setZoomAt: (nextZoomRaw, screenX, screenY) => {
+    const { camera } = get();
+    const nextZoom = clamp(nextZoomRaw, MIN_ZOOM, MAX_ZOOM);
+    if (nextZoom === camera.zoom) return;
+
+    const worldX = (screenX - camera.x) / camera.zoom;
+    const worldY = (screenY - camera.y) / camera.zoom;
+
+    const nextX = screenX - worldX * nextZoom;
+    const nextY = screenY - worldY * nextZoom;
+
+    set({ camera: { x: nextX, y: nextY, zoom: nextZoom } });
+  },
+
   resetCamera: () => {
     set({
       camera: {
@@ -79,4 +97,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     });
   },
+
+  // inside create(...)
+  viewport: { w: 1, h: 1 },
+  setViewport: (w, h) => set({ viewport: { w, h } }),
 }));

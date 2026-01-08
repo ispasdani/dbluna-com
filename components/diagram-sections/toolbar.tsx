@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   Code,
   Database,
@@ -26,6 +26,7 @@ import {
 import { TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { ZoomMenu } from "../diagram-general/zoom-menu";
 
 const iconMap = {
   Code,
@@ -121,6 +122,8 @@ export function TabLauncherBar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ZoomMenu />
 
       {/* Center: Launchers */}
       <div className="flex items-center justify-center gap-2">

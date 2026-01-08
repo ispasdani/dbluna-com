@@ -17,6 +17,7 @@ function clamp(n: number, min: number, max: number) {
 export function CanvasStage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const background = useCanvasStore((s) => s.background);
+  const setViewportStore = useEditorStore((s) => s.setViewport);
 
   const camera = useEditorStore((s) => s.camera);
   const panBy = useEditorStore((s) => s.panBy);
@@ -32,14 +33,16 @@ export function CanvasStage() {
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       setViewport({ w: r.width, h: r.height });
+      setViewportStore(r.width, r.height);
     });
 
     ro.observe(el);
     const r = el.getBoundingClientRect();
     setViewport({ w: r.width, h: r.height });
+    setViewportStore(r.width, r.height);
 
     return () => ro.disconnect();
-  }, []);
+  }, [setViewportStore]);
 
   // Space-to-pan
   const [spaceDown, setSpaceDown] = useState(false);
