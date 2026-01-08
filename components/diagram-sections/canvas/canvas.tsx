@@ -1,14 +1,14 @@
 // CanvasStage.tsx
 "use client";
 
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Minimap } from "./minimap";
-import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
+import { Minimap } from "./minimap";
 
-const WORLD_WIDTH = 4000;
-const WORLD_HEIGHT = 3000;
+const WORLD_WIDTH = 7000;
+const WORLD_HEIGHT = 6000;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -16,30 +16,39 @@ function clamp(n: number, min: number, max: number) {
 
 export function CanvasStage() {
   const rootRef = useRef<HTMLDivElement>(null);
+
   const background = useCanvasStore((s) => s.background);
-  const setViewportStore = useEditorStore((s) => s.setViewport);
 
   const camera = useEditorStore((s) => s.camera);
   const panBy = useEditorStore((s) => s.panBy);
   const zoomAt = useEditorStore((s) => s.zoomAt);
 
+  const setViewportStore = useEditorStore((s) => s.setViewport);
+  const setWorldStore = useEditorStore((s) => s.setWorld);
+  const setCameraXY = useEditorStore((s) => s.setCameraXY);
+
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
 
-  // Measure viewport (so minimap + zoomAt math is correct)
+  // Tell store the world bounds (so clamping uses the same world as the grid)
   useEffect(() => {
-    if (!rootRef.current) return;
+    setWorldStore(WORLD_WIDTH, WORLD_HEIGHT);
+  }, [setWorldStore]);
 
+  // Measure viewport (so minimap + zoomAt math is correct) + inform store (for clamping)
+  useEffect(() => {
     const el = rootRef.current;
-    const ro = new ResizeObserver(() => {
+    if (!el) return;
+
+    const update = () => {
       const r = el.getBoundingClientRect();
       setViewport({ w: r.width, h: r.height });
       setViewportStore(r.width, r.height);
-    });
+    };
 
+    const ro = new ResizeObserver(update);
     ro.observe(el);
-    const r = el.getBoundingClientRect();
-    setViewport({ w: r.width, h: r.height });
-    setViewportStore(r.width, r.height);
+
+    update();
 
     return () => ro.disconnect();
   }, [setViewportStore]);
@@ -115,16 +124,15 @@ export function CanvasStage() {
 
   /**
    * DrawDB-like wheel behavior:
-   * - wheel => pan (trackpads will include deltaX too)
-   * - shift+wheel => horizontal pan (use deltaY as horizontal)
-   * - ctrl/meta+wheel => zoom at cursor (pinch zoom typically sets ctrlKey)
+   * - wheel => pan
+   * - shift+wheel => horizontal pan
+   * - ctrl/meta+wheel => zoom at cursor
    */
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
-      // Prevent page scroll
       e.preventDefault();
 
       const rect = el.getBoundingClientRect();
@@ -134,27 +142,20 @@ export function CanvasStage() {
       const isZoomGesture = e.ctrlKey || e.metaKey;
 
       if (isZoomGesture) {
-        // Smooth exponential zoom
-        // deltaY > 0 => zoom out, deltaY < 0 => zoom in
         const factor = Math.exp(-e.deltaY * 0.0015);
-        const safeFactor = clamp(factor, 0.85, 1.15); // keeps wheel steps reasonable
+        const safeFactor = clamp(factor, 0.85, 1.15);
         zoomAt(safeFactor, sx, sy);
         return;
       }
 
-      // Pan in screen space:
-      // scrolling down should move viewport down => world up => camera.y decreases
       let dx = -e.deltaX;
       let dy = -e.deltaY;
 
-      // Shift+wheel => horizontal pan (common UX)
-      // Many mice give deltaX=0; use deltaY as horizontal in that case
       if (e.shiftKey) {
         dx = -e.deltaY;
         dy = 0;
       }
 
-      // Optional: tame very “spiky” mouse wheel deltas
       dx = clamp(dx, -120, 120);
       dy = clamp(dy, -120, 120);
 
@@ -165,9 +166,10 @@ export function CanvasStage() {
     return () => el.removeEventListener("wheel", onWheel);
   }, [panBy, zoomAt]);
 
-  const worldTransform = useMemo(() => {
-    return `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
-  }, [camera.x, camera.y, camera.zoom]);
+  const worldTransform = useMemo(
+    () => `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
+    [camera.x, camera.y, camera.zoom]
+  );
 
   return (
     <div
@@ -180,9 +182,7 @@ export function CanvasStage() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        style={{
-          cursor: spaceDown ? "grab" : "default",
-        }}
+        style={{ cursor: spaceDown ? "grab" : "default" }}
       >
         <div
           className="absolute left-0 top-0 origin-top-left"
@@ -220,9 +220,8 @@ export function CanvasStage() {
           const nextX = targetScreenX - worldX * camera.zoom;
           const nextY = targetScreenY - worldY * camera.zoom;
 
-          useEditorStore.setState((s) => ({
-            camera: { ...s.camera, x: nextX, y: nextY },
-          }));
+          // ✅ go through store action so clamping is applied
+          setCameraXY(nextX, nextY);
         }}
       />
     </div>
