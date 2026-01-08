@@ -27,6 +27,7 @@ import { TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
+import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 
 const iconMap = {
   Code,
@@ -125,30 +126,7 @@ export function TabLauncherBar() {
 
       <ZoomMenu />
 
-      {/* Center: Launchers */}
-      <div className="flex items-center justify-center gap-2">
-        {TABS.map((tab) => {
-          const Icon = iconMap[tab.icon as keyof typeof iconMap];
-          const isOpen = openSet.has(tab.id);
-
-          return (
-            <Button
-              key={tab.id}
-              variant={isOpen ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => openTab(tab.id, "left")}
-              className={`gap-2 transition-all duration-200 ${
-                isOpen
-                  ? "text-primary bg-secondary/80 ring-1 ring-primary/30"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span className="text-sm font-medium">{tab.label}</span>
-            </Button>
-          );
-        })}
-      </div>
+      <TabsDropdown side="left" />
 
       {/* Right side: optional area (future) */}
       <div className="w-[48px]" />
