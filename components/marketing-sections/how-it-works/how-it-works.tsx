@@ -52,6 +52,7 @@ export const HowItWorks = () => {
   const [activeTab, setActiveTab] = useState(tabs[0]);
 
   const DURATION = 8000;
+  const DURATIONN = 7000;
 
   useEffect(() => {
     const interval = setInterval(() => {
