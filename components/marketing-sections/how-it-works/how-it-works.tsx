@@ -49,6 +49,8 @@ export const HowItWorks = () => {
     },
   ];
 
+  //test
+
   const [activeTab, setActiveTab] = useState(tabs[0]);
 
   const DURATION = 8000;
