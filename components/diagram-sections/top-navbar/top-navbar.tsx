@@ -113,9 +113,6 @@ export function TopNavbar() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
-        {/* Palette Selector */}
-        <PlatformPaletteToggle />
       </header>
 
       {/* Create Diagram Dialog */}

@@ -28,6 +28,7 @@ import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
+import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
 
 const iconMap = {
   Code,
@@ -127,6 +128,9 @@ export function TabLauncherBar() {
       <ZoomMenu />
 
       <TabsDropdown side="left" />
+
+      {/* Palette Selector */}
+      <PlatformPaletteToggle />
 
       {/* Right side: optional area (future) */}
       <div className="w-[48px]" />
