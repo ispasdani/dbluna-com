@@ -40,14 +40,14 @@ export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className="gap-2">
           Tabs
           <ChevronDown className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="center" className="w-56">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
+        <DropdownMenuLabel className="text-muted-foreground">
           Open a tab
         </DropdownMenuLabel>
 

@@ -54,7 +54,7 @@ export function TabLauncherBar() {
   );
 
   return (
-    <div className="h-12 border-b border-border bg-dock-header flex items-center justify-between px-3">
+    <div className="h-12 border-b border-border bg-dock-header flex items-center justify-start px-3 gap-2">
       {/* Left side: Toolbar actions */}
       <div className="flex items-center gap-2">
         {/* View Dropdown */}
