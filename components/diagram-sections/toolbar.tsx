@@ -1,17 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
-import {
-  Code,
-  Database,
-  AlertCircle,
-  LayoutTemplate,
-  Table,
-  Eye,
-  ChevronDown,
-  PanelLeft,
-  Layout,
-} from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,23 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { TABS, useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
 
-const iconMap = {
-  Code,
-  Database,
-  AlertCircle,
-  LayoutTemplate,
-  Table,
-};
-
 export function TabLauncherBar() {
-  const { leftTabs, rightTabs, openTab } = useDockStore();
   const {
     isLeftDockVisible,
     isTopNavbarVisible,
@@ -47,11 +26,6 @@ export function TabLauncherBar() {
     toggleTopNavbar,
   } = useViewStore();
   const { background, setBackground } = useCanvasStore();
-
-  const openSet = useMemo(
-    () => new Set([...leftTabs, ...rightTabs]),
-    [leftTabs, rightTabs]
-  );
 
   return (
     <div className="h-12 border-b border-border bg-dock-header flex items-center justify-start px-3 gap-2">
