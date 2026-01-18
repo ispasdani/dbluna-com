@@ -138,10 +138,11 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
             <circle
                cx={0} 
                cy={ROW_HEIGHT / 2} 
-               r={5} 
-               fill="transparent" 
-               stroke="transparent"
-               className="hover:fill-primary hover:stroke-background cursor-crosshair transition-all"
+               r={4} 
+               fill="var(--primary)" 
+               stroke="var(--background)"
+               strokeWidth={1.5}
+               className="cursor-crosshair transition-all hover:r-5"
                data-table-id={table.id}
                data-col-id={col.id}
                data-is-source="false"
@@ -155,10 +156,11 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
             <circle
                cx={WIDTH} 
                cy={ROW_HEIGHT / 2} 
-               r={5} 
-               fill="transparent" 
-               stroke="transparent"
-               className="hover:fill-primary hover:stroke-background cursor-crosshair transition-all"
+               r={4} 
+               fill="var(--primary)" 
+               stroke="var(--background)"
+               strokeWidth={1.5}
+               className="cursor-crosshair transition-all hover:r-5"
                data-table-id={table.id}
                data-col-id={col.id}
                data-is-source="true"
