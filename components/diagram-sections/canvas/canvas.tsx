@@ -108,8 +108,76 @@ export function CanvasStage() {
 
   // Actions
   const updateTablePos = useCanvasStore((s) => s.updateTablePos);
+  const relationships = useCanvasStore((s) => s.relationships);
+  const addRelationship = useCanvasStore((s) => s.addRelationship);
 
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+
+  // Connection dragging
+  const dragConnection = useRef<{
+    active: boolean;
+    sourceTableId: string;
+    sourceColumnId: string;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    pointerId: number | null;
+  }>({ active: false, sourceTableId: "", sourceColumnId: "", startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
+
+  const [, setTick] = useState(0);
+
+  // Helper to get column position in world coordinates
+  const getColumnPosition = (tableId: string, columnId: string, isSource: boolean) => {
+    const table = tables.find(t => t.id === tableId);
+    if (!table) return null;
+    const colIndex = table.columns.findIndex(c => c.id === columnId);
+    if (colIndex === -1) return null;
+
+    const HEADER_HEIGHT = 36;
+    const ROW_HEIGHT = 30;
+    const WIDTH = 220;
+
+    const x = table.x + (isSource ? WIDTH : 0);
+    const y = table.y + HEADER_HEIGHT + colIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+    return { x, y };
+  };
+
+  // Bezier curve path calculator
+  const calculatePath = (x1: number, y1: number, x2: number, y2: number) => {
+    const dist = Math.abs(x2 - x1);
+    const control = Math.max(dist * 0.5, 50);
+    
+    const cx1 = x1 + control;
+    const cy1 = y1;
+    const cx2 = x2 - control;
+    const cy2 = y2;
+    
+    return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
+  };
+
+  const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, isSource: boolean) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const pos = getColumnPosition(tableId, columnId, isSource);
+    if (!pos) return;
+
+    const target = e.currentTarget as Element;
+    target.setPointerCapture(e.pointerId);
+
+    dragConnection.current = {
+      active: true,
+      sourceTableId: tableId,
+      sourceColumnId: columnId,
+      startX: pos.x,
+      startY: pos.y,
+      currentX: pos.x,
+      currentY: pos.y,
+      pointerId: e.pointerId
+    };
+    setTick(t => t + 1);
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     // If dragging a table, don't pan
@@ -175,7 +243,25 @@ export function CanvasStage() {
        return;
     }
 
-    // 2. Handle Canvas Pan
+    // 2. Handle Connection Drag
+    if (dragConnection.current.active) {
+       e.preventDefault();
+       const rect = rootRef.current?.getBoundingClientRect();
+       if (!rect) return;
+       
+       const clientX = e.clientX - rect.left;
+       const clientY = e.clientY - rect.top;
+       
+       const worldX = (clientX - camera.x) / camera.zoom;
+       const worldY = (clientY - camera.y) / camera.zoom;
+       
+       dragConnection.current.currentX = worldX;
+       dragConnection.current.currentY = worldY;
+       setTick(t => t + 1);
+       return;
+    }
+
+    // 3. Handle Canvas Pan
     if (!drag.current.active) return;
     const dx = e.clientX - drag.current.lastX;
     const dy = e.clientY - drag.current.lastY;
@@ -185,6 +271,7 @@ export function CanvasStage() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    // Handle Table Drop
     if (dragTable.current.active && dragTable.current.pointerId === e.pointerId) {
        dragTable.current.active = false;
        dragTable.current.pointerId = null;
@@ -192,6 +279,35 @@ export function CanvasStage() {
        if (target.hasPointerCapture(e.pointerId)) {
           target.releasePointerCapture(e.pointerId);
        }
+       return;
+    }
+
+    // Handle Connection Drop
+    if (dragConnection.current.active && dragConnection.current.pointerId === e.pointerId) {
+       dragConnection.current.active = false;
+       dragConnection.current.pointerId = null;
+       const target = e.currentTarget as Element;
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       setTick(t => t + 1);
+
+       // Check what we dropped on using data attributes
+       const hitEl = document.elementFromPoint(e.clientX, e.clientY);
+       const gripTableId = hitEl?.getAttribute("data-table-id");
+       const gripColId = hitEl?.getAttribute("data-col-id");
+
+       // Valid drop? (different table)
+       if (gripTableId && gripColId && gripTableId !== dragConnection.current.sourceTableId) {
+           addRelationship({
+             id: crypto.randomUUID(),
+             sourceTableId: dragConnection.current.sourceTableId,
+             sourceColumnId: dragConnection.current.sourceColumnId,
+             targetTableId: gripTableId,
+             targetColumnId: gripColId
+           });
+       }
+
        return;
     }
 
@@ -289,6 +405,42 @@ export function CanvasStage() {
             height={WORLD_HEIGHT}
             className="absolute inset-0 overflow-visible pointer-events-none"
           >
+            {/* Existing Relationships */}
+            {relationships.map(rel => {
+               const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, true);
+               const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, false);
+               
+               if (!start || !end) return null;
+
+               return (
+                 <path 
+                   key={rel.id}
+                   d={calculatePath(start.x, start.y, end.x, end.y)}
+                   stroke="var(--primary)"
+                   strokeWidth={2}
+                   fill="none"
+                 />
+               );
+            })}
+
+            {/* Pending Connection */}
+            {dragConnection.current.active && (
+              <path
+                d={calculatePath(
+                   dragConnection.current.startX, 
+                   dragConnection.current.startY, 
+                   dragConnection.current.currentX, 
+                   dragConnection.current.currentY
+                )}
+                stroke="var(--primary)"
+                strokeWidth={2}
+                fill="none"
+                strokeDasharray="5,5"
+                opacity={0.6}
+              />
+            )}
+
+            {/* Tables */}
             {tables.map((table) => (
               <g 
                 key={table.id} 
@@ -301,7 +453,8 @@ export function CanvasStage() {
               >
                  <TableNode 
                    table={table} 
-                   selected={selectedTableId === table.id} 
+                   selected={selectedTableId === table.id}
+                   onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
                  />
               </g>
             ))}

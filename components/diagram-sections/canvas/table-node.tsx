@@ -6,9 +6,10 @@ import { Key } from "lucide-react";
 interface TableNodeProps {
   table: Table;
   selected?: boolean;
+  onColumnPointerDown?: (e: React.PointerEvent, columnId: string, isSource: boolean) => void;
 }
 
-export function TableNode({ table, selected }: TableNodeProps) {
+export function TableNode({ table, selected, onColumnPointerDown }: TableNodeProps) {
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
@@ -132,14 +133,40 @@ export function TableNode({ table, selected }: TableNodeProps) {
               {col.type}
             </text>
 
-            {/* Connection Grips (appear on hover concept, but static here for now) */}
+            {/* Connection Grips */}
+            {/* Left Grip (Target) */}
             <circle
-               cx={0} cy={ROW_HEIGHT / 2} r={3} fill="transparent" stroke="transparent"
-               className="group-hover:fill-primary group-hover:stroke-background"
+               cx={0} 
+               cy={ROW_HEIGHT / 2} 
+               r={5} 
+               fill="transparent" 
+               stroke="transparent"
+               className="hover:fill-primary hover:stroke-background cursor-crosshair transition-all"
+               data-table-id={table.id}
+               data-col-id={col.id}
+               data-is-source="false"
+               onPointerDown={(e) => {
+                 if (onColumnPointerDown) {
+                   onColumnPointerDown(e, col.id, false);
+                 }
+               }}
             />
+            {/* Right Grip (Source) */}
             <circle
-               cx={WIDTH} cy={ROW_HEIGHT / 2} r={3} fill="transparent" stroke="transparent"
-               className="group-hover:fill-primary group-hover:stroke-background"
+               cx={WIDTH} 
+               cy={ROW_HEIGHT / 2} 
+               r={5} 
+               fill="transparent" 
+               stroke="transparent"
+               className="hover:fill-primary hover:stroke-background cursor-crosshair transition-all"
+               data-table-id={table.id}
+               data-col-id={col.id}
+               data-is-source="true"
+               onPointerDown={(e) => {
+                 if (onColumnPointerDown) {
+                   onColumnPointerDown(e, col.id, true);
+                 }
+               }}
             />
           </g>
         );

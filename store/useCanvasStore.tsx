@@ -22,6 +22,14 @@ export interface Table {
   columns: Column[];
 }
 
+export interface Relationship {
+  id: string;
+  sourceTableId: string;
+  sourceColumnId: string;
+  targetTableId: string;
+  targetColumnId: string;
+}
+
 const TABLE_COLORS = [
   "#e11d48", // rose
   "#ea580c", // orange
@@ -50,6 +58,9 @@ type CanvasState = {
   addField: (tableId: string) => void;
   updateField: (tableId: string, fieldId: string, updates: Partial<Column>) => void;
   deleteField: (tableId: string, fieldId: string) => void;
+  relationships: Relationship[];
+  addRelationship: (rel: Relationship) => void;
+  deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
 };
 
@@ -176,5 +187,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
           : t
       ),
     })),
+  relationships: [],
+  addRelationship: (rel) =>
+    set((s) => ({ relationships: [...s.relationships, rel] })),
+  deleteRelationship: (id) =>
+    set((s) => ({ relationships: s.relationships.filter((r) => r.id !== id) })),
   setTables: (tables) => set({ tables }),
 }));
