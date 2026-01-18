@@ -95,7 +95,24 @@ export function CanvasStage() {
     pointerId: number | null;
   }>({ active: false, lastX: 0, lastY: 0, pointerId: null });
 
+  // Table dragging
+  const dragTable = useRef<{
+    active: boolean;
+    id: string | null;
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    pointerId: number | null;
+  }>({ active: false, id: null, startX: 0, startY: 0, initialX: 0, initialY: 0, pointerId: null });
+
+  // Actions
+  const updateTablePos = useCanvasStore((s) => s.updateTablePos);
+
   const onPointerDown = (e: React.PointerEvent) => {
+    // If dragging a table, don't pan
+    if (dragTable.current.active) return;
+    
     const shouldPan = e.button === 1 || (e.button === 0 && spaceDown);
     if (!shouldPan) return;
 
@@ -110,7 +127,44 @@ export function CanvasStage() {
     };
   };
 
+  const onTablePointerDown = (e: React.PointerEvent, tableId: string, initialX: number, initialY: number) => {
+     if (spaceDown) return; // If panning mode, ignore table drag
+     
+     e.stopPropagation();
+     e.preventDefault();
+     
+     const target = e.currentTarget as Element;
+     target.setPointerCapture(e.pointerId);
+
+     dragTable.current = {
+       active: true,
+       id: tableId,
+       startX: e.clientX,
+       startY: e.clientY,
+       initialX,
+       initialY,
+       pointerId: e.pointerId
+     };
+     
+     setSelectedTableId(tableId);
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
+    // 1. Handle Table Drag
+    if (dragTable.current.active && dragTable.current.id) {
+       e.preventDefault();
+       const dx = (e.clientX - dragTable.current.startX) / camera.zoom;
+       const dy = (e.clientY - dragTable.current.startY) / camera.zoom;
+       
+       updateTablePos(
+         dragTable.current.id, 
+         dragTable.current.initialX + dx,
+         dragTable.current.initialY + dy
+       );
+       return;
+    }
+
+    // 2. Handle Canvas Pan
     if (!drag.current.active) return;
     const dx = e.clientX - drag.current.lastX;
     const dy = e.clientY - drag.current.lastY;
@@ -120,6 +174,16 @@ export function CanvasStage() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if (dragTable.current.active && dragTable.current.pointerId === e.pointerId) {
+       dragTable.current.active = false;
+       dragTable.current.pointerId = null;
+       const target = e.currentTarget as Element;
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       return;
+    }
+
     if (drag.current.pointerId !== e.pointerId) return;
     drag.current.active = false;
     drag.current.pointerId = null;
@@ -218,6 +282,7 @@ export function CanvasStage() {
               <g 
                 key={table.id} 
                 className="pointer-events-auto cursor-pointer"
+                onPointerDown={(e) => onTablePointerDown(e, table.id, table.x, table.y)}
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedTableId(table.id);

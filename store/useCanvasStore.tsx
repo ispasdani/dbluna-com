@@ -41,12 +41,14 @@ type CanvasState = {
   toggleBackground: () => void;
   addTable: () => void;
   updateTable: (id: string, updates: Partial<Table>) => void;
+  updateTablePos: (id: string, x: number, y: number) => void;
   deleteTable: (id: string) => void;
   setSelectedTableId: (id: string | null) => void;
   // Field actions
   addField: (tableId: string) => void;
   updateField: (tableId: string, fieldId: string, updates: Partial<Column>) => void;
   deleteField: (tableId: string, fieldId: string) => void;
+  setTables: (tables: Table[]) => void;
 };
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -115,6 +117,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set((s) => ({
       tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     })),
+  updateTablePos: (id, x, y) =>
+    set((s) => ({
+       tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
+    })),
   deleteTable: (id) =>
     set((s) => ({
       tables: s.tables.filter((t) => t.id !== id),
@@ -166,4 +172,5 @@ export const useCanvasStore = create<CanvasState>((set) => ({
           : t
       ),
     })),
+  setTables: (tables) => set({ tables }),
 }));
