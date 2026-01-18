@@ -1,16 +1,169 @@
 import { create } from "zustand";
+import { useEditorStore } from "./useEditorStore";
 
 export type CanvasBackground = "grid" | "dots";
 
+export interface Column {
+  id: string;
+  name: string;
+  type: string;
+  isPrimaryKey: boolean;
+  isNotNull: boolean;
+  isUnique: boolean;
+  isAutoIncrement: boolean;
+}
+
+export interface Table {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+  columns: Column[];
+}
+
+const TABLE_COLORS = [
+  "#e11d48", // rose
+  "#ea580c", // orange
+  "#d97706", // amber
+  "#16a34a", // green
+  "#0284c7", // sky
+  "#4f46e5", // indigo
+  "#9333ea", // purple
+  "#db2777", // pink
+];
+
 type CanvasState = {
   background: CanvasBackground;
+  tables: Table[];
+  selectedTableId: string | null;
   setBackground: (bg: CanvasBackground) => void;
   toggleBackground: () => void;
+  addTable: () => void;
+  updateTable: (id: string, updates: Partial<Table>) => void;
+  deleteTable: (id: string) => void;
+  setSelectedTableId: (id: string | null) => void;
+  // Field actions
+  addField: (tableId: string) => void;
+  updateField: (tableId: string, fieldId: string, updates: Partial<Column>) => void;
+  deleteField: (tableId: string, fieldId: string) => void;
 };
 
 export const useCanvasStore = create<CanvasState>((set) => ({
   background: "grid",
+  tables: [],
+  selectedTableId: null,
   setBackground: (bg) => set({ background: bg }),
   toggleBackground: () =>
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
+  setSelectedTableId: (id) => set({ selectedTableId: id }),
+  addTable: () =>
+    set((s) => {
+      const { viewport, camera } = useEditorStore.getState();
+      
+      const viewCenterX = viewport.w / 2;
+      const viewCenterY = viewport.h / 2;
+      
+      // Convert screen center to world coordinates
+      const worldX = (viewCenterX - camera.x) / camera.zoom;
+      const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+      const newId = crypto.randomUUID();
+      const newTable: Table = {
+        id: newId,
+        name: "users",
+        // Center the 220px wide table (approx)
+        x: worldX - 110, 
+        y: worldY - 100,
+        color: TABLE_COLORS[Math.floor(Math.random() * TABLE_COLORS.length)],
+        columns: [
+          {
+            id: crypto.randomUUID(),
+            name: "id",
+            type: "INT",
+            isPrimaryKey: true,
+            isNotNull: true,
+            isUnique: true,
+            isAutoIncrement: true,
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "created_at",
+            type: "TIMESTAMP",
+            isPrimaryKey: false,
+            isNotNull: true,
+            isUnique: false,
+            isAutoIncrement: false,
+          },
+          {
+             id: crypto.randomUUID(),
+             name: "email",
+             type: "VARCHAR",
+             isPrimaryKey: false,
+             isNotNull: false,
+             isUnique: false,
+             isAutoIncrement: false,
+          }
+        ],
+      };
+      return { 
+        tables: [...s.tables, newTable],
+        selectedTableId: newId 
+      };
+    }),
+  updateTable: (id, updates) =>
+    set((s) => ({
+      tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    })),
+  deleteTable: (id) =>
+    set((s) => ({
+      tables: s.tables.filter((t) => t.id !== id),
+      selectedTableId: s.selectedTableId === id ? null : s.selectedTableId,
+    })),
+  addField: (tableId) =>
+    set((s) => ({
+      tables: s.tables.map((t) =>
+        t.id === tableId
+          ? {
+              ...t,
+              columns: [
+                ...t.columns,
+                {
+                  id: crypto.randomUUID(),
+                  name: "new_field",
+                  type: "VARCHAR",
+                  isPrimaryKey: false,
+                  isNotNull: false,
+                  isUnique: false,
+                  isAutoIncrement: false,
+                },
+              ],
+            }
+          : t
+      ),
+    })),
+  updateField: (tableId, fieldId, updates) =>
+    set((s) => ({
+      tables: s.tables.map((t) =>
+        t.id === tableId
+          ? {
+              ...t,
+              columns: t.columns.map((c) =>
+                c.id === fieldId ? { ...c, ...updates } : c
+              ),
+            }
+          : t
+      ),
+    })),
+  deleteField: (tableId, fieldId) =>
+    set((s) => ({
+      tables: s.tables.map((t) =>
+        t.id === tableId
+          ? {
+              ...t,
+              columns: t.columns.filter((c) => c.id !== fieldId),
+            }
+          : t
+      ),
+    })),
 }));

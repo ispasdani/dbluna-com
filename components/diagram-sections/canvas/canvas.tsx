@@ -1,4 +1,3 @@
-// CanvasStage.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -6,6 +5,7 @@ import { useEditorStore } from "@/store/useEditorStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
+import { TableNode } from "./table-node";
 
 const WORLD_WIDTH = 6000;
 const WORLD_HEIGHT = 6000;
@@ -18,6 +18,9 @@ export function CanvasStage() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   const background = useCanvasStore((s) => s.background);
+  const tables = useCanvasStore((s) => s.tables);
+  const selectedTableId = useCanvasStore((s) => s.selectedTableId);
+  const setSelectedTableId = useCanvasStore((s) => s.setSelectedTableId);
 
   const camera = useEditorStore((s) => s.camera);
   const panBy = useEditorStore((s) => s.panBy);
@@ -182,6 +185,13 @@ export function CanvasStage() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onClick={(e) => {
+           // If we clicked directly on the background (not a node), deselect
+           // Note: Nodes should stopPropagation on their click
+           if (e.target === e.currentTarget) {
+             setSelectedTableId(null);
+           }
+        }}
         style={{ cursor: spaceDown ? "grab" : "default" }}
       >
         <div
@@ -198,12 +208,28 @@ export function CanvasStage() {
             variant={background}
           />
 
-          <div className="absolute left-[300px] top-[240px] rounded-lg border bg-card px-3 py-2 shadow-sm">
-            Table: users
-          </div>
-          <div className="absolute left-[900px] top-[540px] rounded-lg border bg-card px-3 py-2 shadow-sm">
-            Table: posts
-          </div>
+          {/* SVG Layer for Tables */}
+          <svg
+            width={WORLD_WIDTH}
+            height={WORLD_HEIGHT}
+            className="absolute inset-0 overflow-visible pointer-events-none"
+          >
+            {tables.map((table) => (
+              <g 
+                key={table.id} 
+                className="pointer-events-auto cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedTableId(table.id);
+                }}
+              >
+                 <TableNode 
+                   table={table} 
+                   selected={selectedTableId === table.id} 
+                 />
+              </g>
+            ))}
+          </svg>
         </div>
       </div>
 

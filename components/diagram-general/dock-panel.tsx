@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS } from "@/store/useDockStore";
 import { DockTabsHeader } from "./dock-tabs-header";
+import { TablesPanel } from "./tables-panel";
 
 const DraggableTab = dynamic(
   () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
@@ -61,7 +62,9 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
 
         {/* Tab Content */}
         <div className="flex-1 min-h-0 p-4 overflow-auto">
-          {activeTabInfo ? (
+          {activeTab === "tables" ? (
+            <TablesPanel />
+          ) : activeTabInfo ? (
             <div className="animate-fade-in">
               <h3 className="font-medium text-foreground mb-2">
                 {activeTabInfo.label} Panel
