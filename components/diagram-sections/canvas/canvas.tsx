@@ -143,17 +143,79 @@ export function CanvasStage() {
     return { x, y };
   };
 
-  // Bezier curve path calculator
+  // Orthogonal path calculator with rounded corners (DrawDB style)
   const calculatePath = (x1: number, y1: number, x2: number, y2: number) => {
-    const dist = Math.abs(x2 - x1);
-    const control = Math.max(dist * 0.5, 50);
+    const cornerRadius = 8;
+    const midX = (x1 + x2) / 2;
     
-    const cx1 = x1 + control;
-    const cy1 = y1;
-    const cx2 = x2 - control;
-    const cy2 = y2;
+    // Determine if we need to go around obstacles
+    const dx = x2 - x1;
+    const dy = y2 - y1;
     
-    return `M ${x1} ${y1} C ${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`;
+    // Simple case: straight horizontal or mostly horizontal
+    if (Math.abs(dy) < 10) {
+      return `M ${x1} ${y1} L ${x2} ${y2}`;
+    }
+    
+    // Orthogonal routing: horizontal -> vertical -> horizontal
+    // Start horizontal from x1
+    const segments: string[] = [];
+    
+    if (dx > cornerRadius * 2) {
+      // Going right: x1 -> midX (horizontal), midX -> y2 (vertical), midX -> x2 (horizontal)
+      segments.push(`M ${x1} ${y1}`);
+      
+      // Horizontal segment to midpoint
+      segments.push(`L ${midX - cornerRadius} ${y1}`);
+      
+      // Rounded corner going down/up
+      if (dy > 0) {
+        segments.push(`Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`);
+      } else {
+        segments.push(`Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`);
+      }
+      
+      // Vertical segment
+      if (dy > 0) {
+        segments.push(`L ${midX} ${y2 - cornerRadius}`);
+      } else {
+        segments.push(`L ${midX} ${y2 + cornerRadius}`);
+      }
+      
+      // Rounded corner going right
+      if (dy > 0) {
+        segments.push(`Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`);
+      } else {
+        segments.push(`Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`);
+      }
+      
+      // Final horizontal segment to end
+      segments.push(`L ${x2} ${y2}`);
+    } else {
+      // Going left or very short distance: need different routing
+      const offset = 30;
+      
+      segments.push(`M ${x1} ${y1}`);
+      
+      // Go right a bit
+      segments.push(`L ${x1 + offset - cornerRadius} ${y1}`);
+      
+      // Turn down/up
+      if (dy > 0) {
+        segments.push(`Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 + cornerRadius}`);
+        segments.push(`L ${x1 + offset} ${y2 - cornerRadius}`);
+        segments.push(`Q ${x1 + offset} ${y2} ${x1 + offset - cornerRadius} ${y2}`);
+      } else {
+        segments.push(`Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 - cornerRadius}`);
+        segments.push(`L ${x1 + offset} ${y2 + cornerRadius}`);
+        segments.push(`Q ${x1 + offset} ${y2} ${x1 + offset - cornerRadius} ${y2}`);
+      }
+      
+      // Go to end
+      segments.push(`L ${x2} ${y2}`);
+    }
+    
+    return segments.join(' ');
   };
 
   const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, isSource: boolean) => {
