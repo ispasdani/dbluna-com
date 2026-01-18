@@ -105,6 +105,7 @@
   --canvas-bg: oklch(0.97 0 0);
   --tab-hover: oklch(0.922 0 0);
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
   --canvas-grid: rgba(0, 0, 0, 0.12);
   --canvas-dots: rgba(0, 0, 0, 0.18);
@@ -121,7 +122,7 @@ body[data-palette="default"] {
   --background: #ffffff;
   --foreground: #111827;
 
-  --canvas-grid: rgba(17, 24, 39, 0.10); /* subtle on light */
+  --canvas-grid: rgba(17, 24, 39, 0.1); /* subtle on light */
   --canvas-dots: rgba(17, 24, 39, 0.14);
 
   --card: #ffffff;
@@ -164,6 +165,7 @@ body[data-palette="default"] {
   --canvas-bg: #f3f4f6;
   --tab-hover: #e5e7eb;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 18px color-mix(in oklch, var(--primary) 25%, transparent);
 }
 
@@ -172,7 +174,7 @@ body[data-palette="blue"] {
   --background: #24283b;
   --foreground: #c0caf5;
 
-  --canvas-grid: rgba(192, 202, 245, 0.10); /* subtle on dark */
+  --canvas-grid: rgba(192, 202, 245, 0.1); /* subtle on dark */
   --canvas-dots: rgba(192, 202, 245, 0.14);
 
   --card: #1f2335;
@@ -216,6 +218,7 @@ body[data-palette="blue"] {
   --canvas-bg: #1a1b26;
   --tab-hover: #2f334d;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
@@ -264,6 +267,7 @@ body[data-palette="tokio-night"] {
   --canvas-bg: #0f111a;
   --tab-hover: #222436;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 22px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
@@ -315,6 +319,7 @@ body[data-palette="dracula"] {
   --canvas-bg: #1b1c26;
   --tab-hover: #44475a;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 24px color-mix(in oklch, var(--primary) 40%, transparent);
 }
 
@@ -363,6 +368,7 @@ body[data-palette="cyberpunk"] {
   --canvas-bg: #100d23;
   --tab-hover: #3f2c70;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 28px color-mix(in oklch, var(--primary) 45%, transparent);
 }
 
@@ -411,6 +417,7 @@ body[data-palette="contrast"] {
   --canvas-bg: #000000;
   --tab-hover: #1a1a1a;
   --drop-zone: var(--primary);
+  --table-bg: var(--card);
   --glow-primary: 0 0 0 3px #ffff00;
 }
 
@@ -447,6 +454,7 @@ body[data-palette="contrast"] {
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
   --divide: oklch(1 0 0 / 10%);
+  --table-bg: var(--card);
 }
 
 @layer base {
