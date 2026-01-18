@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,8 @@ export function TabLauncherBar() {
     toggleLeftDock,
     toggleTopNavbar,
   } = useViewStore();
-  const { background, setBackground } = useCanvasStore();
+  const { background, setBackground, snapToGrid, toggleSnapToGrid } =
+    useCanvasStore();
 
   return (
     <div className="h-12 border-b border-border bg-dock-header flex items-center justify-start px-3 gap-2">
@@ -75,6 +76,14 @@ export function TabLauncherBar() {
             <DropdownMenuLabel className="text-xs text-muted-foreground">
               Canvas
             </DropdownMenuLabel>
+
+            <DropdownMenuItem onClick={toggleSnapToGrid} className="gap-2">
+              <Magnet className="h-4 w-4" />
+              <span className="flex-1">Snap to Grid</span>
+              {snapToGrid && (
+                <span className="text-xs text-muted-foreground">✓</span>
+              )}
+            </DropdownMenuItem>
 
             <DropdownMenuItem
               onClick={() => setBackground("grid")}

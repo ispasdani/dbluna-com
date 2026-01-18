@@ -39,6 +39,8 @@ type CanvasState = {
   selectedTableId: string | null;
   setBackground: (bg: CanvasBackground) => void;
   toggleBackground: () => void;
+  snapToGrid: boolean;
+  toggleSnapToGrid: () => void;
   addTable: () => void;
   updateTable: (id: string, updates: Partial<Table>) => void;
   updateTablePos: (id: string, x: number, y: number) => void;
@@ -58,6 +60,8 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setBackground: (bg) => set({ background: bg }),
   toggleBackground: () =>
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
+  snapToGrid: false,
+  toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
   setSelectedTableId: (id) => set({ selectedTableId: id }),
   addTable: () =>
     set((s) => {

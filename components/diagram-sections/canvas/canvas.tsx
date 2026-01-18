@@ -109,6 +109,8 @@ export function CanvasStage() {
   // Actions
   const updateTablePos = useCanvasStore((s) => s.updateTablePos);
 
+  const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+
   const onPointerDown = (e: React.PointerEvent) => {
     // If dragging a table, don't pan
     if (dragTable.current.active) return;
@@ -156,10 +158,19 @@ export function CanvasStage() {
        const dx = (e.clientX - dragTable.current.startX) / camera.zoom;
        const dy = (e.clientY - dragTable.current.startY) / camera.zoom;
        
+       let newX = dragTable.current.initialX + dx;
+       let newY = dragTable.current.initialY + dy;
+
+       if (snapToGrid) {
+         const SNAP = 24;
+         newX = Math.round(newX / SNAP) * SNAP;
+         newY = Math.round(newY / SNAP) * SNAP;
+       }
+
        updateTablePos(
          dragTable.current.id, 
-         dragTable.current.initialX + dx,
-         dragTable.current.initialY + dy
+         newX,
+         newY
        );
        return;
     }
