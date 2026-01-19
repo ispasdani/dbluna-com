@@ -25,10 +25,14 @@ export interface Table {
 
 export interface Relationship {
   id: string;
+  name: string;
   sourceTableId: string;
   sourceColumnId: string;
   targetTableId: string;
   targetColumnId: string;
+  cardinality: "One to one" | "One to many" | "Many to one";
+  onUpdate: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
+  onDelete: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
 }
 
 const TABLE_COLORS = [
@@ -61,6 +65,7 @@ type CanvasState = {
   deleteField: (tableId: string, fieldId: string) => void;
   relationships: Relationship[];
   addRelationship: (rel: Relationship) => void;
+  updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
 };
@@ -192,6 +197,12 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   relationships: [],
   addRelationship: (rel) =>
     set((s) => ({ relationships: [...s.relationships, rel] })),
+  updateRelationship: (id, updates) =>
+    set((s) => ({
+      relationships: s.relationships.map((r) =>
+        r.id === id ? { ...r, ...updates } : r
+      ),
+    })),
   deleteRelationship: (id) =>
     set((s) => ({ relationships: s.relationships.filter((r) => r.id !== id) })),
   setTables: (tables) => set({ tables }),
