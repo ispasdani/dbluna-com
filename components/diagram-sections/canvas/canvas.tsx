@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { useDockStore } from "@/store/useDockStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { TableNode } from "./table-node";
@@ -22,6 +23,10 @@ export function CanvasStage() {
   const tables = useCanvasStore((s) => s.tables);
   const selectedTableId = useCanvasStore((s) => s.selectedTableId);
   const setSelectedTableId = useCanvasStore((s) => s.setSelectedTableId);
+  const selectedRelationshipId = useCanvasStore((s) => s.selectedRelationshipId);
+  const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
+
+  const openTab = useDockStore((s) => s.openTab);
 
   const camera = useEditorStore((s) => s.camera);
   const panBy = useEditorStore((s) => s.panBy);
@@ -218,6 +223,20 @@ export function CanvasStage() {
     }
     
     return segments.join(' ');
+  };
+
+  const calculateMidpoint = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1;
+    const cornerRadius = 8;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+
+    if (dx > cornerRadius * 2) {
+      return { x: midX, y: midY };
+    } else {
+      const offset = 30;
+      return { x: x1 + offset, y: midY };
+    }
   };
 
   const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, isSource: boolean) => {
@@ -483,13 +502,22 @@ export function CanvasStage() {
                 if (!start || !end) return null;
 
                 const pathData = calculatePath(start.x, start.y, end.x, end.y);
+                const mid = calculateMidpoint(start.x, start.y, end.x, end.y);
                 const isHovered = hoveredRelationshipId === rel.id;
+                const isSelected = selectedRelationshipId === rel.id;
+                const label = rel.name || "Relationship";
 
                 return (
                   <g 
                     key={rel.id}
                     onPointerEnter={() => setHoveredRelationshipId(rel.id)}
                     onPointerLeave={() => setHoveredRelationshipId(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedRelationshipId(rel.id);
+                      openTab("relationships", "left");
+                    }}
+                    className="cursor-pointer"
                   >
                     {/* Invisible hit area for easier hovering */}
                     <path
@@ -497,15 +525,48 @@ export function CanvasStage() {
                       fill="none"
                       strokeWidth={12}
                       className={styles["relationship-hit-area"]}
+                      style={{ pointerEvents: "auto" }}
                     />
                     {/* The actual visible line */}
                     <path 
                       d={pathData}
-                      stroke="var(--primary)"
-                      strokeWidth={2}
+                      stroke={isSelected ? "var(--primary)" : "var(--primary)"}
+                      strokeWidth={isSelected ? 3 : 2}
                       fill="none"
                       className={`${styles["relationship-path"]} ${isHovered ? styles["marching-ants"] : ""}`}
+                      style={{ 
+                        filter: isSelected ? "drop-shadow(0 0 4px var(--primary))" : "none",
+                        opacity: isSelected ? 1 : 0.8
+                      }}
                     />
+
+                    {/* Hover Label */}
+                    {isHovered && (
+                      <g transform={`translate(${mid.x}, ${mid.y})`}>
+                        {/* Background for label */}
+                        <rect
+                          x={-label.length * 4 - 8}
+                          y={-12}
+                          width={label.length * 8 + 16}
+                          height={24}
+                          rx={4}
+                          fill="var(--popover)"
+                          stroke="var(--border)"
+                          strokeWidth={1}
+                          className="shadow-md"
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill="var(--popover-foreground)"
+                          fontSize={11}
+                          fontWeight="600"
+                          style={{ pointerEvents: "none", userSelect: "none" }}
+                        >
+                          {label}
+                        </text>
+                      </g>
+                    )}
                   </g>
                 );
              })}

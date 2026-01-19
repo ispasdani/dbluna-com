@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function RelationshipsPanel() {
   const {
@@ -18,12 +18,23 @@ export function RelationshipsPanel() {
     tables,
     updateRelationship,
     deleteRelationship,
+    selectedRelationshipId,
+    setSelectedRelationshipId,
   } = useCanvasStore();
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Sync expandedId with store selection
+  useEffect(() => {
+    if (selectedRelationshipId) {
+      setExpandedId(selectedRelationshipId);
+    }
+  }, [selectedRelationshipId]);
+
   const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+    const nextId = expandedId === id ? null : id;
+    setExpandedId(nextId);
+    setSelectedRelationshipId(nextId);
   };
 
   return (

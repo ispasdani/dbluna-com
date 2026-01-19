@@ -64,7 +64,9 @@ type CanvasState = {
   updateField: (tableId: string, fieldId: string, updates: Partial<Column>) => void;
   deleteField: (tableId: string, fieldId: string) => void;
   relationships: Relationship[];
-  addRelationship: (rel: Relationship) => void;
+  selectedRelationshipId: string | null;
+  setSelectedRelationshipId: (id: string | null) => void;
+  addRelationship: (rel: Partial<Relationship> & Pick<Relationship, "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId">) => void;
   updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
@@ -74,12 +76,14 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   background: "grid",
   tables: [],
   selectedTableId: null,
+  selectedRelationshipId: null,
   setBackground: (bg) => set({ background: bg }),
   toggleBackground: () =>
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
   snapToGrid: false,
   toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
-  setSelectedTableId: (id) => set({ selectedTableId: id }),
+  setSelectedTableId: (id) => set({ selectedTableId: id, selectedRelationshipId: null }),
+  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableId: null }),
   addTable: () =>
     set((s) => {
       const { viewport, camera } = useEditorStore.getState();
@@ -196,7 +200,21 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     })),
   relationships: [],
   addRelationship: (rel) =>
-    set((s) => ({ relationships: [...s.relationships, rel] })),
+    set((s) => {
+      const newRel: Relationship = {
+        id: crypto.randomUUID(),
+        name: "",
+        cardinality: "One to many",
+        onUpdate: "No action",
+        onDelete: "No action",
+        ...rel,
+      };
+      return { 
+        relationships: [...s.relationships, newRel],
+        selectedRelationshipId: newRel.id,
+        selectedTableId: null
+      };
+    }),
   updateRelationship: (id, updates) =>
     set((s) => ({
       relationships: s.relationships.map((r) =>
@@ -204,6 +222,9 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       ),
     })),
   deleteRelationship: (id) =>
-    set((s) => ({ relationships: s.relationships.filter((r) => r.id !== id) })),
+    set((s) => ({
+      relationships: s.relationships.filter((r) => r.id !== id),
+      selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
+    })),
   setTables: (tables) => set({ tables }),
 }));
