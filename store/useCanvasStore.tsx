@@ -19,6 +19,7 @@ export interface Table {
   x: number;
   y: number;
   color: string;
+  isLocked?: boolean;
   columns: Column[];
 }
 
@@ -93,6 +94,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
         x: worldX - 110, 
         y: worldY - 100,
         color: TABLE_COLORS[Math.floor(Math.random() * TABLE_COLORS.length)],
+        isLocked: false,
         columns: [
           {
             id: crypto.randomUUID(),

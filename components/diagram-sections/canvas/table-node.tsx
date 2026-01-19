@@ -1,7 +1,14 @@
 "use client";
 
-import type { Table } from "@/store/useCanvasStore";
-import { Key } from "lucide-react";
+import { useCanvasStore, type Table } from "@/store/useCanvasStore";
+import { Key, Lock, Unlock, MoreVertical, Trash } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface TableNodeProps {
   table: Table;
@@ -14,6 +21,8 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
   const STRIP_HEIGHT = 4;
+  const updateTable = useCanvasStore((s) => s.updateTable);
+  const deleteTable = useCanvasStore((s) => s.deleteTable);
 
   const totalHeight = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
 
@@ -74,6 +83,51 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
       >
         {table.name}
       </text>
+
+      {/* Header Actions using foreignObject for Shadcn UI */}
+      <foreignObject 
+        x={WIDTH - 76} 
+        y={STRIP_HEIGHT + 4} 
+        width={72} 
+        height={28}
+        className="overflow-visible"
+      >
+        <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+            onClick={() => updateTable(table.id, { isLocked: !table.isLocked })}
+          >
+            {table.isLocked ? (
+              <Lock className="h-4 w-4 text-primary" />
+            ) : (
+              <Unlock className="h-4 w-4" />
+            )}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuItem 
+                className="text-destructive focus:text-destructive gap-2"
+                onSelect={() => deleteTable(table.id)}
+              >
+                <Trash className="h-4 w-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </foreignObject>
 
       {/* Divider between Header and Body */}
       <line

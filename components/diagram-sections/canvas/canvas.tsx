@@ -265,6 +265,12 @@ export function CanvasStage() {
      e.stopPropagation();
      e.preventDefault();
      
+     const table = tables.find(t => t.id === tableId);
+     if (table?.isLocked) {
+       setSelectedTableId(tableId);
+       return;
+     }
+
      const target = e.currentTarget as Element;
      target.setPointerCapture(e.pointerId);
 
