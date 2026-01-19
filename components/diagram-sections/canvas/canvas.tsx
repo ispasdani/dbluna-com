@@ -6,6 +6,7 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { TableNode } from "./table-node";
+import styles from "./canvas.module.scss";
 
 const WORLD_WIDTH = 6000;
 const WORLD_HEIGHT = 6000;
@@ -31,6 +32,7 @@ export function CanvasStage() {
   const setCameraXY = useEditorStore((s) => s.setCameraXY);
 
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
+  const [hoveredRelationshipId, setHoveredRelationshipId] = useState<string | null>(null);
 
   // Tell store the world bounds (so clamping uses the same world as the grid)
   useEffect(() => {
@@ -478,18 +480,35 @@ export function CanvasStage() {
                const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, true);
                const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, false);
                
-               if (!start || !end) return null;
+                if (!start || !end) return null;
 
-               return (
-                 <path 
-                   key={rel.id}
-                   d={calculatePath(start.x, start.y, end.x, end.y)}
-                   stroke="var(--primary)"
-                   strokeWidth={2}
-                   fill="none"
-                 />
-               );
-            })}
+                const pathData = calculatePath(start.x, start.y, end.x, end.y);
+                const isHovered = hoveredRelationshipId === rel.id;
+
+                return (
+                  <g 
+                    key={rel.id}
+                    onPointerEnter={() => setHoveredRelationshipId(rel.id)}
+                    onPointerLeave={() => setHoveredRelationshipId(null)}
+                  >
+                    {/* Invisible hit area for easier hovering */}
+                    <path
+                      d={pathData}
+                      fill="none"
+                      strokeWidth={12}
+                      className={styles["relationship-hit-area"]}
+                    />
+                    {/* The actual visible line */}
+                    <path 
+                      d={pathData}
+                      stroke="var(--primary)"
+                      strokeWidth={2}
+                      fill="none"
+                      className={`${styles["relationship-path"]} ${isHovered ? styles["marching-ants"] : ""}`}
+                    />
+                  </g>
+                );
+             })}
 
             {/* Pending Connection */}
             {dragConnection.current.active && (

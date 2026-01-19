@@ -11,3 +11,29 @@
   background-size: 18px 18px;
   background-position: 0 0;
 }
+
+.relationship-path {
+  transition: stroke 0.2s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.relationship-hit-area {
+  pointer-events: auto;
+  cursor: pointer;
+  stroke: transparent;
+}
+
+.marching-ants {
+  stroke-dasharray: 6;
+  animation: marching-ants 0.5s linear infinite;
+}
+
+@keyframes marching-ants {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
