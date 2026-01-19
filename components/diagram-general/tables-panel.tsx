@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 // import { ScrollArea } from "@/components/ui/scroll-area"; // Removed as file not found
 // If ScrollArea doesn't exist, I'll use div with overflow-auto. I didn't see scroll-area.tsx in components/ui list (Step 48).
@@ -64,20 +66,23 @@ export function TablesPanel() {
                )}
              >
                {/* Table Header Row */}
-               <div 
-                 className="flex items-center p-2 cursor-pointer select-none"
-                 onClick={() => setSelectedTableId(isSelected ? null : table.id)}
-               >
-                 {isSelected ? (
-                   <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-                 ) : (
-                   <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-                 )}
-                 
-                 <div className="h-3 w-3 rounded-full mr-2 shrink-0" style={{ backgroundColor: table.color }} />
-                 <span className="font-medium text-sm truncate flex-1">{table.name}</span>
-                 
-                 {isSelected && (
+                <div 
+                  className="flex items-center p-2 cursor-pointer select-none"
+                  onClick={() => setSelectedTableId(isSelected ? null : table.id)}
+                >
+                  {isSelected ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+                  )}
+                  
+                  <div className="h-3 w-3 rounded-full mr-2 shrink-0" style={{ backgroundColor: table.color }} />
+                  <span className="font-medium text-sm truncate flex-1">{table.name}</span>
+                  
+                  <div className="flex items-center gap-1">
+                    {table.comment && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" title="Has comment" />
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -89,8 +94,8 @@ export function TablesPanel() {
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
-                 )}
-               </div>
+                  </div>
+                </div>
 
                {/* Expanded Details */}
                {isSelected && (
@@ -188,6 +193,16 @@ export function TablesPanel() {
                              </div>
                           ))}
                        </div>
+                    </div>
+
+                    <div className="mt-4 space-y-1">
+                       <label className="text-xs font-medium text-muted-foreground">Comment</label>
+                       <Textarea 
+                         placeholder="Leave a comment..."
+                         value={table.comment || ""}
+                         onChange={(e) => updateTable(table.id, { comment: e.target.value })}
+                         className="min-h-[80px] text-xs resize-none"
+                       />
                     </div>
                  </div>
                )}

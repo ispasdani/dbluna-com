@@ -20,6 +20,7 @@ export interface Table {
   y: number;
   color: string;
   isLocked?: boolean;
+  comment?: string;
   columns: Column[];
 }
 

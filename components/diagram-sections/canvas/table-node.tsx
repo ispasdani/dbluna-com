@@ -116,7 +116,15 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuContent align="end" className="w-48">
+              {table.comment && (
+                <>
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
+                    {table.comment}
+                  </div>
+                  <div className="h-px bg-border my-1" />
+                </>
+              )}
               <DropdownMenuItem 
                 className="text-destructive focus:text-destructive gap-2"
                 onSelect={() => deleteTable(table.id)}
