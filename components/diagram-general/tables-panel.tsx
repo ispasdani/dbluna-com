@@ -1,6 +1,6 @@
 "use client";
 
-import { useCanvasStore } from "@/store/useCanvasStore";
+import { useCanvasStore, TABLE_COLORS } from "@/store/useCanvasStore";
 import { 
   Plus, 
   Trash2, 
@@ -15,6 +15,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 // import { ScrollArea } from "@/components/ui/scroll-area"; // Removed as file not found
@@ -83,17 +91,45 @@ export function TablesPanel() {
                     {table.comment && (
                       <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" title="Has comment" />
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-destructive hover:bg-destructive/10 -mr-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteTable(table.id);
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
+                        <div className="grid grid-cols-4 gap-1 p-2">
+                          {TABLE_COLORS.map((color) => (
+                            <button
+                              key={color}
+                              className={cn(
+                                "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                                table.color === color && "ring-2 ring-primary ring-offset-1"
+                              )}
+                              style={{ backgroundColor: color }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateTable(table.id, { color });
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive gap-2"
+                          onSelect={() => deleteTable(table.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Delete Table</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 

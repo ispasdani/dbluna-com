@@ -1,6 +1,6 @@
 "use client";
 
-import { useCanvasStore, type Table } from "@/store/useCanvasStore";
+import { useCanvasStore, type Table, TABLE_COLORS } from "@/store/useCanvasStore";
 import { Key, Lock, Unlock, MoreVertical, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,7 +8,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface TableNodeProps {
   table: Table;
@@ -122,9 +125,27 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
                   <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
                     {table.comment}
                   </div>
-                  <div className="h-px bg-border my-1" />
+                  <DropdownMenuSeparator />
                 </>
               )}
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
+              <div className="grid grid-cols-4 gap-1 p-2">
+                {TABLE_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    className={cn(
+                      "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                      table.color === color && "ring-2 ring-primary ring-offset-1"
+                    )}
+                    style={{ backgroundColor: color }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      updateTable(table.id, { color });
+                    }}
+                  />
+                ))}
+              </div>
+              <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-destructive focus:text-destructive gap-2"
                 onSelect={() => deleteTable(table.id)}

@@ -36,7 +36,7 @@ export interface Relationship {
   onDelete: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
 }
 
-const TABLE_COLORS = [
+export const TABLE_COLORS = [
   "#e11d48", // rose
   "#ea580c", // orange
   "#d97706", // amber
