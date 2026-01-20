@@ -21,10 +21,12 @@ export function CanvasStage() {
 
   const background = useCanvasStore((s) => s.background);
   const tables = useCanvasStore((s) => s.tables);
-  const selectedTableId = useCanvasStore((s) => s.selectedTableId);
-  const setSelectedTableId = useCanvasStore((s) => s.setSelectedTableId);
+  const selectedTableIds = useCanvasStore((s) => s.selectedTableIds);
+  const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const selectedRelationshipId = useCanvasStore((s) => s.selectedRelationshipId);
   const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
+  const moveTables = useCanvasStore((s) => s.moveTables);
+  const deleteTables = useCanvasStore((s) => s.deleteTables);
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -38,6 +40,9 @@ export function CanvasStage() {
 
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
   const [hoveredRelationshipId, setHoveredRelationshipId] = useState<string | null>(null);
+  
+  // Selection Rect State (in world coordinates)
+  const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
 
   // Tell store the world bounds (so clamping uses the same world as the grid)
   useEffect(() => {
@@ -82,8 +87,19 @@ export function CanvasStage() {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      setSpaceDown(false);
+      if (e.code === "Space") {
+        setSpaceDown(false);
+      }
+      if ((e.code === "Delete" || e.code === "Backspace") && selectedTableIds.length > 0) {
+        // Prevent deleting if typing in input !! 
+        // We already check "isTyping" in onKeyDown but not here.
+        // We should check here too or move logic. 
+        const t = e.target as HTMLElement | null;
+        const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
+        if (!isTyping) {
+           deleteTables(selectedTableIds);
+        }
+      }
     };
 
     window.addEventListener("keydown", onKeyDown, { passive: false });
@@ -92,7 +108,7 @@ export function CanvasStage() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, []);
+  }, [selectedTableIds, deleteTables]);
 
   // Pointer panning
   const drag = useRef<{
@@ -105,16 +121,24 @@ export function CanvasStage() {
   // Table dragging
   const dragTable = useRef<{
     active: boolean;
-    id: string | null;
-    startX: number;
-    startY: number;
-    initialX: number;
-    initialY: number;
+    initialMouseX: number;
+    initialMouseY: number;
+    // Map of table ID to its initial position {x, y}
+    initialPositions: Map<string, { x: number, y: number }>;
     pointerId: number | null;
-  }>({ active: false, id: null, startX: 0, startY: 0, initialX: 0, initialY: 0, pointerId: null });
+  }>({ active: false, initialMouseX: 0, initialMouseY: 0, initialPositions: new Map(), pointerId: null });
+
+  // Marquee Selection dragging
+  const dragSelection = useRef<{
+    active: boolean;
+    startX: number; // World coordinates
+    startY: number;
+    currentX: number;
+    currentY: number;
+    pointerId: number | null;
+  }>({ active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
 
   // Actions
-  const updateTablePos = useCanvasStore((s) => s.updateTablePos);
   const relationships = useCanvasStore((s) => s.relationships);
   const addRelationship = useCanvasStore((s) => s.addRelationship);
 
@@ -266,69 +290,129 @@ export function CanvasStage() {
     // If dragging a table, don't pan
     if (dragTable.current.active) return;
     
+    // Middle mouse or Space+Left = Pan
     const shouldPan = e.button === 1 || (e.button === 0 && spaceDown);
-    if (!shouldPan) return;
+    
+    if (shouldPan) {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        drag.current = {
+          active: true,
+          lastX: e.clientX,
+          lastY: e.clientY,
+          pointerId: e.pointerId,
+        };
+        return;
+    }
 
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Left click on background -> Marquee Selection
+    if (e.button === 0) {
+       e.preventDefault();
+       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
-    drag.current = {
-      active: true,
-      lastX: e.clientX,
-      lastY: e.clientY,
-      pointerId: e.pointerId,
-    };
+       const rect = rootRef.current?.getBoundingClientRect();
+       if (!rect) return;
+       const worldX = (e.clientX - rect.left - camera.x) / camera.zoom;
+       const worldY = (e.clientY - rect.top - camera.y) / camera.zoom;
+
+       dragSelection.current = {
+          active: true,
+          startX: worldX,
+          startY: worldY,
+          currentX: worldX,
+          currentY: worldY,
+          pointerId: e.pointerId
+       };
+       // Clear selection unless shift is held (DrawDB behavior usually clears)
+       // Let's clear for now to be simple
+       if (!e.shiftKey) {
+          setSelectedTableIds([]);
+       }
+       setSelectionRect({ x: worldX, y: worldY, w: 0, h: 0 });
+    }
   };
 
-  const onTablePointerDown = (e: React.PointerEvent, tableId: string, initialX: number, initialY: number) => {
+  const onTablePointerDown = (e: React.PointerEvent, tableId: string) => {
      if (spaceDown) return; // If panning mode, ignore table drag
      
      e.stopPropagation();
      e.preventDefault();
      
      const table = tables.find(t => t.id === tableId);
-     if (table?.isLocked) {
-       setSelectedTableId(tableId);
+     if (!table) return;
+
+     // If table is locked, just select it (single) and return
+     if (table.isLocked) {
+       setSelectedTableIds([tableId]);
        return;
      }
 
      const target = e.currentTarget as Element;
      target.setPointerCapture(e.pointerId);
 
+     // Selection Logic:
+     // If clicking an unselected table, select it (exclusive) unless Shift
+     // If clicking a selected table, keep selection (to allow group drag)
+     let newSelectedIds = [...selectedTableIds];
+     if (!selectedTableIds.includes(tableId)) {
+        if (e.shiftKey) {
+           newSelectedIds.push(tableId);
+        } else {
+           newSelectedIds = [tableId];
+        }
+        setSelectedTableIds(newSelectedIds);
+        // Force update local variable for initPositions
+     }
+     // If shift clicking an already selected table, deselect it? 
+     // Standard behavior: 
+     // - Click selected: Start drag
+     // - Shift+Click selected: Deselect (and don't drag typically, or drag remaining)
+     else if (e.shiftKey) {
+        newSelectedIds = newSelectedIds.filter(id => id !== tableId);
+        setSelectedTableIds(newSelectedIds);
+        return; // Don't drag if we just deselected it
+     }
+
+     // Prepare group drag
+     const initialPositions = new Map<string, {x: number, y: number}>();
+     newSelectedIds.forEach(id => {
+       const t = tables.find(t => t.id === id);
+       if (t) initialPositions.set(id, { x: t.x, y: t.y });
+     });
+
      dragTable.current = {
        active: true,
-       id: tableId,
-       startX: e.clientX,
-       startY: e.clientY,
-       initialX,
-       initialY,
+       initialMouseX: e.clientX,
+       initialMouseY: e.clientY,
+       initialPositions,
        pointerId: e.pointerId
      };
-     
-     setSelectedTableId(tableId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     // 1. Handle Table Drag
-    if (dragTable.current.active && dragTable.current.id) {
+    if (dragTable.current.active) {
        e.preventDefault();
-       const dx = (e.clientX - dragTable.current.startX) / camera.zoom;
-       const dy = (e.clientY - dragTable.current.startY) / camera.zoom;
+       const dx = (e.clientX - dragTable.current.initialMouseX) / camera.zoom;
+       const dy = (e.clientY - dragTable.current.initialMouseY) / camera.zoom;
        
-       let newX = dragTable.current.initialX + dx;
-       let newY = dragTable.current.initialY + dy;
+       const moves: { id: string, x: number, y: number }[] = [];
+       const SNAP = 24;
 
-       if (snapToGrid) {
-         const SNAP = 24;
-         newX = Math.round(newX / SNAP) * SNAP;
-         newY = Math.round(newY / SNAP) * SNAP;
+       dragTable.current.initialPositions.forEach((initPos, id) => {
+          let newX = initPos.x + dx;
+          let newY = initPos.y + dy;
+
+          if (snapToGrid) {
+            newX = Math.round(newX / SNAP) * SNAP;
+            newY = Math.round(newY / SNAP) * SNAP;
+          }
+          moves.push({ id, x: newX, y: newY });
+       });
+
+       if (moves.length > 0) {
+         moveTables(moves);
        }
-
-       updateTablePos(
-         dragTable.current.id, 
-         newX,
-         newY
-       );
        return;
     }
 
@@ -350,7 +434,29 @@ export function CanvasStage() {
        return;
     }
 
-    // 3. Handle Canvas Pan
+    // 3. Handle Marquee Selection
+    if (dragSelection.current.active) {
+       e.preventDefault();
+       const rect = rootRef.current?.getBoundingClientRect();
+       if (!rect) return;
+
+       const worldX = (e.clientX - rect.left - camera.x) / camera.zoom;
+       const worldY = (e.clientY - rect.top - camera.y) / camera.zoom;
+       
+       dragSelection.current.currentX = worldX;
+       dragSelection.current.currentY = worldY;
+
+       // Calculate normalized rect
+       const x = Math.min(dragSelection.current.startX, worldX);
+       const y = Math.min(dragSelection.current.startY, worldY);
+       const w = Math.abs(worldX - dragSelection.current.startX);
+       const h = Math.abs(worldY - dragSelection.current.startY);
+
+       setSelectionRect({ x, y, w, h });
+       return;
+    }
+
+    // 4. Handle Canvas Pan
     if (!drag.current.active) return;
     const dx = e.clientX - drag.current.lastX;
     const dy = e.clientY - drag.current.lastY;
@@ -360,11 +466,13 @@ export function CanvasStage() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const target = e.currentTarget as Element;
+
     // Handle Table Drop
     if (dragTable.current.active && dragTable.current.pointerId === e.pointerId) {
        dragTable.current.active = false;
        dragTable.current.pointerId = null;
-       const target = e.currentTarget as Element;
+       dragTable.current.initialPositions.clear();
        if (target.hasPointerCapture(e.pointerId)) {
           target.releasePointerCapture(e.pointerId);
        }
@@ -375,7 +483,6 @@ export function CanvasStage() {
     if (dragConnection.current.active && dragConnection.current.pointerId === e.pointerId) {
        dragConnection.current.active = false;
        dragConnection.current.pointerId = null;
-       const target = e.currentTarget as Element;
        if (target.hasPointerCapture(e.pointerId)) {
           target.releasePointerCapture(e.pointerId);
        }
@@ -397,6 +504,57 @@ export function CanvasStage() {
            });
        }
 
+       return;
+    }
+
+    // Handle Marquee Drop
+    if (dragSelection.current.active && dragSelection.current.pointerId === e.pointerId) {
+       dragSelection.current.active = false;
+       dragSelection.current.pointerId = null;
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       
+       // Sync Calculation using Ref (more reliable than state during rapid events)
+       const { startX, startY, currentX, currentY } = dragSelection.current;
+       
+       // Normalize bounds
+       const rX = Math.min(startX, currentX);
+       const rY = Math.min(startY, currentY);
+       const rR = Math.max(startX, currentX);
+       const rB = Math.max(startY, currentY);
+
+       // Only select if box has some size (avoid accidental clicks acting as tiny drags)
+       if (Math.abs(currentX - startX) > 5 || Math.abs(currentY - startY) > 5) {
+           const insideIds: string[] = [];
+           
+           tables.forEach(t => {
+              // Estimate Table Bounds
+              const estWidth = 220;
+              const estHeight = 36 + (t.columns?.length || 0) * 30; // Exact match to TableNode
+
+              const tX = t.x;
+              const tY = t.y;
+              const tR = t.x + estWidth;
+              const tB = t.y + estHeight;
+
+              // AABB Intersection: Rect overlaps Table
+              // Check if rectangles overlap
+              const overlaps = (rX < tR && rR > tX && rY < tB && rB > tY);
+              
+              if (overlaps) {
+                 insideIds.push(t.id);
+              }
+           });
+           
+           if (insideIds.length > 0) {
+              setSelectedTableIds(e.shiftKey ? [...selectedTableIds, ...insideIds] : insideIds);
+           } else if (!e.shiftKey) {
+             setSelectedTableIds([]);
+           }
+       }
+       
+       setSelectionRect(null);
        return;
     }
 
@@ -465,13 +623,6 @@ export function CanvasStage() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onClick={(e) => {
-           // If we clicked directly on the background (not a node), deselect
-           // Note: Nodes should stopPropagation on their click
-           if (e.target === e.currentTarget) {
-             setSelectedTableId(null);
-           }
-        }}
         style={{ cursor: spaceDown ? "grab" : "default" }}
       >
         <div
@@ -593,19 +744,37 @@ export function CanvasStage() {
               <g 
                 key={table.id} 
                 className="pointer-events-auto cursor-pointer"
-                onPointerDown={(e) => onTablePointerDown(e, table.id, table.x, table.y)}
+                onPointerDown={(e) => onTablePointerDown(e, table.id)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedTableId(table.id);
+                  // Click logic now handled in onPointerDown/Up mostly, 
+                  // but we might want to ensure robust behavior here if needed.
+                  // For now, let's leave it empty or remove this handler as selection is pointer-down based.
+                  // However, let's keep it to catch any edge cases or bubbling, but do nothing 
+                  // to avoid conflict with drag start selection logic.
                 }}
               >
                  <TableNode 
                    table={table} 
-                   selected={selectedTableId === table.id}
+                   selected={selectedTableIds.includes(table.id)}
                    onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
                  />
               </g>
             ))}
+
+            {/* Marquee Selection Rectangle */}
+            {selectionRect && (
+              <rect
+                x={selectionRect.x}
+                y={selectionRect.y}
+                width={selectionRect.w}
+                height={selectionRect.h}
+                fill="rgba(59, 130, 246, 0.1)" // blue-500 with opacity
+                stroke="rgba(59, 130, 246, 0.5)"
+                strokeWidth={1}
+                pointerEvents="none"
+              />
+            )}
           </svg>
         </div>
       </div>

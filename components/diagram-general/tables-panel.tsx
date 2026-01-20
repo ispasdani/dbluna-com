@@ -32,17 +32,20 @@ import { cn } from "@/lib/utils";
 export function TablesPanel() {
   const {
     tables,
-    selectedTableId,
+    selectedTableIds,
     addTable,
     updateTable,
     deleteTable,
-    setSelectedTableId,
+    setSelectedTableIds,
     addField,
     updateField,
     deleteField,
+    deleteTables,
   } = useCanvasStore();
 
-  const selectedTable = tables.find((t) => t.id === selectedTableId);
+  const isSingleSelection = selectedTableIds.length === 1;
+  const selectedTableId = isSingleSelection ? selectedTableIds[0] : null;
+  const selectedTable = selectedTableId ? tables.find((t) => t.id === selectedTableId) : null;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -63,7 +66,7 @@ export function TablesPanel() {
       {/* Tables List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         {tables.map((table) => {
-           const isSelected = table.id === selectedTableId;
+           const isSelected = selectedTableIds.includes(table.id);
 
            return (
              <div 
@@ -76,7 +79,17 @@ export function TablesPanel() {
                {/* Table Header Row */}
                 <div 
                   className="flex items-center p-2 cursor-pointer select-none"
-                  onClick={() => setSelectedTableId(isSelected ? null : table.id)}
+                  onClick={(e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                      if (isSelected) {
+                        setSelectedTableIds(selectedTableIds.filter(id => id !== table.id));
+                      } else {
+                        setSelectedTableIds([...selectedTableIds, table.id]);
+                      }
+                    } else {
+                      setSelectedTableIds([table.id]);
+                    }
+                  }}
                 >
                   {isSelected ? (
                     <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
@@ -134,7 +147,7 @@ export function TablesPanel() {
                 </div>
 
                {/* Expanded Details */}
-               {isSelected && (
+               {isSelected && isSingleSelection && (
                  <div className="px-3 pb-3 pt-0 animate-in slide-in-from-top-2 fade-in duration-200">
                     <div className="mb-3 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Table Name</label>

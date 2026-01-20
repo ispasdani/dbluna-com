@@ -50,7 +50,7 @@ export const TABLE_COLORS = [
 type CanvasState = {
   background: CanvasBackground;
   tables: Table[];
-  selectedTableId: string | null;
+  selectedTableIds: string[];
   setBackground: (bg: CanvasBackground) => void;
   toggleBackground: () => void;
   snapToGrid: boolean;
@@ -58,8 +58,10 @@ type CanvasState = {
   addTable: () => void;
   updateTable: (id: string, updates: Partial<Table>) => void;
   updateTablePos: (id: string, x: number, y: number) => void;
+  moveTables: (moves: { id: string, x: number, y: number }[]) => void;
   deleteTable: (id: string) => void;
-  setSelectedTableId: (id: string | null) => void;
+  deleteTables: (ids: string[]) => void;
+  setSelectedTableIds: (ids: string[]) => void;
   // Field actions
   addField: (tableId: string) => void;
   updateField: (tableId: string, fieldId: string, updates: Partial<Column>) => void;
@@ -76,15 +78,15 @@ type CanvasState = {
 export const useCanvasStore = create<CanvasState>((set) => ({
   background: "grid",
   tables: [],
-  selectedTableId: null,
+  selectedTableIds: [],
   selectedRelationshipId: null,
   setBackground: (bg) => set({ background: bg }),
   toggleBackground: () =>
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
   snapToGrid: false,
   toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
-  setSelectedTableId: (id) => set({ selectedTableId: id, selectedRelationshipId: null }),
-  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableId: null }),
+  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null }),
+  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [] }),
   addTable: () =>
     set((s) => {
       const { viewport, camera } = useEditorStore.getState();
@@ -137,7 +139,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       };
       return { 
         tables: [...s.tables, newTable],
-        selectedTableId: newId 
+        selectedTableIds: [newId] 
       };
     }),
   updateTable: (id, updates) =>
@@ -148,10 +150,26 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set((s) => ({
        tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
     })),
+  moveTables: (moves) =>
+    set((s) => {
+      const map = new Map(moves.map(m => [m.id, m]));
+      return {
+        tables: s.tables.map(t => {
+          const move = map.get(t.id);
+          if (move) return { ...t, x: move.x, y: move.y };
+          return t;
+        })
+      };
+    }),
   deleteTable: (id) =>
     set((s) => ({
       tables: s.tables.filter((t) => t.id !== id),
-      selectedTableId: s.selectedTableId === id ? null : s.selectedTableId,
+      selectedTableIds: s.selectedTableIds.filter(tid => tid !== id),
+    })),
+  deleteTables: (ids) =>
+    set((s) => ({
+      tables: s.tables.filter(t => !ids.includes(t.id)),
+      selectedTableIds: s.selectedTableIds.filter(tid => !ids.includes(tid)),
     })),
   addField: (tableId) =>
     set((s) => ({
@@ -213,7 +231,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       return { 
         relationships: [...s.relationships, newRel],
         selectedRelationshipId: newRel.id,
-        selectedTableId: null
+        selectedTableIds: []
       };
     }),
   updateRelationship: (id, updates) =>
