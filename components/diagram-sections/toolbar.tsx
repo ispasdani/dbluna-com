@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ export function TabLauncherBar() {
     toggleLeftDock,
     toggleTopNavbar,
   } = useViewStore();
-  const { background, setBackground, snapToGrid, toggleSnapToGrid } =
+  const { background, setBackground, snapToGrid, toggleSnapToGrid, addNote } =
     useCanvasStore();
 
   return (
@@ -106,6 +106,19 @@ export function TabLauncherBar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <div className="h-4 w-[1px] bg-border mx-1" />
+
+        {/* Add Note Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-foreground hover:bg-panel-hover gap-2"
+          onClick={addNote}
+        >
+          <StickyNote className="h-4 w-4" />
+          Add Note
+        </Button>
       </div>
 
       <ZoomMenu />

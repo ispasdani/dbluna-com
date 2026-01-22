@@ -47,6 +47,18 @@ export const TABLE_COLORS = [
   "#db2777", // pink
 ];
 
+export interface Note {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  content: string;
+  color: string;
+  isLocked: boolean;
+}
+
 type CanvasState = {
   background: CanvasBackground;
   tables: Table[];
@@ -73,7 +85,17 @@ type CanvasState = {
   updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
+  
+  // Notes
+  notes: Note[];
+  selectedNoteIds: string[];
+  addNote: () => void;
+  updateNote: (id: string, updates: Partial<Note>) => void;
+  deleteNote: (id: string) => void;
+  setSelectedNoteIds: (ids: string[]) => void;
+  moveNotes: (moves: { id: string, x: number, y: number }[]) => void;
 };
+
 
 export const useCanvasStore = create<CanvasState>((set) => ({
   background: "grid",
@@ -85,8 +107,8 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
   snapToGrid: false,
   toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
-  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null }),
-  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [] }),
+  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [] }),
+  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [] }),
   addTable: () =>
     set((s) => {
       const { viewport, camera } = useEditorStore.getState();
@@ -246,4 +268,62 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
     })),
   setTables: (tables) => set({ tables }),
+  
+  // Notes Actions
+  notes: [],
+  selectedNoteIds: [],
+  addNote: () =>
+    set((s) => {
+      const { viewport, camera } = useEditorStore.getState();
+      const viewCenterX = viewport.w / 2;
+      const viewCenterY = viewport.h / 2;
+      const worldX = (viewCenterX - camera.x) / camera.zoom;
+      const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+      const newId = crypto.randomUUID();
+      const newNote: Note = {
+        id: newId,
+        x: worldX - 100, // Center 200px wide note
+        y: worldY - 75,
+        width: 200,
+        height: 150,
+        title: "Untitled Note",
+        content: "",
+        color: "#e11d48", // Default color (Red-ish)
+        isLocked: false,
+      };
+
+      return {
+        notes: [...s.notes, newNote],
+        selectedNoteIds: [newId],
+        selectedTableIds: [],
+        selectedRelationshipId: null,
+      };
+    }),
+  updateNote: (id, updates) =>
+    set((s) => ({
+      notes: s.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
+    })),
+  deleteNote: (id) =>
+    set((s) => ({
+      notes: s.notes.filter((n) => n.id !== id),
+      selectedNoteIds: s.selectedNoteIds.filter((nid) => nid !== id),
+    })),
+  setSelectedNoteIds: (ids) =>
+    set({
+      selectedNoteIds: ids,
+      selectedTableIds: [],
+      selectedRelationshipId: null,
+    }),
+  moveNotes: (moves) =>
+    set((s) => {
+      const map = new Map(moves.map((m) => [m.id, m]));
+      return {
+        notes: s.notes.map((n) => {
+          const move = map.get(n.id);
+          if (move) return { ...n, x: move.x, y: move.y };
+          return n;
+        }),
+      };
+    }),
 }));
