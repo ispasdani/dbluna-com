@@ -2,12 +2,13 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
-import { useCanvasStore } from "@/store/useCanvasStore";
+import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { TableNode } from "./table-node";
 import { NoteNode } from "./note-node";
+import { AreaNode } from "./area-node";
 import styles from "./canvas.module.scss";
 
 const WORLD_WIDTH = 6000;
@@ -33,6 +34,10 @@ export function CanvasStage() {
   const deleteTables = useCanvasStore((s) => s.deleteTables);
   const moveNotes = useCanvasStore((s) => s.moveNotes);
   const deleteNote = useCanvasStore((s) => s.deleteNote);
+  const areas = useCanvasStore((s) => s.areas);
+  const selectedAreaIds = useCanvasStore((s) => s.selectedAreaIds);
+  const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
+  const moveAreas = useCanvasStore((s) => s.moveAreas);
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -154,6 +159,53 @@ export function CanvasStage() {
     initialWidth: number;
     pointerId: number | null;
   }>({ active: false, noteId: "", direction: "right", initialMouseX: 0, initialX: 0, initialWidth: 0, pointerId: null });
+
+  // Area Dragging
+  const dragArea = useRef<{
+    active: boolean;
+    initialMouseX: number;
+    initialMouseY: number;
+    initialPositions: Map<string, { x: number, y: number }>;
+    childTables: string[]; // IDs of tables being dragged with area
+    childNotes: string[];  // IDs of notes being dragged with area
+    // We need original positions of children too to avoid drift
+    childInitPositions: Map<string, { x: number, y: number }>;
+    pointerId: number | null;
+  }>({ 
+    active: false, 
+    initialMouseX: 0, 
+    initialMouseY: 0, 
+    initialPositions: new Map(), 
+    childTables: [],
+    childNotes: [],
+    childInitPositions: new Map(),
+    pointerId: null 
+  });
+
+  // Area Resizing
+  const resizeArea = useRef<{
+    active: boolean;
+    areaId: string;
+    direction: "tl" | "tr" | "bl" | "br"; // corners
+    initialMouseX: number;
+    initialMouseY: number;
+    initialX: number;
+    initialY: number;
+    initialWidth: number;
+    initialHeight: number;
+    pointerId: number | null;
+  }>({ 
+    active: false, 
+    areaId: "", 
+    direction: "br", 
+    initialMouseX: 0, 
+    initialMouseY: 0, 
+    initialX: 0, 
+    initialY: 0, 
+    initialWidth: 0, 
+    initialHeight: 0, 
+    pointerId: null 
+  });
 
   // Marquee Selection dragging
   const dragSelection = useRef<{
@@ -485,6 +537,124 @@ export function CanvasStage() {
      };
   };
 
+  const onAreaPointerDown = (e: React.PointerEvent, areaId: string) => {
+      if (spaceDown) return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      const area = areas.find(a => a.id === areaId);
+      if (!area) return;
+
+      const target = e.target as Element;
+      const resizeDir = target.getAttribute("data-area-resize") as "tl" | "tr" | "bl" | "br" | null;
+
+      // Handle Resizing
+      if (resizeDir && !area.isLocked) {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        resizeArea.current = {
+          active: true,
+          areaId,
+          direction: resizeDir,
+          initialMouseX: e.clientX,
+          initialMouseY: e.clientY,
+          initialX: area.x,
+          initialY: area.y,
+          initialWidth: area.width,
+          initialHeight: area.height,
+          pointerId: e.pointerId
+        };
+        return;
+      }
+      
+      // If locked, select only
+      if (area.isLocked) {
+         setSelectedAreaIds([areaId]);
+         openTab("areas", "left");
+         return;
+      }
+
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+
+      // Selection Logic
+      let newSelectedIds = [...selectedAreaIds];
+      if (!selectedAreaIds.includes(areaId)) {
+        if (e.shiftKey) {
+           newSelectedIds.push(areaId);
+        } else {
+           newSelectedIds = [areaId];
+        }
+        setSelectedAreaIds(newSelectedIds);
+        openTab("areas", "left");
+      } else if (e.shiftKey) {
+        newSelectedIds = newSelectedIds.filter(id => id !== areaId);
+        setSelectedAreaIds(newSelectedIds);
+        return;
+      }
+
+
+      // DRAG LOGIC FOR AREA + CHILDREN
+      const initialPositions = new Map();
+      newSelectedIds.forEach(id => {
+         const a = areas.find(a => a.id === id);
+         if (a) initialPositions.set(id, { x: a.x, y: a.y });
+      });
+
+      // Find children ONLY if dragging a SINGLE area (for simplicity first, or all selected areas?)
+      // Let's implement for single area drag first or union of children. 
+      // DrawDB behavior: when moving a group (area), everything inside moves.
+      
+      const childTables: string[] = [];
+      const childNotes: string[] = [];
+      const childInitPositions = new Map();
+
+      // Only check children if we are dragging actual areas (not just selection)
+      // Check intersection for "this" area or ALL selected areas? 
+      // Usually dragging multiple areas moves their respective children.
+      
+      const relevantAreas = newSelectedIds.map(id => areas.find(a => a.id === id)).filter(Boolean) as Area[];
+
+      relevantAreas.forEach(a => {
+         const rect = { l: a.x, r: a.x + a.width, t: a.y, b: a.y + a.height };
+         
+         // Find Tables inside
+         tables.forEach(t => {
+            // Rough center checks or full containment? Center is best feel.
+            const tW = 220; const tH = 100; // approx
+            const tCx = t.x + tW / 2;
+            const tCy = t.y + tH / 2;
+            if (tCx > rect.l && tCx < rect.r && tCy > rect.t && tCy < rect.b) {
+               if (!childTables.includes(t.id)) {
+                 childTables.push(t.id);
+                 childInitPositions.set(`t:${t.id}`, { x: t.x, y: t.y });
+               }
+            }
+         });
+
+         // Find Notes inside
+         notes.forEach(n => {
+            const nCx = n.x + n.width / 2;
+            const nCy = n.y + n.height / 2;
+            if (nCx > rect.l && nCx < rect.r && nCy > rect.t && nCy < rect.b) {
+               if (!childNotes.includes(n.id)) {
+                 childNotes.push(n.id);
+                 childInitPositions.set(`n:${n.id}`, { x: n.x, y: n.y });
+               }
+            }
+         });
+      });
+
+      dragArea.current = {
+        active: true,
+        initialMouseX: e.clientX,
+        initialMouseY: e.clientY,
+        initialPositions,
+        childTables,
+        childNotes,
+        childInitPositions,
+        pointerId: e.pointerId
+      };
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
     // 1. Handle Table Drag
     if (dragTable.current.active) {
@@ -509,7 +679,6 @@ export function CanvasStage() {
        if (moves.length > 0) {
          moveTables(moves);
        }
-       return;
        return;
     }
 
@@ -554,6 +723,101 @@ export function CanvasStage() {
           const newX = initialX + (initialWidth - newWidth); // Shift X to keep right side fixed
           updateNote(noteId, { width: newWidth, x: newX });
        }
+       return;
+    }
+
+
+
+    // 1.8 Handle Area Drag & Resize
+    if (dragArea.current.active) {
+       e.preventDefault();
+       const dx = (e.clientX - dragArea.current.initialMouseX) / camera.zoom;
+       const dy = (e.clientY - dragArea.current.initialMouseY) / camera.zoom;
+       const SNAP = 24;
+
+       const moves: { id: string, x: number, y: number }[] = [];
+       // Move Areas
+       dragArea.current.initialPositions.forEach((initPos, id) => {
+          let newX = initPos.x + dx;
+          let newY = initPos.y + dy;
+          if (snapToGrid) {
+            newX = Math.round(newX / SNAP) * SNAP;
+            newY = Math.round(newY / SNAP) * SNAP;
+          }
+          moves.push({ id, x: newX, y: newY });
+       });
+       if (moves.length > 0) moveAreas(moves);
+
+       // Move Children (Tables)
+       const tableMoves: { id: string, x: number, y: number }[] = [];
+       dragArea.current.childTables.forEach(tId => {
+          const init = dragArea.current.childInitPositions.get(`t:${tId}`);
+          if (init) {
+             let newX = init.x + dx;
+             let newY = init.y + dy;
+             if (snapToGrid) {
+                newX = Math.round(newX / SNAP) * SNAP;
+                newY = Math.round(newY / SNAP) * SNAP;
+             }
+             tableMoves.push({ id: tId, x: newX, y: newY });
+          }
+       });
+       if (tableMoves.length > 0) moveTables(tableMoves);
+
+       // Move Children (Notes)
+       const noteMoves: { id: string, x: number, y: number }[] = [];
+       dragArea.current.childNotes.forEach(nId => {
+          const init = dragArea.current.childInitPositions.get(`n:${nId}`);
+          if (init) {
+             let newX = init.x + dx;
+             let newY = init.y + dy;
+             if (snapToGrid) {
+                newX = Math.round(newX / SNAP) * SNAP;
+                newY = Math.round(newY / SNAP) * SNAP;
+             }
+             noteMoves.push({ id: nId, x: newX, y: newY });
+          }
+       });
+       if (noteMoves.length > 0) moveNotes(noteMoves);
+
+       return;
+    }
+
+    if (resizeArea.current.active) {
+       e.preventDefault();
+       const dx = (e.clientX - resizeArea.current.initialMouseX) / camera.zoom;
+       const dy = (e.clientY - resizeArea.current.initialMouseY) / camera.zoom;
+       const updateArea = useCanvasStore.getState().updateArea;
+       
+       const { initialWidth, initialHeight, initialX, initialY, direction, areaId } = resizeArea.current;
+       
+       let newX = initialX;
+       let newY = initialY;
+       let newW = initialWidth;
+       let newH = initialHeight;
+
+       if (direction.includes("r")) {
+          newW = Math.max(100, initialWidth + dx);
+       }
+       if (direction.includes("b")) {
+          newH = Math.max(100, initialHeight + dy);
+       }
+       if (direction.includes("l")) {
+          const proposedW = initialWidth - dx;
+          if (proposedW >= 100) {
+             newX = initialX + dx;
+             newW = proposedW;
+          }
+       }
+       if (direction.includes("t")) {
+          const proposedH = initialHeight - dy;
+          if (proposedH >= 100) {
+             newY = initialY + dy;
+             newH = proposedH;
+          }
+       }
+
+       updateArea(areaId, { x: newX, y: newY, width: newW, height: newH });
        return;
     }
 
@@ -634,6 +898,28 @@ export function CanvasStage() {
     if (resizeNote.current.active && resizeNote.current.pointerId === e.pointerId) {
        resizeNote.current.active = false;
        resizeNote.current.pointerId = null;
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       return;
+    }
+
+    if (dragArea.current.active && dragArea.current.pointerId === e.pointerId) {
+       dragArea.current.active = false;
+       dragArea.current.pointerId = null;
+       dragArea.current.initialPositions.clear();
+       dragArea.current.childInitPositions.clear();
+       dragArea.current.childTables = [];
+       dragArea.current.childNotes = [];
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       return;
+    }
+
+    if (resizeArea.current.active && resizeArea.current.pointerId === e.pointerId) {
+       resizeArea.current.active = false;
+       resizeArea.current.pointerId = null;
        if (target.hasPointerCapture(e.pointerId)) {
           target.releasePointerCapture(e.pointerId);
        }
@@ -899,6 +1185,20 @@ export function CanvasStage() {
                 opacity={0.6}
               />
             )}
+
+            {/* Areas */}
+            {areas.map((area) => (
+               <g
+                 key={area.id}
+                 className="pointer-events-auto cursor-grab active:cursor-grabbing"
+                 onPointerDown={(e) => onAreaPointerDown(e, area.id)}
+               >
+                 <AreaNode
+                   area={area}
+                   selected={selectedAreaIds.includes(area.id)}
+                 />
+               </g>
+            ))}
 
             {/* Notes */}
             {notes.map((note) => (

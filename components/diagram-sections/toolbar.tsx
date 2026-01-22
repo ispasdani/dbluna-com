@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ export function TabLauncherBar() {
     toggleLeftDock,
     toggleTopNavbar,
   } = useViewStore();
-  const { background, setBackground, snapToGrid, toggleSnapToGrid, addNote } =
+  const { background, setBackground, snapToGrid, toggleSnapToGrid, addNote, addArea } =
     useCanvasStore();
 
   return (
@@ -118,6 +118,17 @@ export function TabLauncherBar() {
         >
           <StickyNote className="h-4 w-4" />
           Add Note
+        </Button>
+
+        {/* Add Area Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-foreground hover:bg-panel-hover gap-2"
+          onClick={addArea}
+        >
+          <Square className="h-4 w-4" />
+          Add Area
         </Button>
       </div>
 

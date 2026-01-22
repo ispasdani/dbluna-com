@@ -9,6 +9,7 @@ import { DockSide, TabId, TABS } from "@/store/useDockStore";
 import { DockTabsHeader } from "./dock-tabs-header";
 import { TablesPanel } from "./tables-panel";
 import { NotesPanel } from "./notes-panel";
+import { AreasPanel } from "./areas-panel";
 import { RelationshipsPanel } from "./relationships-panel";
 import { CodeEditor } from "./code-editor";
 
@@ -71,6 +72,8 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <RelationshipsPanel />
           ) : activeTab === "notes" ? (
             <NotesPanel />
+          ) : activeTab === "areas" ? (
+            <AreasPanel />
           ) : activeTab === "code" ? (
             <CodeEditor />
           ) : activeTabInfo ? (

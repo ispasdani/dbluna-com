@@ -59,6 +59,18 @@ export interface Note {
   isLocked: boolean;
 }
 
+export interface Area {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  title: string;
+  color: string;
+  isLocked: boolean;
+  zIndex: number;
+}
+
 type CanvasState = {
   background: CanvasBackground;
   tables: Table[];
@@ -94,6 +106,15 @@ type CanvasState = {
   deleteNote: (id: string) => void;
   setSelectedNoteIds: (ids: string[]) => void;
   moveNotes: (moves: { id: string, x: number, y: number }[]) => void;
+
+  // Areas
+  areas: Area[];
+  selectedAreaIds: string[];
+  addArea: () => void;
+  updateArea: (id: string, updates: Partial<Area>) => void;
+  deleteArea: (id: string) => void;
+  setSelectedAreaIds: (ids: string[]) => void;
+  moveAreas: (moves: { id: string, x: number, y: number }[]) => void;
 };
 
 
@@ -107,8 +128,8 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
   snapToGrid: false,
   toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
-  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [] }),
-  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [] }),
+  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
+  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
   addTable: () =>
     set((s) => {
       const { viewport, camera } = useEditorStore.getState();
@@ -314,6 +335,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       selectedNoteIds: ids,
       selectedTableIds: [],
       selectedRelationshipId: null,
+      selectedAreaIds: [],
     }),
   moveNotes: (moves) =>
     set((s) => {
@@ -323,6 +345,66 @@ export const useCanvasStore = create<CanvasState>((set) => ({
           const move = map.get(n.id);
           if (move) return { ...n, x: move.x, y: move.y };
           return n;
+        }),
+      };
+    }),
+
+  // Areas Actions
+  areas: [],
+  selectedAreaIds: [],
+  addArea: () =>
+    set((s) => {
+      const { viewport, camera } = useEditorStore.getState();
+      const viewCenterX = viewport.w / 2;
+      const viewCenterY = viewport.h / 2;
+      const worldX = (viewCenterX - camera.x) / camera.zoom;
+      const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+      const newId = crypto.randomUUID();
+      const newArea: Area = {
+        id: newId,
+        x: worldX - 250, 
+        y: worldY - 200,
+        width: 500,
+        height: 400,
+        title: "New Area",
+        color: "#94a3b8", // slate-400
+        isLocked: false,
+        zIndex: 0,
+      };
+
+      return {
+        areas: [...s.areas, newArea],
+        selectedAreaIds: [newId],
+        selectedTableIds: [],
+        selectedRelationshipId: null,
+        selectedNoteIds: [],
+      };
+    }),
+  updateArea: (id, updates) =>
+    set((s) => ({
+      areas: s.areas.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+    })),
+  deleteArea: (id) =>
+    set((s) => ({
+      areas: s.areas.filter((a) => a.id !== id),
+      selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
+    })),
+  setSelectedAreaIds: (ids) =>
+    set({
+      selectedAreaIds: ids,
+      selectedTableIds: [],
+      selectedRelationshipId: null,
+      selectedNoteIds: [],
+    }),
+  moveAreas: (moves) =>
+    set((s) => {
+      const map = new Map(moves.map((m) => [m.id, m]));
+      return {
+        areas: s.areas.map((a) => {
+          const move = map.get(a.id);
+          if (move) return { ...a, x: move.x, y: move.y };
+          return a;
         }),
       };
     }),
