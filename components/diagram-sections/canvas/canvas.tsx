@@ -7,6 +7,7 @@ import { useDockStore } from "@/store/useDockStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { TableNode } from "./table-node";
+import { NoteNode } from "./note-node";
 import styles from "./canvas.module.scss";
 
 const WORLD_WIDTH = 6000;
@@ -23,10 +24,15 @@ export function CanvasStage() {
   const tables = useCanvasStore((s) => s.tables);
   const selectedTableIds = useCanvasStore((s) => s.selectedTableIds);
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
+  const notes = useCanvasStore((s) => s.notes);
+  const selectedNoteIds = useCanvasStore((s) => s.selectedNoteIds);
+  const setSelectedNoteIds = useCanvasStore((s) => s.setSelectedNoteIds);
   const selectedRelationshipId = useCanvasStore((s) => s.selectedRelationshipId);
   const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
   const moveTables = useCanvasStore((s) => s.moveTables);
   const deleteTables = useCanvasStore((s) => s.deleteTables);
+  const moveNotes = useCanvasStore((s) => s.moveNotes);
+  const deleteNote = useCanvasStore((s) => s.deleteNote);
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -97,7 +103,8 @@ export function CanvasStage() {
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
         if (!isTyping) {
-           deleteTables(selectedTableIds);
+           if (selectedTableIds.length > 0) deleteTables(selectedTableIds);
+           if (selectedNoteIds.length > 0) selectedNoteIds.forEach(id => deleteNote(id));
         }
       }
     };
@@ -127,6 +134,26 @@ export function CanvasStage() {
     initialPositions: Map<string, { x: number, y: number }>;
     pointerId: number | null;
   }>({ active: false, initialMouseX: 0, initialMouseY: 0, initialPositions: new Map(), pointerId: null });
+
+  // Note dragging
+  const dragNote = useRef<{
+    active: boolean;
+    initialMouseX: number;
+    initialMouseY: number;
+    initialPositions: Map<string, { x: number, y: number }>;
+    pointerId: number | null;
+  }>({ active: false, initialMouseX: 0, initialMouseY: 0, initialPositions: new Map(), pointerId: null });
+
+  // Note Resizing
+  const resizeNote = useRef<{
+    active: boolean;
+    noteId: string;
+    direction: "left" | "right";
+    initialMouseX: number;
+    initialX: number;
+    initialWidth: number;
+    pointerId: number | null;
+  }>({ active: false, noteId: "", direction: "right", initialMouseX: 0, initialX: 0, initialWidth: 0, pointerId: null });
 
   // Marquee Selection dragging
   const dragSelection = useRef<{
@@ -344,6 +371,7 @@ export function CanvasStage() {
      // If table is locked, just select it (single) and return
      if (table.isLocked) {
        setSelectedTableIds([tableId]);
+       openTab("tables", "left");
        return;
      }
 
@@ -361,6 +389,7 @@ export function CanvasStage() {
            newSelectedIds = [tableId];
         }
         setSelectedTableIds(newSelectedIds);
+        openTab("tables", "left");
         // Force update local variable for initPositions
      }
      // If shift clicking an already selected table, deselect it? 
@@ -389,6 +418,73 @@ export function CanvasStage() {
      };
   };
 
+  const onNotePointerDown = (e: React.PointerEvent, noteId: string) => {
+     if (spaceDown) return;
+     e.stopPropagation();
+     e.preventDefault();
+
+     const note = notes.find(n => n.id === noteId);
+     if (!note) return;
+
+     const target = e.target as Element;
+     const resizeDir = target.getAttribute("data-note-resize");
+
+     // Handle Resizing
+     if (resizeDir && (resizeDir === "left" || resizeDir === "right") && !note.isLocked) {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        resizeNote.current = {
+           active: true,
+           noteId,
+           direction: resizeDir,
+           initialMouseX: e.clientX,
+           initialX: note.x,
+           initialWidth: note.width,
+           pointerId: e.pointerId
+        };
+        return;
+     }
+
+     // If locked, just select
+     if (note.isLocked) {
+        setSelectedNoteIds([noteId]);
+        openTab("notes", "left");
+        return;
+     }
+
+     (e.currentTarget as Element).setPointerCapture(e.pointerId);
+
+     // Selection Logic (similar to tables)
+     let newSelectedIds = [...selectedNoteIds];
+     if (!selectedNoteIds.includes(noteId)) {
+       if (e.shiftKey) {
+         newSelectedIds.push(noteId);
+       } else {
+         newSelectedIds = [noteId];
+       }
+       setSelectedNoteIds(newSelectedIds);
+       openTab("notes", "left");
+     } else if (e.shiftKey) {
+       newSelectedIds = newSelectedIds.filter(id => id !== noteId);
+       setSelectedNoteIds(newSelectedIds);
+       return;
+     }
+
+     // Group Drag Init
+     const initialPositions = new Map<string, {x: number, y: number}>();
+     newSelectedIds.forEach(id => {
+        const n = notes.find(n => n.id === id);
+        if (n) initialPositions.set(id, { x: n.x, y: n.y });
+     });
+
+     dragNote.current = {
+        active: true,
+        initialMouseX: e.clientX,
+        initialMouseY: e.clientY,
+        initialPositions,
+        pointerId: e.pointerId
+     };
+  };
+
   const onPointerMove = (e: React.PointerEvent) => {
     // 1. Handle Table Drag
     if (dragTable.current.active) {
@@ -412,6 +508,51 @@ export function CanvasStage() {
 
        if (moves.length > 0) {
          moveTables(moves);
+       }
+       return;
+       return;
+    }
+
+    // 1.5 Handle Note Drag & Resize
+    if (dragNote.current.active) {
+       e.preventDefault();
+       const dx = (e.clientX - dragNote.current.initialMouseX) / camera.zoom;
+       const dy = (e.clientY - dragNote.current.initialMouseY) / camera.zoom;
+       
+       const moves: { id: string, x: number, y: number }[] = [];
+       const SNAP = 24;
+
+       dragNote.current.initialPositions.forEach((initPos, id) => {
+          let newX = initPos.x + dx;
+          let newY = initPos.y + dy;
+
+          if (snapToGrid) {
+            newX = Math.round(newX / SNAP) * SNAP;
+            newY = Math.round(newY / SNAP) * SNAP;
+          }
+          moves.push({ id, x: newX, y: newY });
+       });
+
+       if (moves.length > 0) {
+         moveNotes(moves);
+       }
+       return;
+    }
+
+    if (resizeNote.current.active) {
+       e.preventDefault();
+       const dx = (e.clientX - resizeNote.current.initialMouseX) / camera.zoom;
+       const updateNote = useCanvasStore.getState().updateNote;
+       
+       const { initialWidth, initialX, direction, noteId } = resizeNote.current;
+       
+       if (direction === "right") {
+          const newWidth = Math.max(100, initialWidth + dx); // Min width 100
+          updateNote(noteId, { width: newWidth });
+       } else {
+          const newWidth = Math.max(100, initialWidth - dx);
+          const newX = initialX + (initialWidth - newWidth); // Shift X to keep right side fixed
+          updateNote(noteId, { width: newWidth, x: newX });
        }
        return;
     }
@@ -473,6 +614,26 @@ export function CanvasStage() {
        dragTable.current.active = false;
        dragTable.current.pointerId = null;
        dragTable.current.initialPositions.clear();
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       return;
+    }
+
+    // Handle Note Drop
+    if (dragNote.current.active && dragNote.current.pointerId === e.pointerId) {
+       dragNote.current.active = false;
+       dragNote.current.pointerId = null;
+       dragNote.current.initialPositions.clear();
+       if (target.hasPointerCapture(e.pointerId)) {
+          target.releasePointerCapture(e.pointerId);
+       }
+       return;
+    }
+
+    if (resizeNote.current.active && resizeNote.current.pointerId === e.pointerId) {
+       resizeNote.current.active = false;
+       resizeNote.current.pointerId = null;
        if (target.hasPointerCapture(e.pointerId)) {
           target.releasePointerCapture(e.pointerId);
        }
@@ -738,6 +899,20 @@ export function CanvasStage() {
                 opacity={0.6}
               />
             )}
+
+            {/* Notes */}
+            {notes.map((note) => (
+               <g
+                 key={note.id}
+                 className="pointer-events-auto cursor-pointer"
+                 onPointerDown={(e) => onNotePointerDown(e, note.id)}
+               >
+                 <NoteNode
+                   note={note}
+                   selected={selectedNoteIds.includes(note.id)}
+                 />
+               </g>
+            ))}
 
             {/* Tables */}
             {tables.map((table) => (
