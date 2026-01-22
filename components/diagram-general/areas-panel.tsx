@@ -7,6 +7,8 @@ import {
   Square,
   ChevronRight,
   ChevronDown,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +85,18 @@ export function AreasPanel() {
                   <div className="h-3 w-3 rounded sm:rounded-sm mr-2 shrink-0 border border-black/10" style={{ backgroundColor: area.color }} />
                   <span className="font-medium text-sm truncate flex-1">{area.title || "Untitled Area"}</span>
                   
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground/60 hover:text-foreground mr-1"
+                    onClick={(e) => {
+                       e.stopPropagation();
+                       updateArea(area.id, { isLocked: !area.isLocked });
+                    }}
+                  >
+                    {area.isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                  </Button>
+
                   <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button

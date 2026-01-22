@@ -737,7 +737,11 @@ export function CanvasStage() {
 
        const moves: { id: string, x: number, y: number }[] = [];
        // Move Areas
+       const areasState = useCanvasStore.getState().areas;
        dragArea.current.initialPositions.forEach((initPos, id) => {
+          const area = areasState.find(a => a.id === id);
+          if (area?.isLocked) return;
+
           let newX = initPos.x + dx;
           let newY = initPos.y + dy;
           if (snapToGrid) {

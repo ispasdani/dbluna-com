@@ -37,11 +37,6 @@ export function AreaNode({ area, selected }: AreaNodeProps) {
         stroke={selected ? "var(--primary)" : area.color}
         strokeWidth={selected ? 2 : 2}
         strokeDasharray="8,4"
-        style={{ pointerEvents: area.isLocked ? "none" : "visible" }} 
-        // pointerEvents needs to be handled carefully. 
-        // If we want to drag it, we need events. But it shouldn't block selection of items inside? 
-        // SVG order handles visual block, but pointer events might "catch" click if fill is present.
-        // fillOpacity 0.05 is clickable.
       />
 
       {/* Label Area */}
@@ -63,6 +58,7 @@ export function AreaNode({ area, selected }: AreaNodeProps) {
                    variant="ghost" 
                    size="icon"
                    className="h-6 w-6"
+                   onPointerDown={(e) => e.stopPropagation()}
                    onClick={() => updateArea(area.id, { isLocked: !area.isLocked })}
                 >
                    {area.isLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
@@ -71,7 +67,11 @@ export function AreaNode({ area, selected }: AreaNodeProps) {
                    variant="ghost" 
                    size="icon"
                    className="h-6 w-6 text-destructive"
-                   onClick={() => deleteArea(area.id)}
+                   onPointerDown={(e) => e.stopPropagation()}
+                   onClick={(e) => {
+                       e.stopPropagation();
+                       deleteArea(area.id);
+                    }}
                 >
                    <Trash className="h-3 w-3" />
                 </Button>
