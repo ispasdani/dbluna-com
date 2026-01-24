@@ -1,8 +1,5 @@
 import { Table, Relationship } from "@/store/useCanvasStore";
 
-// Helper to create a UUID-like string for static template data
-const createId = (prefix: string) => `${prefix}-${Math.random().toString(36).substr(2, 9)}`;
-
 export interface Template {
     id: string;
     name: string;
@@ -178,4 +175,259 @@ export const ECOMMERCE_TEMPLATE: Template = {
     ],
 };
 
-export const TEMPLATES = [ECOMMERCE_TEMPLATE];
+export const LMS_TEMPLATE: Template = {
+    id: "lms-v1",
+    name: "LMS System",
+    description: "A learning management system for online courses, students, and progress tracking.",
+    tables: [
+        {
+            id: "lms-users",
+            name: "users",
+            x: 0,
+            y: 0,
+            color: "#e11d48", // rose
+            columns: [
+                { id: "lms-users-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-users-email", name: "email", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-users-name", name: "full_name", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-users-role", name: "role", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false }, // 'student', 'instructor', 'admin'
+                { id: "lms-users-created", name: "created_at", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-courses",
+            name: "courses",
+            x: 300,
+            y: 0,
+            color: "#ea580c", // orange
+            columns: [
+                { id: "lms-courses-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-courses-inst", name: "instructor_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-courses-title", name: "title", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-courses-desc", name: "description", type: "TEXT", isPrimaryKey: false, isNotNull: false, isUnique: false, isAutoIncrement: false },
+                { id: "lms-courses-price", name: "price", type: "DECIMAL", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-enrollments",
+            name: "enrollments",
+            x: 0,
+            y: 300,
+            color: "#0284c7", // sky
+            columns: [
+                { id: "lms-enroll-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-enroll-stud", name: "student_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-enroll-course", name: "course_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-enroll-date", name: "enrolled_at", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-modules",
+            name: "modules",
+            x: 600,
+            y: 0,
+            color: "#d97706", // amber
+            columns: [
+                { id: "lms-modules-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-modules-course", name: "course_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-modules-title", name: "title", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-modules-seq", name: "sequence", type: "INT", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-lessons",
+            name: "lessons",
+            x: 900,
+            y: 0,
+            color: "#16a34a", // green
+            columns: [
+                { id: "lms-lessons-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-lessons-mod", name: "module_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-lessons-title", name: "title", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-lessons-type", name: "content_type", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false }, // 'video', 'text', 'quiz'
+            ],
+        },
+        {
+            id: "lms-progress",
+            name: "progress",
+            x: 300,
+            y: 300,
+            color: "#9333ea", // purple
+            columns: [
+                { id: "lms-prog-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-prog-enroll", name: "enrollment_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-prog-less", name: "lesson_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-prog-comp", name: "is_completed", type: "BOOLEAN", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-assignments",
+            name: "assignments",
+            x: 600,
+            y: 300,
+            color: "#db2777", // pink
+            columns: [
+                { id: "lms-assign-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-assign-course", name: "course_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-assign-title", name: "title", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-assign-due", name: "due_date", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: false, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "lms-subs",
+            name: "submissions",
+            x: 900,
+            y: 300,
+            color: "#4f46e5", // indigo
+            columns: [
+                { id: "lms-sub-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "lms-sub-assign", name: "assignment_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-sub-stud", name: "student_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "lms-sub-grade", name: "grade", type: "DECIMAL", isPrimaryKey: false, isNotNull: false, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+    ],
+    relationships: [
+        { id: "lms-rel-course-inst", name: "taught_by", sourceTableId: "lms-courses", sourceColumnId: "lms-courses-inst", targetTableId: "lms-users", targetColumnId: "lms-users-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Set null" },
+        { id: "lms-rel-enroll-stud", name: "enrolled_student", sourceTableId: "lms-enrollments", sourceColumnId: "lms-enroll-stud", targetTableId: "lms-users", targetColumnId: "lms-users-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Cascade" },
+        { id: "lms-rel-enroll-course", name: "enrolled_course", sourceTableId: "lms-enrollments", sourceColumnId: "lms-enroll-course", targetTableId: "lms-courses", targetColumnId: "lms-courses-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Cascade" },
+        { id: "lms-rel-mod-course", name: "course_content", sourceTableId: "lms-modules", sourceColumnId: "lms-modules-course", targetTableId: "lms-courses", targetColumnId: "lms-courses-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-less-mod", name: "module_item", sourceTableId: "lms-lessons", sourceColumnId: "lms-lessons-mod", targetTableId: "lms-modules", targetColumnId: "lms-modules-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-prog-enroll", name: "student_progress", sourceTableId: "lms-progress", sourceColumnId: "lms-prog-enroll", targetTableId: "lms-enrollments", targetColumnId: "lms-enroll-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-prog-less", name: "lesson_progress", sourceTableId: "lms-progress", sourceColumnId: "lms-prog-less", targetTableId: "lms-lessons", targetColumnId: "lms-lessons-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-assign-course", name: "course_assignment", sourceTableId: "lms-assignments", sourceColumnId: "lms-assign-course", targetTableId: "lms-courses", targetColumnId: "lms-courses-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-sub-assign", name: "submission_for", sourceTableId: "lms-subs", sourceColumnId: "lms-sub-assign", targetTableId: "lms-assignments", targetColumnId: "lms-assign-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "lms-rel-sub-stud", name: "submitted_by", sourceTableId: "lms-subs", sourceColumnId: "lms-sub-stud", targetTableId: "lms-users", targetColumnId: "lms-users-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Cascade" },
+    ]
+};
+
+export const SAAS_TEMPLATE: Template = {
+    id: "saas-v1",
+    name: "SaaS & Project Mgmt",
+    description: "A multi-tenant architecture for project management with organizations, tasks, and subscriptions.",
+    tables: [
+        {
+            id: "saas-orgs",
+            name: "organizations",
+            x: 0,
+            y: 0,
+            color: "#0f172a", // slate-900 (custom)
+            columns: [
+                { id: "saas-orgs-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-orgs-name", name: "name", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-orgs-domain", name: "domain_slug", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-orgs-created", name: "created_at", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-users",
+            name: "users",
+            x: 300,
+            y: 0,
+            color: "#e11d48", // rose
+            columns: [
+                { id: "saas-users-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-users-org", name: "organization_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-users-email", name: "email", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-users-pass", name: "password_hash", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-users-role", name: "role", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false }, // 'owner', 'member', 'guest'
+            ],
+        },
+        {
+            id: "saas-subs",
+            name: "subscriptions",
+            x: 0,
+            y: 300,
+            color: "#16a34a", // green
+            columns: [
+                { id: "saas-subs-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-subs-org", name: "organization_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-subs-plan", name: "plan", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false }, // 'free', 'pro', 'enterprise'
+                { id: "saas-subs-status", name: "status", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-subs-end", name: "current_period_end", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-projects",
+            name: "projects",
+            x: 600,
+            y: 0,
+            color: "#ea580c", // orange
+            columns: [
+                { id: "saas-proj-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-proj-org", name: "organization_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-proj-name", name: "name", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-proj-status", name: "status", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-tasks",
+            name: "tasks",
+            x: 600,
+            y: 300,
+            color: "#0284c7", // sky
+            columns: [
+                { id: "saas-tasks-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-tasks-proj", name: "project_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tasks-assign", name: "assignee_id", type: "UUID", isPrimaryKey: false, isNotNull: false, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tasks-title", name: "title", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tasks-status", name: "status", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tasks-prio", name: "priority", type: "INT", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tasks-due", name: "due_date", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: false, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-comments",
+            name: "comments",
+            x: 900,
+            y: 300,
+            color: "#4f46e5", // indigo
+            columns: [
+                { id: "saas-comm-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-comm-task", name: "task_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-comm-user", name: "user_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-comm-body", name: "body", type: "TEXT", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-comm-created", name: "created_at", type: "TIMESTAMP", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-tags",
+            name: "tags",
+            x: 900,
+            y: 0,
+            color: "#9333ea", // purple
+            columns: [
+                { id: "saas-tags-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-tags-org", name: "organization_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tags-name", name: "name", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tags-color", name: "color", type: "VARCHAR", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+        {
+            id: "saas-tasktags",
+            name: "task_tags",
+            x: 750,
+            y: 150,
+            color: "#64748b", // slate-500
+            columns: [
+                { id: "saas-tt-id", name: "id", type: "UUID", isPrimaryKey: true, isNotNull: true, isUnique: true, isAutoIncrement: false },
+                { id: "saas-tt-task", name: "task_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+                { id: "saas-tt-tag", name: "tag_id", type: "UUID", isPrimaryKey: false, isNotNull: true, isUnique: false, isAutoIncrement: false },
+            ],
+        },
+    ],
+    relationships: [
+        { id: "saas-rel-user-org", name: "member_of", sourceTableId: "saas-users", sourceColumnId: "saas-users-org", targetTableId: "saas-orgs", targetColumnId: "saas-orgs-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-sub-org", name: "subscription_for", sourceTableId: "saas-subs", sourceColumnId: "saas-subs-org", targetTableId: "saas-orgs", targetColumnId: "saas-orgs-id", cardinality: "One to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-proj-org", name: "project_owner", sourceTableId: "saas-projects", sourceColumnId: "saas-proj-org", targetTableId: "saas-orgs", targetColumnId: "saas-orgs-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-task-proj", name: "belongs_to_project", sourceTableId: "saas-tasks", sourceColumnId: "saas-tasks-proj", targetTableId: "saas-projects", targetColumnId: "saas-proj-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-task-assign", name: "assigned_to", sourceTableId: "saas-tasks", sourceColumnId: "saas-tasks-assign", targetTableId: "saas-users", targetColumnId: "saas-users-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Set null" },
+        { id: "saas-rel-comm-task", name: "comment_on", sourceTableId: "saas-comments", sourceColumnId: "saas-comm-task", targetTableId: "saas-tasks", targetColumnId: "saas-tasks-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-comm-user", name: "comment_author", sourceTableId: "saas-comments", sourceColumnId: "saas-comm-user", targetTableId: "saas-users", targetColumnId: "saas-users-id", cardinality: "Many to one", onUpdate: "No action", onDelete: "Set null" },
+        { id: "saas-rel-tag-org", name: "org_tag", sourceTableId: "saas-tags", sourceColumnId: "saas-tags-org", targetTableId: "saas-orgs", targetColumnId: "saas-orgs-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-tt-task", name: "tagged_task", sourceTableId: "saas-tasktags", sourceColumnId: "saas-tt-task", targetTableId: "saas-tasks", targetColumnId: "saas-tasks-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+        { id: "saas-rel-tt-tag", name: "tag_reference", sourceTableId: "saas-tasktags", sourceColumnId: "saas-tt-tag", targetTableId: "saas-tags", targetColumnId: "saas-tags-id", cardinality: "Many to one", onUpdate: "Cascade", onDelete: "Cascade" },
+    ],
+};
+
+export const TEMPLATES = [ECOMMERCE_TEMPLATE, LMS_TEMPLATE, SAAS_TEMPLATE];
