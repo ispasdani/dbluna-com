@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
 import { useCanvasStore } from "@/store/useCanvasStore";
@@ -8,6 +8,7 @@ import { Parser } from "@dbml/core";
 import { Copy, Download, FileCode, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 
 // Custom theme extension to use CSS variables
 const themeExtension = EditorView.theme({
@@ -42,6 +43,11 @@ const themeExtension = EditorView.theme({
   },
   ".cm-line": {
     fontFamily: "var(--font-mono)",
+  },
+  ".cm-tooltip-lint": {
+    backgroundColor: "var(--popover) !important",
+    color: "var(--popover-foreground) !important",
+    border: "1px solid var(--border) !important",
   }
 });
 
@@ -57,11 +63,56 @@ function useDebounce<T>(value: T, delay: number): T {
 export function CodeEditor() {
   const { tables, setTables } = useCanvasStore();
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const debouncedCode = useDebounce(code, 800);
   const isTypingRef = useRef(false);
+
+  // Custom Linter for DBML
+  const dbmlLinterSource = useCallback((view: EditorView): Diagnostic[] => {
+    const doc = view.state.doc;
+    const currentCode = doc.toString();
+
+    // If empty, no errors
+    if (!currentCode.trim()) return [];
+
+    try {
+      Parser.parse(currentCode, "dbml");
+      return [];
+    } catch (err: any) {
+      // Handle DBML Parser errors which are returned as an object with a 'diags' array
+      if (err.diags && Array.isArray(err.diags)) {
+        return err.diags.map((d: any) => {
+          const from = d.location.start.offset;
+          const to = d.location.end.offset;
+          return {
+            from,
+            to: Math.max(to, from + 1), // Ensure at least 1 char width
+            severity: "error",
+            message: d.message,
+            source: "DBML Parser"
+          };
+        });
+      }
+
+      // Fallback for simple errors that might have location directly (legacy or different error types)
+      if (err.location) {
+        try {
+          const from = err.location.start.offset;
+          const to = err.location.end.offset;
+          return [{
+            from,
+            to,
+            severity: "error",
+            message: err.message || "Syntax Error",
+            source: "DBML Parser"
+          }];
+        } catch (e) { return [] }
+      }
+
+      return [];
+    }
+  }, []);
 
   // 1. Canvas -> Code (One-way init or update)
   useEffect(() => {
@@ -85,7 +136,6 @@ export function CodeEditor() {
 
       const newCode = parts.join("\n\n");
       setCode(newCode);
-      setError(null); // Clear errors on fresh sync
     } catch (err) {
       console.error("Failed to generate DBML", err);
     }
@@ -94,7 +144,6 @@ export function CodeEditor() {
   // 2. Code -> Canvas (Parse and Sync)
   useEffect(() => {
     if (!debouncedCode) {
-      setError(null);
       return;
     }
 
@@ -129,14 +178,12 @@ export function CodeEditor() {
       });
 
       setTables(newTables);
-      setError(null);
       isTypingRef.current = false;
 
     } catch (e: any) {
-      // Capture the error message
-      // DBML parser errors usually have location data, but for now we just show the message
-      const msg = e.message || "Syntax error in DBML";
-      setError(msg);
+      // Errors are handled by the linter. 
+      // We catch here to prevent app crash during sync.
+      // console.debug("DBML parsing error (expected while typing):", e);
     }
   }, [debouncedCode, setTables]); // Exclude 'tables'
 
@@ -160,6 +207,13 @@ export function CodeEditor() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // Extensions array memoized
+  const extensions = useMemo(() => [
+    sql(),
+    lintGutter(),
+    linter(dbmlLinterSource)
+  ], [dbmlLinterSource]);
 
   return (
     <div className="h-full w-full bg-dock-bg text-foreground flex flex-col relative group">
@@ -193,32 +247,17 @@ export function CodeEditor() {
           value={code}
           height="100%"
           theme={themeExtension}
-          extensions={[sql()]}
+          extensions={extensions}
           onChange={handleChange}
           className="h-full text-[13px]"
           basicSetup={{
             drawSelection: false,
             lineNumbers: true,
             foldGutter: true,
+            lintKeymap: true, // Enable linting keymap
           }}
         />
       </div>
-
-      {/* Error Bar - Floating at bottom */}
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 20, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute bottom-4 left-4 right-4 bg-destructive/10 border border-destructive/20 text-destructive px-3 py-2 rounded-md shadow-lg backdrop-blur-sm z-10 flex items-start gap-2"
-          >
-            <AlertCircle className="w-4 h-4 mt-0.5 flex-none" />
-            <div className="text-xs font-medium font-mono break-all">{error}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
