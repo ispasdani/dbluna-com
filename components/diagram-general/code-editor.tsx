@@ -224,7 +224,10 @@ export function CodeEditor() {
   };
 
   const handleDownload = () => {
-    const blob = new Blob([code], { type: "text/plain" });
+    let mimeType = "text/plain";
+    if (language === "json") mimeType = "application/json";
+
+    const blob = new Blob([code], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -279,7 +282,7 @@ export function CodeEditor() {
           <button
             onClick={handleDownload}
             className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
-            title="Download DBML"
+            title={`Download ${language.toUpperCase()}`}
           >
             <Download className="w-3.5 h-3.5" />
           </button>
