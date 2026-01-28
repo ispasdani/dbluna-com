@@ -3,12 +3,14 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
+import { json } from "@codemirror/lang-json";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { Parser } from "@dbml/core";
-import { Copy, Download, FileCode, Check, AlertCircle } from "lucide-react";
+import { Copy, Download, FileCode, Check, AlertCircle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
+import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 
 // Custom theme extension to use CSS variables
 const themeExtension = EditorView.theme({
@@ -60,16 +62,21 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+export type EditorLanguage = "dbml" | "json" | "mermaid";
+
 export function CodeEditor() {
   const { tables, setTables } = useCanvasStore();
   const [code, setCode] = useState("");
+  const [language, setLanguage] = useState<EditorLanguage>("dbml");
   const [copied, setCopied] = useState(false);
 
   const debouncedCode = useDebounce(code, 800);
   const isTypingRef = useRef(false);
 
-  // Custom Linter for DBML
+  // Custom Linter (Only for DBML currently)
   const dbmlLinterSource = useCallback((view: EditorView): Diagnostic[] => {
+    if (language !== "dbml") return [];
+
     const doc = view.state.doc;
     const currentCode = doc.toString();
 
@@ -112,34 +119,41 @@ export function CodeEditor() {
 
       return [];
     }
-  }, []);
+  }, [language]);
 
   // 1. Canvas -> Code (One-way init or update)
   useEffect(() => {
     if (isTypingRef.current) return;
 
     try {
-      const parts = tables.map((table) => {
-        const cols = table.columns.map((col) => {
-          const props = [];
-          if (col.isPrimaryKey) props.push("pk");
-          if (col.isUnique) props.push("unique");
-          if (col.isNotNull) props.push("not null");
-          if (col.isAutoIncrement) props.push("increment");
+      if (language === "json") {
+        setCode(tablesToJSON(tables));
+      } else if (language === "mermaid") {
+        setCode(tablesToMermaid(tables));
+      } else {
+        // DBML (Default)
+        const parts = tables.map((table) => {
+          const cols = table.columns.map((col) => {
+            const props = [];
+            if (col.isPrimaryKey) props.push("pk");
+            if (col.isUnique) props.push("unique");
+            if (col.isNotNull) props.push("not null");
+            if (col.isAutoIncrement) props.push("increment");
 
-          const propsStr = props.length ? ` [${props.join(", ")}]` : "";
-          return `  ${col.name} ${col.type}${propsStr}`;
+            const propsStr = props.length ? ` [${props.join(", ")}]` : "";
+            return `  ${col.name} ${col.type}${propsStr}`;
+          });
+
+          return `Table ${table.name} {\n${cols.join("\n")}\n}`;
         });
 
-        return `Table ${table.name} {\n${cols.join("\n")}\n}`;
-      });
-
-      const newCode = parts.join("\n\n");
-      setCode(newCode);
+        const newCode = parts.join("\n\n");
+        setCode(newCode);
+      }
     } catch (err) {
-      console.error("Failed to generate DBML", err);
+      console.error("Failed to generate code", err);
     }
-  }, [tables]);
+  }, [tables, language]);
 
   // 2. Code -> Canvas (Parse and Sync)
   useEffect(() => {
@@ -148,6 +162,19 @@ export function CodeEditor() {
     }
 
     try {
+      if (language === "json") {
+        const newTables = jsonToTables(debouncedCode);
+        // Basic validation succeeded if no throw
+        setTables(newTables);
+        return;
+      }
+
+      if (language === "mermaid") {
+        // Mermaid is currently one-way (read-only for canvas sync)
+        return;
+      }
+
+      // DBML Parsing
       const database = Parser.parse(debouncedCode, "dbml");
       const schema = database.schemas[0];
 
@@ -181,11 +208,9 @@ export function CodeEditor() {
       isTypingRef.current = false;
 
     } catch (e: any) {
-      // Errors are handled by the linter. 
-      // We catch here to prevent app crash during sync.
-      // console.debug("DBML parsing error (expected while typing):", e);
+      // Errors are handled by the linter or ignored for now
     }
-  }, [debouncedCode, setTables]); // Exclude 'tables'
+  }, [debouncedCode, setTables, language]); // Exclude 'tables' to avoid loops, but language change triggers re-parse? No, language change triggers Code gen first.
 
   const handleChange = useCallback((val: string) => {
     isTypingRef.current = true;
@@ -203,25 +228,45 @@ export function CodeEditor() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "schema.dbml";
+    a.download = `schema.${language}`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   // Extensions array memoized
-  const extensions = useMemo(() => [
-    sql(),
-    lintGutter(),
-    linter(dbmlLinterSource)
-  ], [dbmlLinterSource]);
+  const extensions = useMemo(() => {
+    const exts = [
+      lintGutter(),
+      linter(dbmlLinterSource)
+    ];
+
+    if (language === "json") {
+      exts.push(json());
+    } else {
+      // Default / DBML uses SQL highlighting
+      exts.push(sql());
+    }
+    return exts;
+  }, [dbmlLinterSource, language]);
 
   return (
     <div className="h-full w-full bg-dock-bg text-foreground flex flex-col relative group">
       {/* Toolbar */}
       <div className="flex-none h-10 px-3 flex items-center justify-between border-b border-border bg-dock-header select-none">
-        <div className="flex items-center gap-2 text-muted-foreground">
+        <div className="flex items-center gap-2 text-muted-foreground relative">
           <FileCode className="w-4 h-4" />
-          <span className="text-xs font-mono">schema.dbml</span>
+          <div className="relative flex items-center">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as EditorLanguage)}
+              className="bg-transparent text-xs font-mono outline-none cursor-pointer appearance-none pr-5 hover:text-foreground transition-colors"
+            >
+              <option value="dbml" className="bg-dock-bg text-foreground">schema.dbml</option>
+              <option value="json" className="bg-dock-bg text-foreground">schema.json</option>
+              <option value="mermaid" className="bg-dock-bg text-foreground">schema.mermaid</option>
+            </select>
+            <ChevronDown className="w-3 h-3 absolute right-0 pointer-events-none opacity-70" />
+          </div>
         </div>
         <div className="flex items-center gap-1">
           <button
