@@ -24,6 +24,7 @@ export default defineSchema({
     .index("by_email", ["email"]),
 
   // 🔹 Diagrams (real app only: created by logged-in users)
+  // 🔹 Diagrams (real app only: created by logged-in users)
   diagrams: defineTable({
     ownerId: v.id("users"),
     name: v.string(),
@@ -32,10 +33,75 @@ export default defineSchema({
 
     publicId: v.optional(v.string()),
 
-    tables: v.array(v.any()),
-    relationships: v.array(v.any()),
-    areas: v.array(v.any()),
-    notes: v.array(v.any()),
+    // 1) Tables & Columns
+    tables: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        x: v.number(),
+        y: v.number(),
+        color: v.string(),
+        isLocked: v.optional(v.boolean()),
+        comment: v.optional(v.string()),
+        columns: v.array(
+          v.object({
+            id: v.string(),
+            name: v.string(),
+            type: v.string(),
+            isPrimaryKey: v.boolean(),
+            isNotNull: v.boolean(),
+            isUnique: v.boolean(),
+            isAutoIncrement: v.boolean(),
+          })
+        ),
+      })
+    ),
+
+    // 2) Relationships
+    relationships: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        sourceTableId: v.string(),
+        sourceColumnId: v.string(),
+        targetTableId: v.string(),
+        targetColumnId: v.string(),
+        cardinality: v.string(), // "One to one" | "One to many" | ...
+        onUpdate: v.string(),
+        onDelete: v.string(),
+      })
+    ),
+
+    // 3) Areas
+    areas: v.array(
+      v.object({
+        id: v.string(),
+        x: v.number(),
+        y: v.number(),
+        width: v.number(),
+        height: v.number(),
+        title: v.string(),
+        color: v.string(),
+        isLocked: v.boolean(),
+        zIndex: v.number(),
+      })
+    ),
+
+    // 4) Notes
+    notes: v.array(
+      v.object({
+        id: v.string(),
+        x: v.number(),
+        y: v.number(),
+        width: v.number(),
+        height: v.number(),
+        title: v.string(),
+        content: v.string(),
+        color: v.string(),
+        isLocked: v.boolean(),
+      })
+    ),
+
     camera: v.object({
       x: v.number(),
       y: v.number(),

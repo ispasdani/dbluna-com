@@ -8,10 +8,10 @@
  * @module
  */
 
+import type * as diagrams from "../diagrams.js";
 import type * as guards from "../guards.js";
 import type * as http from "../http.js";
 import type * as sandbox from "../sandbox.js";
-import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -21,10 +21,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  diagrams: typeof diagrams;
   guards: typeof guards;
   http: typeof http;
   sandbox: typeof sandbox;
-  tasks: typeof tasks;
   users: typeof users;
 }>;
 
