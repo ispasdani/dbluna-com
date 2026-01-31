@@ -37,9 +37,9 @@ export interface Relationship {
 }
 
 export const TABLE_COLORS = [
-  "#e11d48",
-  "#ea580c",
-  "#d97706",
+  "#e11d48", // rose
+  "#ea580c", // orange
+  "#d97706", // amber
   "#16a34a", // green
   "#0284c7", // sky
   "#4f46e5", // indigo
