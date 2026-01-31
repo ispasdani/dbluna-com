@@ -37,9 +37,9 @@ export interface Relationship {
 }
 
 export const TABLE_COLORS = [
-  "#e11d48", // rose
-  "#ea580c", // orange
-  "#d97706", // amber
+  "#e11d48",
+  "#ea580c",
+  "#d97706",
   "#16a34a", // green
   "#0284c7", // sky
   "#4f46e5", // indigo
@@ -97,7 +97,7 @@ type CanvasState = {
   updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
-  
+
   // Notes
   notes: Note[];
   selectedNoteIds: string[];
@@ -133,10 +133,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   addTable: () =>
     set((s) => {
       const { viewport, camera } = useEditorStore.getState();
-      
+
       const viewCenterX = viewport.w / 2;
       const viewCenterY = viewport.h / 2;
-      
+
       // Convert screen center to world coordinates
       const worldX = (viewCenterX - camera.x) / camera.zoom;
       const worldY = (viewCenterY - camera.y) / camera.zoom;
@@ -146,7 +146,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
         id: newId,
         name: "users",
         // Center the 220px wide table (approx)
-        x: worldX - 110, 
+        x: worldX - 110,
         y: worldY - 100,
         color: TABLE_COLORS[Math.floor(Math.random() * TABLE_COLORS.length)],
         isLocked: false,
@@ -170,19 +170,19 @@ export const useCanvasStore = create<CanvasState>((set) => ({
             isAutoIncrement: false,
           },
           {
-             id: crypto.randomUUID(),
-             name: "email",
-             type: "VARCHAR",
-             isPrimaryKey: false,
-             isNotNull: false,
-             isUnique: false,
-             isAutoIncrement: false,
+            id: crypto.randomUUID(),
+            name: "email",
+            type: "VARCHAR",
+            isPrimaryKey: false,
+            isNotNull: false,
+            isUnique: false,
+            isAutoIncrement: false,
           }
         ],
       };
-      return { 
+      return {
         tables: [...s.tables, newTable],
-        selectedTableIds: [newId] 
+        selectedTableIds: [newId]
       };
     }),
   updateTable: (id, updates) =>
@@ -191,7 +191,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     })),
   updateTablePos: (id, x, y) =>
     set((s) => ({
-       tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
+      tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
     })),
   moveTables: (moves) =>
     set((s) => {
@@ -219,20 +219,20 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       tables: s.tables.map((t) =>
         t.id === tableId
           ? {
-              ...t,
-              columns: [
-                ...t.columns,
-                {
-                  id: crypto.randomUUID(),
-                  name: "new_field",
-                  type: "VARCHAR",
-                  isPrimaryKey: false,
-                  isNotNull: false,
-                  isUnique: false,
-                  isAutoIncrement: false,
-                },
-              ],
-            }
+            ...t,
+            columns: [
+              ...t.columns,
+              {
+                id: crypto.randomUUID(),
+                name: "new_field",
+                type: "VARCHAR",
+                isPrimaryKey: false,
+                isNotNull: false,
+                isUnique: false,
+                isAutoIncrement: false,
+              },
+            ],
+          }
           : t
       ),
     })),
@@ -241,11 +241,11 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       tables: s.tables.map((t) =>
         t.id === tableId
           ? {
-              ...t,
-              columns: t.columns.map((c) =>
-                c.id === fieldId ? { ...c, ...updates } : c
-              ),
-            }
+            ...t,
+            columns: t.columns.map((c) =>
+              c.id === fieldId ? { ...c, ...updates } : c
+            ),
+          }
           : t
       ),
     })),
@@ -254,9 +254,9 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       tables: s.tables.map((t) =>
         t.id === tableId
           ? {
-              ...t,
-              columns: t.columns.filter((c) => c.id !== fieldId),
-            }
+            ...t,
+            columns: t.columns.filter((c) => c.id !== fieldId),
+          }
           : t
       ),
     })),
@@ -271,7 +271,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
         onDelete: "No action",
         ...rel,
       };
-      return { 
+      return {
         relationships: [...s.relationships, newRel],
         selectedRelationshipId: newRel.id,
         selectedTableIds: []
@@ -289,7 +289,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
     })),
   setTables: (tables) => set({ tables }),
-  
+
   // Notes Actions
   notes: [],
   selectedNoteIds: [],
@@ -363,7 +363,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
       const newId = crypto.randomUUID();
       const newArea: Area = {
         id: newId,
-        x: worldX - 250, 
+        x: worldX - 250,
         y: worldY - 200,
         width: 500,
         height: 400,
