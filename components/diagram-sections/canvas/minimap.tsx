@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 type Camera = { x: number; y: number; zoom: number };
@@ -10,16 +10,21 @@ export function Minimap({
   world,
   viewport,
   camera,
+  tables = [],
+  notes = [],
+  areas = [],
   onRecenter,
 }: {
   className?: string;
   world: { w: number; h: number };
   viewport: { w: number; h: number };
   camera: Camera;
+  tables?: { id: string; x: number; y: number; width?: number; height?: number }[];
+  notes?: { id: string; x: number; y: number; width: number; height: number }[];
+  areas?: { id: string; x: number; y: number; width: number; height: number }[];
   onRecenter: (worldX: number, worldY: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-
   const size = { w: 220, h: 160 };
 
   const scale = useMemo(() => {
@@ -27,8 +32,6 @@ export function Minimap({
   }, [size.w, size.h, world.w, world.h]);
 
   // Convert camera -> visible world rect:
-  // screen = world*zoom + (x,y)
-  // => world = (screen - (x,y))/zoom
   const viewWorld = useMemo(() => {
     const left = (0 - camera.x) / camera.zoom;
     const top = (0 - camera.y) / camera.zoom;
@@ -68,7 +71,7 @@ export function Minimap({
     <div
       ref={ref}
       className={cn(
-        "select-none rounded-xl border bg-card/90 backdrop-blur p-2 shadow-sm",
+        "select-none rounded-xl border bg-card/90 backdrop-blur p-2 shadow-sm pointer-events-auto",
         className
       )}
       style={{ width: size.w, height: size.h }}
@@ -78,9 +81,16 @@ export function Minimap({
       title="Click to jump"
     >
       <div className="relative h-full w-full overflow-hidden rounded-lg bg-muted/40">
-        {/* World bounds */}
+        <MinimapContent
+          scale={scale}
+          tables={tables}
+          notes={notes}
+          areas={areas}
+        />
+
+        {/* World bounds border */}
         <div
-          className="absolute left-0 top-0 border border-border/60"
+          className="absolute left-0 top-0 border border-border/60 pointer-events-none"
           style={{
             width: world.w * scale,
             height: world.h * scale,
@@ -89,7 +99,7 @@ export function Minimap({
 
         {/* Viewport rect */}
         <div
-          className="absolute border-2 border-primary/70 bg-primary/10 rounded-sm"
+          className="absolute border-2 border-primary/70 bg-primary/10 rounded-sm pointer-events-none"
           style={{
             left: viewMini.x,
             top: viewMini.y,
@@ -101,3 +111,69 @@ export function Minimap({
     </div>
   );
 }
+
+// Memoized content so panning (camera changes) doesn't re-render all nodes
+// Only re-renders if tables/notes/areas change
+const MinimapContent = React.memo(
+  ({
+    scale,
+    tables,
+    notes,
+    areas,
+  }: {
+    scale: number;
+    tables: { id: string; x: number; y: number; width?: number; height?: number }[];
+    notes: { id: string; x: number; y: number; width: number; height: number }[];
+    areas: { id: string; x: number; y: number; width: number; height: number }[];
+  }) => {
+    return (
+      <>
+        {/* Areas - Render first so they are behind */}
+        {areas.map((area) => (
+          <div
+            key={area.id}
+            className="absolute border border-indigo-500/30 bg-indigo-500/10 rounded-[1px]"
+            style={{
+              left: area.x * scale,
+              top: area.y * scale,
+              width: area.width * scale,
+              height: area.height * scale,
+            }}
+          />
+        ))}
+
+        {/* Notes */}
+        {notes.map((note) => (
+          <div
+            key={note.id}
+            // Using a distinct color for notes (yellow-ish)
+            className="absolute bg-amber-200/50 dark:bg-amber-500/50 rounded-[1px]"
+            style={{
+              left: note.x * scale,
+              top: note.y * scale,
+              width: note.width * scale,
+              height: note.height * scale,
+            }}
+          />
+        ))}
+
+        {/* Tables */}
+        {tables.map((table) => (
+          <div
+            key={table.id}
+            className="absolute bg-foreground/20 rounded-[1px]"
+            style={{
+              left: table.x * scale,
+              top: table.y * scale,
+              // Tables might not have explicit width in store depending on implementation
+              // Defaulting to typical table size if missing
+              width: (table.width ?? 220) * scale,
+              height: (table.height ?? 100) * scale,
+            }}
+          />
+        ))}
+      </>
+    );
+  }
+);
+MinimapContent.displayName = "MinimapContent";
