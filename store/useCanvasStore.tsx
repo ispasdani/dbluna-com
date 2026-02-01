@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { useEditorStore } from "./useEditorStore";
 
 export type CanvasBackground = "grid" | "dots";
@@ -71,7 +72,19 @@ export interface Area {
   zIndex: number;
 }
 
+export interface DiagramData {
+  tables: Table[];
+  notes: Note[];
+  areas: Area[];
+  relationships: Relationship[];
+  background: CanvasBackground;
+  snapToGrid: boolean;
+}
+
 type CanvasState = {
+  activeDiagramId: string | null;
+  diagrams: Record<string, DiagramData>;
+  setDiagramId: (id: string) => void;
   background: CanvasBackground;
   tables: Table[];
   selectedTableIds: string[];
@@ -117,295 +130,343 @@ type CanvasState = {
   moveAreas: (moves: { id: string, x: number, y: number }[]) => void;
 };
 
-
-export const useCanvasStore = create<CanvasState>((set) => ({
-  background: "grid",
+const DEFAULT_DIAGRAM: DiagramData = {
   tables: [],
-  selectedTableIds: [],
-  selectedRelationshipId: null,
-  setBackground: (bg) => set({ background: bg }),
-  toggleBackground: () =>
-    set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
+  notes: [],
+  areas: [],
+  relationships: [],
+  background: "grid",
   snapToGrid: false,
-  toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
-  setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
-  setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
-  addTable: () =>
-    set((s) => {
-      const { viewport, camera } = useEditorStore.getState();
+};
 
-      const viewCenterX = viewport.w / 2;
-      const viewCenterY = viewport.h / 2;
 
-      // Convert screen center to world coordinates
-      const worldX = (viewCenterX - camera.x) / camera.zoom;
-      const worldY = (viewCenterY - camera.y) / camera.zoom;
+export const useCanvasStore = create<CanvasState>()(
+  persist(
+    (set, get) => ({
+      activeDiagramId: null,
+      diagrams: {},
+      setDiagramId: (id) => {
+        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid } = get();
 
-      const newId = crypto.randomUUID();
-      const newTable: Table = {
-        id: newId,
-        name: "users",
-        // Center the 220px wide table (approx)
-        x: worldX - 110,
-        y: worldY - 100,
-        color: TABLE_COLORS[Math.floor(Math.random() * TABLE_COLORS.length)],
-        isLocked: false,
-        columns: [
-          {
-            id: crypto.randomUUID(),
-            name: "id",
-            type: "INT",
-            isPrimaryKey: true,
-            isNotNull: true,
-            isUnique: true,
-            isAutoIncrement: true,
-          },
-          {
-            id: crypto.randomUUID(),
-            name: "created_at",
-            type: "TIMESTAMP",
-            isPrimaryKey: false,
-            isNotNull: true,
-            isUnique: false,
-            isAutoIncrement: false,
-          },
-          {
-            id: crypto.randomUUID(),
-            name: "email",
-            type: "VARCHAR",
-            isPrimaryKey: false,
-            isNotNull: false,
-            isUnique: false,
-            isAutoIncrement: false,
-          }
-        ],
-      };
-      return {
-        tables: [...s.tables, newTable],
-        selectedTableIds: [newId]
-      };
-    }),
-  updateTable: (id, updates) =>
-    set((s) => ({
-      tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    })),
-  updateTablePos: (id, x, y) =>
-    set((s) => ({
-      tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
-    })),
-  moveTables: (moves) =>
-    set((s) => {
-      const map = new Map(moves.map(m => [m.id, m]));
-      return {
-        tables: s.tables.map(t => {
-          const move = map.get(t.id);
-          if (move) return { ...t, x: move.x, y: move.y };
-          return t;
-        })
-      };
-    }),
-  deleteTable: (id) =>
-    set((s) => ({
-      tables: s.tables.filter((t) => t.id !== id),
-      selectedTableIds: s.selectedTableIds.filter(tid => tid !== id),
-    })),
-  deleteTables: (ids) =>
-    set((s) => ({
-      tables: s.tables.filter(t => !ids.includes(t.id)),
-      selectedTableIds: s.selectedTableIds.filter(tid => !ids.includes(tid)),
-    })),
-  addField: (tableId) =>
-    set((s) => ({
-      tables: s.tables.map((t) =>
-        t.id === tableId
-          ? {
-            ...t,
+        // 1. Save current active state to map
+        const newDiagrams = { ...diagrams };
+        if (activeDiagramId) {
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid };
+        }
+
+        // 2. Load new state from map or default
+        const target = newDiagrams[id] || DEFAULT_DIAGRAM;
+
+        set({
+          activeDiagramId: id,
+          diagrams: newDiagrams,
+          ...target,
+          selectedTableIds: [],
+          selectedRelationshipId: null,
+          selectedNoteIds: [],
+          selectedAreaIds: [],
+        });
+      },
+      background: "grid",
+      tables: [],
+      selectedTableIds: [],
+      selectedRelationshipId: null,
+      setBackground: (bg) => set({ background: bg }),
+      toggleBackground: () =>
+        set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
+      snapToGrid: false,
+      toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
+      setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
+      setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
+      addTable: () =>
+        set((s) => {
+          const { viewport, camera } = useEditorStore.getState();
+
+          const viewCenterX = viewport.w / 2;
+          const viewCenterY = viewport.h / 2;
+
+          // Convert screen center to world coordinates
+          const worldX = (viewCenterX - camera.x) / camera.zoom;
+          const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+          const newId = crypto.randomUUID();
+          const newTable: Table = {
+            id: newId,
+            name: "users",
+            // Center the 220px wide table (approx)
+            x: worldX - 110,
+            y: worldY - 100,
+            color: TABLE_COLORS[Math.floor(Math.random() * TABLE_COLORS.length)],
+            isLocked: false,
             columns: [
-              ...t.columns,
               {
                 id: crypto.randomUUID(),
-                name: "new_field",
+                name: "id",
+                type: "INT",
+                isPrimaryKey: true,
+                isNotNull: true,
+                isUnique: true,
+                isAutoIncrement: true,
+              },
+              {
+                id: crypto.randomUUID(),
+                name: "created_at",
+                type: "TIMESTAMP",
+                isPrimaryKey: false,
+                isNotNull: true,
+                isUnique: false,
+                isAutoIncrement: false,
+              },
+              {
+                id: crypto.randomUUID(),
+                name: "email",
                 type: "VARCHAR",
                 isPrimaryKey: false,
                 isNotNull: false,
                 isUnique: false,
                 isAutoIncrement: false,
-              },
+              }
             ],
-          }
-          : t
-      ),
-    })),
-  updateField: (tableId, fieldId, updates) =>
-    set((s) => ({
-      tables: s.tables.map((t) =>
-        t.id === tableId
-          ? {
-            ...t,
-            columns: t.columns.map((c) =>
-              c.id === fieldId ? { ...c, ...updates } : c
-            ),
-          }
-          : t
-      ),
-    })),
-  deleteField: (tableId, fieldId) =>
-    set((s) => ({
-      tables: s.tables.map((t) =>
-        t.id === tableId
-          ? {
-            ...t,
-            columns: t.columns.filter((c) => c.id !== fieldId),
-          }
-          : t
-      ),
-    })),
-  relationships: [],
-  addRelationship: (rel) =>
-    set((s) => {
-      const newRel: Relationship = {
-        id: crypto.randomUUID(),
-        name: "",
-        cardinality: "One to many",
-        onUpdate: "No action",
-        onDelete: "No action",
-        ...rel,
-      };
-      return {
-        relationships: [...s.relationships, newRel],
-        selectedRelationshipId: newRel.id,
-        selectedTableIds: []
-      };
-    }),
-  updateRelationship: (id, updates) =>
-    set((s) => ({
-      relationships: s.relationships.map((r) =>
-        r.id === id ? { ...r, ...updates } : r
-      ),
-    })),
-  deleteRelationship: (id) =>
-    set((s) => ({
-      relationships: s.relationships.filter((r) => r.id !== id),
-      selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
-    })),
-  setTables: (tables) => set({ tables }),
-
-  // Notes Actions
-  notes: [],
-  selectedNoteIds: [],
-  addNote: () =>
-    set((s) => {
-      const { viewport, camera } = useEditorStore.getState();
-      const viewCenterX = viewport.w / 2;
-      const viewCenterY = viewport.h / 2;
-      const worldX = (viewCenterX - camera.x) / camera.zoom;
-      const worldY = (viewCenterY - camera.y) / camera.zoom;
-
-      const newId = crypto.randomUUID();
-      const newNote: Note = {
-        id: newId,
-        x: worldX - 100, // Center 200px wide note
-        y: worldY - 75,
-        width: 200,
-        height: 150,
-        title: "Untitled Note",
-        content: "",
-        color: "#e11d48", // Default color (Red-ish)
-        isLocked: false,
-      };
-
-      return {
-        notes: [...s.notes, newNote],
-        selectedNoteIds: [newId],
-        selectedTableIds: [],
-        selectedRelationshipId: null,
-      };
-    }),
-  updateNote: (id, updates) =>
-    set((s) => ({
-      notes: s.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
-    })),
-  deleteNote: (id) =>
-    set((s) => ({
-      notes: s.notes.filter((n) => n.id !== id),
-      selectedNoteIds: s.selectedNoteIds.filter((nid) => nid !== id),
-    })),
-  setSelectedNoteIds: (ids) =>
-    set({
-      selectedNoteIds: ids,
-      selectedTableIds: [],
-      selectedRelationshipId: null,
-      selectedAreaIds: [],
-    }),
-  moveNotes: (moves) =>
-    set((s) => {
-      const map = new Map(moves.map((m) => [m.id, m]));
-      return {
-        notes: s.notes.map((n) => {
-          const move = map.get(n.id);
-          if (move) return { ...n, x: move.x, y: move.y };
-          return n;
+          };
+          return {
+            tables: [...s.tables, newTable],
+            selectedTableIds: [newId]
+          };
         }),
-      };
-    }),
+      updateTable: (id, updates) =>
+        set((s) => ({
+          tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+        })),
+      updateTablePos: (id, x, y) =>
+        set((s) => ({
+          tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
+        })),
+      moveTables: (moves) =>
+        set((s) => {
+          const map = new Map(moves.map(m => [m.id, m]));
+          return {
+            tables: s.tables.map(t => {
+              const move = map.get(t.id);
+              if (move) return { ...t, x: move.x, y: move.y };
+              return t;
+            })
+          };
+        }),
+      deleteTable: (id) =>
+        set((s) => ({
+          tables: s.tables.filter((t) => t.id !== id),
+          selectedTableIds: s.selectedTableIds.filter(tid => tid !== id),
+        })),
+      deleteTables: (ids) =>
+        set((s) => ({
+          tables: s.tables.filter(t => !ids.includes(t.id)),
+          selectedTableIds: s.selectedTableIds.filter(tid => !ids.includes(tid)),
+        })),
+      addField: (tableId) =>
+        set((s) => ({
+          tables: s.tables.map((t) =>
+            t.id === tableId
+              ? {
+                ...t,
+                columns: [
+                  ...t.columns,
+                  {
+                    id: crypto.randomUUID(),
+                    name: "new_field",
+                    type: "VARCHAR",
+                    isPrimaryKey: false,
+                    isNotNull: false,
+                    isUnique: false,
+                    isAutoIncrement: false,
+                  },
+                ],
+              }
+              : t
+          ),
+        })),
+      updateField: (tableId, fieldId, updates) =>
+        set((s) => ({
+          tables: s.tables.map((t) =>
+            t.id === tableId
+              ? {
+                ...t,
+                columns: t.columns.map((c) =>
+                  c.id === fieldId ? { ...c, ...updates } : c
+                ),
+              }
+              : t
+          ),
+        })),
+      deleteField: (tableId, fieldId) =>
+        set((s) => ({
+          tables: s.tables.map((t) =>
+            t.id === tableId
+              ? {
+                ...t,
+                columns: t.columns.filter((c) => c.id !== fieldId),
+              }
+              : t
+          ),
+        })),
+      relationships: [],
+      addRelationship: (rel) =>
+        set((s) => {
+          const newRel: Relationship = {
+            id: crypto.randomUUID(),
+            name: "",
+            cardinality: "One to many",
+            onUpdate: "No action",
+            onDelete: "No action",
+            ...rel,
+          };
+          return {
+            relationships: [...s.relationships, newRel],
+            selectedRelationshipId: newRel.id,
+            selectedTableIds: []
+          };
+        }),
+      updateRelationship: (id, updates) =>
+        set((s) => ({
+          relationships: s.relationships.map((r) =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
+        })),
+      deleteRelationship: (id) =>
+        set((s) => ({
+          relationships: s.relationships.filter((r) => r.id !== id),
+          selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
+        })),
+      setTables: (tables) => set({ tables }),
 
-  // Areas Actions
-  areas: [],
-  selectedAreaIds: [],
-  addArea: () =>
-    set((s) => {
-      const { viewport, camera } = useEditorStore.getState();
-      const viewCenterX = viewport.w / 2;
-      const viewCenterY = viewport.h / 2;
-      const worldX = (viewCenterX - camera.x) / camera.zoom;
-      const worldY = (viewCenterY - camera.y) / camera.zoom;
-
-      const newId = crypto.randomUUID();
-      const newArea: Area = {
-        id: newId,
-        x: worldX - 250,
-        y: worldY - 200,
-        width: 500,
-        height: 400,
-        title: "New Area",
-        color: "#94a3b8", // slate-400
-        isLocked: false,
-        zIndex: 0,
-      };
-
-      return {
-        areas: [...s.areas, newArea],
-        selectedAreaIds: [newId],
-        selectedTableIds: [],
-        selectedRelationshipId: null,
-        selectedNoteIds: [],
-      };
-    }),
-  updateArea: (id, updates) =>
-    set((s) => ({
-      areas: s.areas.map((a) => (a.id === id ? { ...a, ...updates } : a)),
-    })),
-  deleteArea: (id) =>
-    set((s) => ({
-      areas: s.areas.filter((a) => a.id !== id),
-      selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
-    })),
-  setSelectedAreaIds: (ids) =>
-    set({
-      selectedAreaIds: ids,
-      selectedTableIds: [],
-      selectedRelationshipId: null,
+      // Notes Actions
+      notes: [],
       selectedNoteIds: [],
-    }),
-  moveAreas: (moves) =>
-    set((s) => {
-      const map = new Map(moves.map((m) => [m.id, m]));
-      return {
-        areas: s.areas.map((a) => {
-          const move = map.get(a.id);
-          if (move) return { ...a, x: move.x, y: move.y };
-          return a;
+      addNote: () =>
+        set((s) => {
+          const { viewport, camera } = useEditorStore.getState();
+          const viewCenterX = viewport.w / 2;
+          const viewCenterY = viewport.h / 2;
+          const worldX = (viewCenterX - camera.x) / camera.zoom;
+          const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+          const newId = crypto.randomUUID();
+          const newNote: Note = {
+            id: newId,
+            x: worldX - 100, // Center 200px wide note
+            y: worldY - 75,
+            width: 200,
+            height: 150,
+            title: "Untitled Note",
+            content: "",
+            color: "#e11d48", // Default color (Red-ish)
+            isLocked: false,
+          };
+
+          return {
+            notes: [...s.notes, newNote],
+            selectedNoteIds: [newId],
+            selectedTableIds: [],
+            selectedRelationshipId: null,
+          };
         }),
-      };
+      updateNote: (id, updates) =>
+        set((s) => ({
+          notes: s.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
+        })),
+      deleteNote: (id) =>
+        set((s) => ({
+          notes: s.notes.filter((n) => n.id !== id),
+          selectedNoteIds: s.selectedNoteIds.filter((nid) => nid !== id),
+        })),
+      setSelectedNoteIds: (ids) =>
+        set({
+          selectedNoteIds: ids,
+          selectedTableIds: [],
+          selectedRelationshipId: null,
+          selectedAreaIds: [],
+        }),
+      moveNotes: (moves) =>
+        set((s) => {
+          const map = new Map(moves.map((m) => [m.id, m]));
+          return {
+            notes: s.notes.map((n) => {
+              const move = map.get(n.id);
+              if (move) return { ...n, x: move.x, y: move.y };
+              return n;
+            }),
+          };
+        }),
+
+      // Areas Actions
+      areas: [],
+      selectedAreaIds: [],
+      addArea: () =>
+        set((s) => {
+          const { viewport, camera } = useEditorStore.getState();
+          const viewCenterX = viewport.w / 2;
+          const viewCenterY = viewport.h / 2;
+          const worldX = (viewCenterX - camera.x) / camera.zoom;
+          const worldY = (viewCenterY - camera.y) / camera.zoom;
+
+          const newId = crypto.randomUUID();
+          const newArea: Area = {
+            id: newId,
+            x: worldX - 250,
+            y: worldY - 200,
+            width: 500,
+            height: 400,
+            title: "New Area",
+            color: "#94a3b8", // slate-400
+            isLocked: false,
+            zIndex: 0,
+          };
+
+          return {
+            areas: [...s.areas, newArea],
+            selectedAreaIds: [newId],
+            selectedTableIds: [],
+            selectedRelationshipId: null,
+            selectedNoteIds: [],
+          };
+        }),
+      updateArea: (id, updates) =>
+        set((s) => ({
+          areas: s.areas.map((a) => (a.id === id ? { ...a, ...updates } : a)),
+        })),
+      deleteArea: (id) =>
+        set((s) => ({
+          areas: s.areas.filter((a) => a.id !== id),
+          selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
+        })),
+      setSelectedAreaIds: (ids) =>
+        set({
+          selectedAreaIds: ids,
+          selectedTableIds: [],
+          selectedRelationshipId: null,
+          selectedNoteIds: [],
+        }),
+      moveAreas: (moves) =>
+        set((s) => {
+          const map = new Map(moves.map((m) => [m.id, m]));
+          return {
+            areas: s.areas.map((a) => {
+              const move = map.get(a.id);
+              if (move) return { ...a, x: move.x, y: move.y };
+              return a;
+            }),
+          };
+        }),
     }),
-}));
+    {
+      name: "canvas-storage",
+      partialize: (state) => {
+        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid } = state;
+        const newDiagrams = { ...diagrams };
+        if (activeDiagramId) {
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid };
+        }
+        return { diagrams: newDiagrams };
+      },
+    }
+  )
+);

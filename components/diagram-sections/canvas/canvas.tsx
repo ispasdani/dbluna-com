@@ -18,7 +18,11 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-export function CanvasStage() {
+interface CanvasStageProps {
+  diagramId: string;
+}
+
+export function CanvasStage({ diagramId }: CanvasStageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   const background = useCanvasStore((s) => s.background);
@@ -54,6 +58,15 @@ export function CanvasStage() {
 
   // Selection Rect State (in world coordinates)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
+
+  // Inform stores which diagram we are working on
+  const setDiagramId = useCanvasStore((s) => s.setDiagramId);
+  const setEditorDiagramId = useEditorStore((s) => s.setEditorDiagramId);
+
+  useEffect(() => {
+    setDiagramId(diagramId);
+    setEditorDiagramId(diagramId);
+  }, [diagramId, setDiagramId, setEditorDiagramId]);
 
   // Tell store the world bounds (so clamping uses the same world as the grid)
   useEffect(() => {

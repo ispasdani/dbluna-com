@@ -1,7 +1,7 @@
 // app/(whatever)/diagram/page.tsx
 "use client";
 
-import { useRef } from "react";
+import { useRef, use } from "react";
 import { useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
@@ -13,7 +13,12 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-export default function DiagramPage() {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function DiagramPage({ params }: PageProps) {
+  const { id } = use(params);
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
     isTopNavbarVisible,
@@ -57,7 +62,7 @@ export default function DiagramPage() {
       <div className="relative flex-1 overflow-hidden">
         {/* Canvas is ALWAYS full size (fixed) */}
         <div className="absolute inset-0">
-          <CanvasStage />
+          <CanvasStage diagramId={id} />
         </div>
 
         {/* Left dock overlays the canvas */}

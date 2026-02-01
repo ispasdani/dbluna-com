@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3.0;
@@ -47,6 +48,9 @@ function clampCameraToWorld(params: {
 export type Camera = { x: number; y: number; zoom: number };
 
 type EditorState = {
+  activeDiagramId: string | null;
+  cameras: Record<string, Camera>;
+  setEditorDiagramId: (id: string) => void;
   camera: Camera;
 
   viewport: { w: number; h: number };
@@ -66,144 +70,174 @@ type EditorState = {
   resetCamera: () => void;
 };
 
-export const useEditorStore = create<EditorState>((set, get) => ({
-  camera: { x: 0, y: 0, zoom: 1 },
+export const useEditorStore = create<EditorState>()(
+  persist(
+    (set, get) => ({
+      activeDiagramId: null,
+      cameras: {},
+      setEditorDiagramId: (id) => {
+        const { activeDiagramId, cameras, camera } = get();
+        const newCameras = { ...cameras };
+        if (activeDiagramId) {
+          newCameras[activeDiagramId] = camera;
+        }
+        const target = newCameras[id] || { x: 0, y: 0, zoom: 1 };
+        set({
+          activeDiagramId: id,
+          cameras: newCameras,
+          camera: target,
+        });
+      },
+      camera: { x: 0, y: 0, zoom: 1 },
 
-  viewport: { w: 1, h: 1 },
+      viewport: { w: 1, h: 1 },
 
-  // ✅ default world; CanvasStage will override it via setWorld()
-  world: { w: 6000, h: 6000 },
+      // ✅ default world; CanvasStage will override it via setWorld()
+      world: { w: 6000, h: 6000 },
 
-  setWorld: (w, h) => {
-    const { camera, viewport } = get();
-    const clamped = clampCameraToWorld({
-      x: camera.x,
-      y: camera.y,
-      zoom: camera.zoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: w,
-      worldH: h,
-      margin: 0,
-    });
-    set({ world: { w, h }, camera: { ...camera, ...clamped } });
-  },
+      setWorld: (w, h) => {
+        const { camera, viewport } = get();
+        const clamped = clampCameraToWorld({
+          x: camera.x,
+          y: camera.y,
+          zoom: camera.zoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: w,
+          worldH: h,
+          margin: 0,
+        });
+        set({ world: { w, h }, camera: { ...camera, ...clamped } });
+      },
 
-  setViewport: (w, h) => {
-    const { camera, world } = get();
-    const clamped = clampCameraToWorld({
-      x: camera.x,
-      y: camera.y,
-      zoom: camera.zoom,
-      viewportW: w,
-      viewportH: h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
-    set({ viewport: { w, h }, camera: { ...camera, ...clamped } });
-  },
+      setViewport: (w, h) => {
+        const { camera, world } = get();
+        const clamped = clampCameraToWorld({
+          x: camera.x,
+          y: camera.y,
+          zoom: camera.zoom,
+          viewportW: w,
+          viewportH: h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
+        set({ viewport: { w, h }, camera: { ...camera, ...clamped } });
+      },
 
-  panBy: (dx, dy) => {
-    const { camera, viewport, world } = get();
-    const next = { x: camera.x + dx, y: camera.y + dy };
+      panBy: (dx, dy) => {
+        const { camera, viewport, world } = get();
+        const next = { x: camera.x + dx, y: camera.y + dy };
 
-    const clamped = clampCameraToWorld({
-      x: next.x,
-      y: next.y,
-      zoom: camera.zoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
+        const clamped = clampCameraToWorld({
+          x: next.x,
+          y: next.y,
+          zoom: camera.zoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
 
-    set({ camera: { ...camera, ...clamped } });
-  },
+        set({ camera: { ...camera, ...clamped } });
+      },
 
-  zoomAt: (factor, screenX, screenY) => {
-    const { camera, viewport, world } = get();
+      zoomAt: (factor, screenX, screenY) => {
+        const { camera, viewport, world } = get();
 
-    const nextZoom = clamp(camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    if (nextZoom === camera.zoom) return;
+        const nextZoom = clamp(camera.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+        if (nextZoom === camera.zoom) return;
 
-    const worldX = (screenX - camera.x) / camera.zoom;
-    const worldY = (screenY - camera.y) / camera.zoom;
+        const worldX = (screenX - camera.x) / camera.zoom;
+        const worldY = (screenY - camera.y) / camera.zoom;
 
-    const nextX = screenX - worldX * nextZoom;
-    const nextY = screenY - worldY * nextZoom;
+        const nextX = screenX - worldX * nextZoom;
+        const nextY = screenY - worldY * nextZoom;
 
-    const clamped = clampCameraToWorld({
-      x: nextX,
-      y: nextY,
-      zoom: nextZoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
+        const clamped = clampCameraToWorld({
+          x: nextX,
+          y: nextY,
+          zoom: nextZoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
 
-    set({ camera: { ...clamped, zoom: nextZoom } });
-  },
+        set({ camera: { ...clamped, zoom: nextZoom } });
+      },
 
-  setZoomAt: (nextZoomRaw, screenX, screenY) => {
-    const { camera, viewport, world } = get();
+      setZoomAt: (nextZoomRaw, screenX, screenY) => {
+        const { camera, viewport, world } = get();
 
-    const nextZoom = clamp(nextZoomRaw, MIN_ZOOM, MAX_ZOOM);
-    if (nextZoom === camera.zoom) return;
+        const nextZoom = clamp(nextZoomRaw, MIN_ZOOM, MAX_ZOOM);
+        if (nextZoom === camera.zoom) return;
 
-    const worldX = (screenX - camera.x) / camera.zoom;
-    const worldY = (screenY - camera.y) / camera.zoom;
+        const worldX = (screenX - camera.x) / camera.zoom;
+        const worldY = (screenY - camera.y) / camera.zoom;
 
-    const nextX = screenX - worldX * nextZoom;
-    const nextY = screenY - worldY * nextZoom;
+        const nextX = screenX - worldX * nextZoom;
+        const nextY = screenY - worldY * nextZoom;
 
-    const clamped = clampCameraToWorld({
-      x: nextX,
-      y: nextY,
-      zoom: nextZoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
+        const clamped = clampCameraToWorld({
+          x: nextX,
+          y: nextY,
+          zoom: nextZoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
 
-    set({ camera: { ...clamped, zoom: nextZoom } });
-  },
+        set({ camera: { ...clamped, zoom: nextZoom } });
+      },
 
-  setCameraXY: (x, y) => {
-    const { camera, viewport, world } = get();
-    const clamped = clampCameraToWorld({
-      x,
-      y,
-      zoom: camera.zoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
-    set({ camera: { ...camera, ...clamped } });
-  },
+      setCameraXY: (x, y) => {
+        const { camera, viewport, world } = get();
+        const clamped = clampCameraToWorld({
+          x,
+          y,
+          zoom: camera.zoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
+        set({ camera: { ...camera, ...clamped } });
+      },
 
-  resetCamera: () => {
-    const { viewport, world } = get();
-    const base = { x: 0, y: 0, zoom: 1 };
+      resetCamera: () => {
+        const { viewport, world } = get();
+        const base = { x: 0, y: 0, zoom: 1 };
 
-    const clamped = clampCameraToWorld({
-      x: base.x,
-      y: base.y,
-      zoom: base.zoom,
-      viewportW: viewport.w,
-      viewportH: viewport.h,
-      worldW: world.w,
-      worldH: world.h,
-      margin: 0,
-    });
+        const clamped = clampCameraToWorld({
+          x: base.x,
+          y: base.y,
+          zoom: base.zoom,
+          viewportW: viewport.w,
+          viewportH: viewport.h,
+          worldW: world.w,
+          worldH: world.h,
+          margin: 0,
+        });
 
-    set({ camera: { ...base, ...clamped } });
-  },
-}));
+        set({ camera: { ...base, ...clamped } });
+      },
+    }),
+    {
+      name: "editor-storage",
+      partialize: (state) => {
+        const { activeDiagramId, cameras, camera } = state;
+        const newCameras = { ...cameras };
+        if (activeDiagramId) {
+          newCameras[activeDiagramId] = camera;
+        }
+        return { cameras: newCameras };
+      },
+    }
+  )
+);
