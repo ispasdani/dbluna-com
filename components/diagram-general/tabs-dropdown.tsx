@@ -8,6 +8,9 @@ import {
   LayoutTemplate,
   Table,
   ChevronDown,
+  Link,
+  StickyNote,
+  Square,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +30,9 @@ const iconMap = {
   AlertCircle,
   LayoutTemplate,
   Table,
+  Link,
+  StickyNote,
+  Square,
 };
 
 export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
