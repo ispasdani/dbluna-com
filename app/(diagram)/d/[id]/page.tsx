@@ -8,6 +8,7 @@ import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
 import { DockPanel } from "@/components/diagram-general/dock-panel";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
+import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -19,6 +20,7 @@ interface PageProps {
 
 export default function DiagramPage({ params }: PageProps) {
   const { id } = use(params);
+  useDiagramAutoSave();
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
     isTopNavbarVisible,

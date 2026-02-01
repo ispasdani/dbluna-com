@@ -128,6 +128,8 @@ type CanvasState = {
   deleteArea: (id: string) => void;
   setSelectedAreaIds: (ids: string[]) => void;
   moveAreas: (moves: { id: string, x: number, y: number }[]) => void;
+  savingStatus: "idle" | "saving" | "saved";
+  setSavingStatus: (status: "idle" | "saving" | "saved") => void;
 };
 
 const DEFAULT_DIAGRAM: DiagramData = {
@@ -456,6 +458,8 @@ export const useCanvasStore = create<CanvasState>()(
             }),
           };
         }),
+      savingStatus: "idle",
+      setSavingStatus: (status) => set({ savingStatus: status }),
     }),
     {
       name: "canvas-storage",
@@ -465,6 +469,7 @@ export const useCanvasStore = create<CanvasState>()(
         if (activeDiagramId) {
           newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid };
         }
+        // savingStatus is intentionally NOT here to avoid persisting it
         return { diagrams: newDiagrams };
       },
     }

@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDockStore } from "@/store/useDockStore";
 import { PlatformPaletteToggle } from "@/components/diagram-general/platform-palette-toggle";
+import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 export function TopNavbar() {
@@ -95,11 +96,10 @@ export function TopNavbar() {
                 <DropdownMenuItem
                   key={diagram}
                   onClick={() => setSelectedDiagram(diagram)}
-                  className={`font-mono text-sm justify-between group ${
-                    diagram === selectedDiagram
-                      ? "bg-secondary text-primary"
-                      : ""
-                  }`}
+                  className={`font-mono text-sm justify-between group ${diagram === selectedDiagram
+                    ? "bg-secondary text-primary"
+                    : ""
+                    }`}
                 >
                   <span className="truncate">{diagram}</span>
                   <button
@@ -112,6 +112,8 @@ export function TopNavbar() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <SavingIndicator />
         </div>
       </header>
 
