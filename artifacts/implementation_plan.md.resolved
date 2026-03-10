@@ -1,0 +1,98 @@
+# Implementation Plan: Electron "Two-Route" Architecture
+
+This plan breaks down the migration of the `dbluna-com` Next.js application into a "Two-Route" architecture to support both the existing web app and the new offline Electron "Database Import Workstation" MVP.
+
+## Overview
+
+The goal is to modify the existing repository so that:
+1. Web users going to `dbluna.com` experience the current site (marketing, web tools, Clerk auth).
+2. Users launching the downloaded Electron application are presented with an offline-first dashboard served by a local Next.js server instance spawned by the Electron main process.
+
+---
+
+## Step 1: Restructure Next.js Routing for Separation
+
+We will use Next.js **Route Groups** to securely isolate the web and desktop codebases within the same `app` directory. This ensures they don't share layout logic unless we explicitly define it.
+
+### Proposed Changes
+
+#### [MODIFY] [Layout Restructuring]
+*   Move the current root [layout.tsx](file:///Users/dnis/Projects/dbluna-com/app/layout.tsx) and `page.tsx` into a new [(web)](file:///Users/dnis/Projects/dbluna-com/next.config.ts#6-17) route group.
+*   The [(web)](file:///Users/dnis/Projects/dbluna-com/next.config.ts#6-17) layout will continue entirely as it does today: initializing the standard `<ClerkProvider>`, `<ConvexClientProvider>`, and rendering the web application.
+
+#### [NEW] [Desktop Routes]
+*   Create a new route group [(desktop)/desktop](file:///Users/dnis/Projects/dbluna-com/next.config.ts#6-17).
+*   Create `app/(desktop)/desktop/layout.tsx`. This layout will:
+    *   **NOT** use standard Clerk `SignIn` logic arbitrarily.
+    *   Implement the `LicenseGateway` component (as spec'd in the offline auth strategy) which checks with Electron for a valid offline license before rendering either the activation screen or the offline tools.
+*   Create `app/(desktop)/desktop/page.tsx`. This will be the main view for the Database Import Workstation.
+
+---
+
+## Step 2: Set up Electron Main Process & Preload Scripts
+
+We will add the structural logic to boot up the desktop application using Electron while keeping the web app ignorant of these files.
+
+### Proposed Changes
+
+#### [MODIFY] [package.json]
+*   Add devDependencies: `electron`, `concurrently`, `wait-on`, `cross-env`.
+*   Add script: `"electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\""`
+
+#### [NEW] [electron/main.ts]
+*   Create the main Node.js orchestrator.
+*   Configure the `BrowserWindow` to load `http://localhost:3000/desktop` on startup.
+*   Implement IPC Handlers for:
+    *   `dialog:openFile` (Opening `.bacpac` files).
+    *   `license:save` (Encrypting and storing the offline Clerk activation license using `safeStorage`).
+    *   `license:read` (Decrypting the local license on app boot).
+
+#### [NEW] [electron/preload.js]
+*   Create the context bridge to expose specific Node.js commands to the React [(desktop)](file:///Users/dnis/Projects/dbluna-com/next.config.ts#6-17) route securely via `window.electron`.
+
+---
+
+## Step 3: Implement Offline License Gateway & Activation Flow
+
+We will build the specific React components required to activate the user online, and securely grant them an offline license.
+
+### Proposed Changes
+
+#### [NEW] [components/LicenseGateway.tsx]
+*   Create the React component that calls `window.electron.readLicense()` on mount.
+*   If valid, render children.
+*   If invalid, render a minimal `<ClerkProvider>` and a custom `<SignIn>` flow that prompts the user to activate the device.
+
+#### [NEW] [Server Action / API Route for Activation]
+*   Create a secure backend endpoint (Likely a Convex mutation or a Next.js API route) that accepts a user session after login, verifies their subscription tier via Stripe/Clerk, and generates a cryptographically signed JSON payload (the Offline License Key) and returns it to the client.
+
+#### [MODIFY] [Activation Component]
+*   Update the UI so that upon successful Next.js API/Convex query, the frontend calls `window.electron.saveLicense(payload)`. The app then switches to the offline dashboard.
+
+---
+
+## Step 4: Build the Phase 1 MVP Feature (Bacpac Importer)
+
+With the architecture segregated and the offline gateway secure, we will build the actual database import tool in the [(desktop)](file:///Users/dnis/Projects/dbluna-com/next.config.ts#6-17) route group.
+
+### Proposed Changes
+
+#### [MODIFY] [electron/main.ts]
+*   Add an IPC Handler `job:runImport` that utilizes Node.js `child_process.spawn()` to execute SQLPackage.exe (or the Mac/Linux equivalent) against the target `.bacpac` file.
+*   Stream `stdout` and `stderr` back to the active BrowserWindow.
+
+#### [NEW] [app/(desktop)/desktop/page.tsx]
+*   Implement the offline UI to:
+    *   Select a `.bacpac` file via `window.electron.openFile()`.
+    *   Display a target connection string form (e.g., `localhost, 1433`).
+    *   Execute the import and render live streaming logs in a terminal-like window element.
+
+---
+
+## Verification Plan
+
+### Manual Verification
+1.  **Web Validation:** Run `npm run dev` and navigate to `http://localhost:3000/`. Verify that the existing website works perfectly, unchanged.
+2.  **Desktop Boot Validation:** Run `npm run electron:dev`. Verify that the Electron window opens and points directly to the `/desktop` route.
+3.  **Authentication Validation:** Confirm that upon first boot, the Electron app requires a Clerk login and successfully saves a mock offline license. Verify that closing and reopening the Electron app skips the login stage when offline.
+4.  **Feature Validation:** Run a dummy import job through the IPC bridge and guarantee logs surface correctly in the React UI context.
