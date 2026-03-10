@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ConvexClientProvider } from "./providers/ConvexClientProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
+import { ConvexClientProvider } from "../providers/ConvexClientProvider";
 
 const inter = Inter({
   subsets: ["latin"],
