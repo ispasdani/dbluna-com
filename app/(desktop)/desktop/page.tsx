@@ -2,12 +2,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 export default function DesktopDashboard() {
+    const router = useRouter();
     const [file, setFile] = useState<string | null>(null);
     const [targetServer, setTargetServer] = useState<string>("localhost, 1433");
     const [logs, setLogs] = useState<string[]>([]);
     const [isRunning, setIsRunning] = useState(false);
+    const [importSuccess, setImportSuccess] = useState(false);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
     const handleSelectFile = async () => {
@@ -29,6 +32,7 @@ export default function DesktopDashboard() {
 
         if (typeof window !== "undefined" && (window as any).electron) {
             setIsRunning(true);
+            setImportSuccess(false);
             setLogs([]); // Clear previous logs
 
             // Listen for logs
@@ -45,6 +49,7 @@ export default function DesktopDashboard() {
 
             if (success) {
                 setLogs((prev) => [...prev, "\n[SYSTEM] Import successful!"]);
+                setImportSuccess(true);
             } else {
                 setLogs((prev) => [...prev, "\n[SYSTEM ERROR] Import failed or exited with an error."]);
             }
@@ -59,13 +64,23 @@ export default function DesktopDashboard() {
 
     return (
         <div className="flex flex-col h-full p-8 max-w-5xl mx-auto">
-            <header className="mb-8">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-100">
-                    Database Workstation
-                </h1>
-                <p className="text-slate-400 mt-2">
-                    Import and validate .bacpac files locally.
-                </p>
+            <header className="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-100">
+                        Database Workstation
+                    </h1>
+                    <p className="text-slate-400 mt-2">
+                        Import and validate .bacpac files locally.
+                    </p>
+                </div>
+                {importSuccess && (
+                    <Button
+                        onClick={() => router.push('/desktop/explorer')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+                    >
+                        Open Database Explorer
+                    </Button>
+                )}
             </header>
 
             <section className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm mb-6">
