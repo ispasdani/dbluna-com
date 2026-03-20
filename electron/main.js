@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain, dialog, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const sql = require('mssql');
 
 let mainWindow;
+let dbPool = null;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -62,6 +64,64 @@ ipcMain.handle('license:read', async () => {
     } catch (e) {
         console.warn("License file missing, tampered, or corrupted.");
         return null;
+    }
+});
+
+// --- IPC Handlers for Phase 2: Database Explorer ---
+ipcMain.handle('db:connect', async (event, config) => {
+    try {
+        if (dbPool) {
+            await dbPool.close();
+        }
+        // mssql requires a specific config shape
+        dbPool = await sql.connect(config);
+        return { success: true };
+    } catch (err) {
+        console.error("Database connection failed:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:getTables', async () => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const result = await dbPool.request().query(`
+            SELECT TABLE_SCHEMA, TABLE_NAME 
+            FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_TYPE = 'BASE TABLE'
+            ORDER BY TABLE_SCHEMA, TABLE_NAME;
+        `);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error("Failed to fetch tables:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:queryTable', async (event, tableName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        // Basic protection by wrapping in brackets, assuming tableName is secure or provided by the UI safely
+        // In reality, more robust escaping might be needed depending on table names.
+        const safeTableName = tableName.replace(/\]/g, ']]');
+        const result = await dbPool.request().query(`SELECT TOP 100 * FROM [${safeTableName}]`);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error(`Failed to query table ${tableName}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:disconnect', async () => {
+    try {
+        if (dbPool) {
+            await dbPool.close();
+            dbPool = null;
+        }
+        return { success: true };
+    } catch (err) {
+        console.error("Failed to disconnect database:", err);
+        return { success: false, error: err.message };
     }
 });
 
