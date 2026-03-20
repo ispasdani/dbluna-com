@@ -12,13 +12,39 @@ export default function DatabaseExplorer() {
     const [tableData, setTableData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isQuerying, setIsQuerying] = useState(false);
+    const [connectionError, setConnectionError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchTables = async () => {
             if (typeof window !== "undefined" && (window as any).electron) {
                 try {
+                    // Start connection for the explorer session
+                    // We supply standard Dev SQL Server credentials for MacOS Docker environments.
+                    const config = {
+                        server: "localhost",
+                        port: 1433,
+                        user: "sa",
+                        password: "yourStrong(!)Password", // Default dev SQL password
+                        options: {
+                            encrypt: false,
+                            trustServerCertificate: true
+                        }
+                    };
+                    const connResult = await (window as any).electron.connectDb(config);
+
+                    if (!connResult || !connResult.success) {
+                        setConnectionError(`Failed to connect to database: ${connResult?.error || 'Unknown error'}`);
+                        setIsLoading(false);
+                        return;
+                    }
+
                     const result = await (window as any).electron.getTables();
-                    setTables(result || []);
+                    if (result && result.success) {
+                        setTables(result.data || []);
+                    } else {
+                        setConnectionError(`Failed to fetch tables: ${result?.error}`);
+                        console.error('Failed to get tables:', result?.error);
+                    }
                 } catch (error) {
                     console.error("Failed to fetch tables", error);
                 } finally {
@@ -44,7 +70,12 @@ export default function DatabaseExplorer() {
                 setIsQuerying(true);
                 try {
                     const result = await (window as any).electron.queryTable(activeTable);
-                    setTableData(result || []);
+                    if (result && result.success) {
+                        setTableData(result.data || []);
+                    } else {
+                        console.error(`Error querying table:`, result?.error);
+                        setTableData([]);
+                    }
                 } catch (error) {
                     console.error(`Failed to query table ${activeTable}`, error);
                     setTableData([]);
@@ -84,6 +115,11 @@ export default function DatabaseExplorer() {
                 <div className="flex-1 overflow-y-auto p-4 space-y-6">
                     {isLoading ? (
                         <div className="text-sm text-slate-500 animate-pulse">Loading tables...</div>
+                    ) : connectionError ? (
+                        <div className="text-sm text-red-400 bg-red-950/30 p-3 rounded border border-red-900/50">
+                            <strong>Connection Error:</strong><br />
+                            <span className="break-all">{connectionError}</span>
+                        </div>
                     ) : tables.length === 0 ? (
                         <div className="text-sm text-slate-500">No tables found.</div>
                     ) : (
@@ -104,8 +140,8 @@ export default function DatabaseExplorer() {
                                                 <button
                                                     onClick={() => setActiveTable(queryName)}
                                                     className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-colors ${isActive
-                                                            ? "bg-blue-600/20 text-blue-400"
-                                                            : "hover:bg-slate-800 text-slate-300"
+                                                        ? "bg-blue-600/20 text-blue-400"
+                                                        : "hover:bg-slate-800 text-slate-300"
                                                         }`}
                                                 >
                                                     <TableIcon className={`h-4 w-4 ${isActive ? "text-blue-400" : "text-slate-500"}`} />
