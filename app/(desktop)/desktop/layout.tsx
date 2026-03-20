@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
+import { LicenseGateway } from "@/components/LicenseGateway";
 
 export const metadata: Metadata = {
     title: "DBLuna Workstation",
@@ -12,9 +13,9 @@ export default function DesktopLayout({
     return (
         <div className="min-h-dvh font-sans antialiased text-white bg-slate-950 flex flex-col">
             <AppThemeProvider>
-                {/* Note: We do NOT wrap the entire desktop app in ClerkProvider or ConvexProvider initially.
-            This will be handled by the LicenseGateway component later. */}
-                <main className="flex-1 overflow-hidden">{children}</main>
+                <LicenseGateway>
+                    <main className="flex-1 overflow-hidden">{children}</main>
+                </LicenseGateway>
             </AppThemeProvider>
         </div>
     );
