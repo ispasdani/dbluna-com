@@ -76,3 +76,50 @@ ipcMain.handle('dialog:openFile', async () => {
     if (canceled) return null;
     return filePaths[0]; // Returns the fully qualified local path
 });
+
+// 2. Run Import Job (Phase 1 MVP)
+const { spawn } = require('child_process');
+
+ipcMain.handle('job:runImport', async (event, filePath, targetServer) => {
+    return new Promise((resolve) => {
+        // Log the start
+        if (mainWindow) {
+            mainWindow.webContents.send('job:log', `[SYSTEM] Preparing to import: ${filePath}\n[SYSTEM] Target: ${targetServer}\n`);
+        }
+
+        // Basic sqlpackage import arguments
+        const args = [
+            '/Action:Import',
+            `/SourceFile:${filePath}`,
+            `/TargetServerName:${targetServer}`,
+            `/TargetDatabaseName:ImportedDb_${Date.now()}`,
+            '/TargetTrustServerCertificate:True'
+        ];
+
+        try {
+            const child = spawn('sqlpackage', args);
+
+            child.stdout.on('data', (data) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', data.toString());
+            });
+
+            child.stderr.on('data', (data) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', `[ERROR]: ${data.toString()}`);
+            });
+
+            child.on('close', (code) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM] Process exited with code ${code}`);
+                resolve(code === 0);
+            });
+
+            child.on('error', (err) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM ERROR] Failed to start sqlpackage: ${err.message}. Is sqlpackage installed in your PATH?`);
+                resolve(false);
+            });
+
+        } catch (error) {
+            if (mainWindow) mainWindow.webContents.send('job:log', `\n[EXCEPTION] ${error.message}`);
+            resolve(false);
+        }
+    });
+});
