@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import { Database, Table as TableIcon, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useRouter } from "next/navigation";
 
 export default function DatabaseExplorer() {
@@ -112,50 +121,52 @@ export default function DatabaseExplorer() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                    {isLoading ? (
-                        <div className="text-sm text-slate-500 animate-pulse">Loading tables...</div>
-                    ) : connectionError ? (
-                        <div className="text-sm text-red-400 bg-red-950/30 p-3 rounded border border-red-900/50">
-                            <strong>Connection Error:</strong><br />
-                            <span className="break-all">{connectionError}</span>
-                        </div>
-                    ) : tables.length === 0 ? (
-                        <div className="text-sm text-slate-500">No tables found.</div>
-                    ) : (
-                        Object.entries(schemas).map(([schema, schemaTables]) => (
-                            <div key={schema}>
-                                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">
-                                    {schema}
-                                </h3>
-                                <ul className="space-y-1">
-                                    {(schemaTables as any[]).map((t) => {
-                                        // Some standard queries return TABLE_SCHEMA, some might not. We fallback safely.
-                                        const tableName = t.TABLE_NAME || t.name || 'Unknown Table';
-                                        const escapeId = (id: string) => id.replace(/\]/g, ']]');
-                                        const queryName = t.TABLE_SCHEMA ? `[${escapeId(t.TABLE_SCHEMA)}].[${escapeId(tableName)}]` : `[${escapeId(tableName)}]`;
-                                        const isActive = activeTable === queryName;
-
-                                        return (
-                                            <li key={queryName}>
-                                                <button
-                                                    onClick={() => setActiveTable(queryName)}
-                                                    className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-colors ${isActive
-                                                        ? "bg-blue-600/20 text-blue-400"
-                                                        : "hover:bg-slate-800 text-slate-300"
-                                                        }`}
-                                                >
-                                                    <TableIcon className={`h-4 w-4 ${isActive ? "text-blue-400" : "text-slate-500"}`} />
-                                                    <span className="truncate">{tableName}</span>
-                                                </button>
-                                            </li>
-                                        )
-                                    })}
-                                </ul>
+                <ScrollArea className="flex-1">
+                    <div className="p-4 space-y-6">
+                        {isLoading ? (
+                            <div className="text-sm text-slate-500 animate-pulse">Loading tables...</div>
+                        ) : connectionError ? (
+                            <div className="text-sm text-red-400 bg-red-950/30 p-3 rounded border border-red-900/50">
+                                <strong>Connection Error:</strong><br />
+                                <span className="break-all">{connectionError}</span>
                             </div>
-                        ))
-                    )}
-                </div>
+                        ) : tables.length === 0 ? (
+                            <div className="text-sm text-slate-500">No tables found.</div>
+                        ) : (
+                            Object.entries(schemas).map(([schema, schemaTables]) => (
+                                <div key={schema}>
+                                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">
+                                        {schema}
+                                    </h3>
+                                    <ul className="space-y-1">
+                                        {(schemaTables as any[]).map((t) => {
+                                            // Some standard queries return TABLE_SCHEMA, some might not. We fallback safely.
+                                            const tableName = t.TABLE_NAME || t.name || 'Unknown Table';
+                                            const escapeId = (id: string) => id.replace(/\]/g, ']]');
+                                            const queryName = t.TABLE_SCHEMA ? `[${escapeId(t.TABLE_SCHEMA)}].[${escapeId(tableName)}]` : `[${escapeId(tableName)}]`;
+                                            const isActive = activeTable === queryName;
+
+                                            return (
+                                                <li key={queryName}>
+                                                    <button
+                                                        onClick={() => setActiveTable(queryName)}
+                                                        className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-colors ${isActive
+                                                            ? "bg-blue-600/20 text-blue-400"
+                                                            : "hover:bg-slate-800 text-slate-300"
+                                                            }`}
+                                                    >
+                                                        <TableIcon className={`h-4 w-4 ${isActive ? "text-blue-400" : "text-slate-500"}`} />
+                                                        <span className="truncate">{tableName}</span>
+                                                    </button>
+                                                </li>
+                                            )
+                                        })}
+                                    </ul>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </ScrollArea>
             </div>
 
             {/* Main Content */}
@@ -186,35 +197,35 @@ export default function DatabaseExplorer() {
                             <p>No rows found or empty table.</p>
                         </div>
                     ) : (
-                        <div className="rounded-md border border-slate-800 overflow-hidden bg-slate-900">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="text-xs text-slate-400 uppercase bg-slate-950 border-b border-slate-800">
-                                        <tr>
+                        <div className="rounded-md border border-slate-800 bg-slate-900 overflow-hidden">
+                            <ScrollArea className="h-full max-h-[calc(100vh-120px)] w-full">
+                                <Table>
+                                    <TableHeader className="bg-slate-950 sticky top-0 z-10 border-b border-slate-800">
+                                        <TableRow className="hover:bg-transparent border-none">
                                             {Object.keys(tableData[0] || {}).map((key) => (
-                                                <th key={key} className="px-4 py-3 font-medium whitespace-nowrap">
+                                                <TableHead key={key} className="text-xs text-slate-400 uppercase whitespace-nowrap h-10">
                                                     {key}
-                                                </th>
+                                                </TableHead>
                                             ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800">
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
                                         {tableData.map((row, i) => (
-                                            <tr key={i} className="hover:bg-slate-800/50 transition-colors">
+                                            <TableRow key={i} className="border-slate-800/50 hover:bg-slate-800/30 transition-colors">
                                                 {Object.values(row).map((val: any, j) => (
-                                                    <td key={j} className="px-4 py-3 whitespace-nowrap text-slate-300">
+                                                    <TableCell key={j} className="whitespace-nowrap text-slate-300 py-3">
                                                         {val === null ? (
                                                             <span className="text-slate-600 italic">NULL</span>
                                                         ) : typeof val === 'object' ? (
                                                             JSON.stringify(val)
                                                         ) : String(val)}
-                                                    </td>
+                                                    </TableCell>
                                                 ))}
-                                            </tr>
+                                            </TableRow>
                                         ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                    </TableBody>
+                                </Table>
+                            </ScrollArea>
                         </div>
                     )}
                 </div>
