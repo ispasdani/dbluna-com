@@ -24,7 +24,7 @@ export default function DatabaseExplorer() {
                         server: "localhost",
                         port: 1433,
                         user: "sa",
-                        password: "yourStrong(!)Password", // Default dev SQL password
+                        password: "daniel", // Default dev SQL password
                         options: {
                             encrypt: false,
                             trustServerCertificate: true
@@ -132,7 +132,8 @@ export default function DatabaseExplorer() {
                                     {(schemaTables as any[]).map((t) => {
                                         // Some standard queries return TABLE_SCHEMA, some might not. We fallback safely.
                                         const tableName = t.TABLE_NAME || t.name || 'Unknown Table';
-                                        const queryName = t.TABLE_SCHEMA ? `[${t.TABLE_SCHEMA}].[${tableName}]` : `[${tableName}]`;
+                                        const escapeId = (id: string) => id.replace(/\]/g, ']]');
+                                        const queryName = t.TABLE_SCHEMA ? `[${escapeId(t.TABLE_SCHEMA)}].[${escapeId(tableName)}]` : `[${escapeId(tableName)}]`;
                                         const isActive = activeTable === queryName;
 
                                         return (

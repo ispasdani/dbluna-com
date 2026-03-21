@@ -101,10 +101,8 @@ ipcMain.handle('db:getTables', async () => {
 ipcMain.handle('db:queryTable', async (event, tableName) => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {
-        // Basic protection by wrapping in brackets, assuming tableName is secure or provided by the UI safely
-        // In reality, more robust escaping might be needed depending on table names.
-        const safeTableName = tableName.replace(/\]/g, ']]');
-        const result = await dbPool.request().query(`SELECT TOP 100 * FROM [${safeTableName}]`);
+        // The tableName is already safely formatted as [schema].[table] by the frontend
+        const result = await dbPool.request().query(`SELECT TOP 100 * FROM ${tableName}`);
         return { success: true, data: result.recordset };
     } catch (err) {
         console.error(`Failed to query table ${tableName}:`, err);
