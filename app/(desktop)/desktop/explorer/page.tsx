@@ -6,18 +6,18 @@ import { Database, Table as TableIcon, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
+    ResizableHandle,
+    ResizablePanel,
+    ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useRouter } from "next/navigation";
 import { ObjectExplorerTree, type DbObjectNode } from "./components/object-explorer-tree";
@@ -181,21 +181,21 @@ export default function DatabaseExplorer() {
 
     const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => {
         if (!node.dbName || !node.name) return;
-        
+
         let schemaName = '';
         let tableNameOnly = '';
         let queryName = '';
-        
+
         if (action !== 'new-query') {
             schemaName = node.schemaName || node.name.split('.')[0];
             tableNameOnly = node.name.split('.').slice(1).join('.');
             queryName = `[${schemaName}].[${tableNameOnly}]`;
         }
-        
+
         const actionId = action === 'new-query' ? Date.now().toString() : queryName;
         const tabId = `${action}::${node.dbName}::${actionId}`;
         const exists = openTabs.find(t => t.id === tabId);
-        
+
         if (!exists) {
             let title = node.name;
             let type: TabItem['type'] = 'table';
@@ -217,13 +217,13 @@ export default function DatabaseExplorer() {
                 initialMode = 'empty';
             }
 
-            setOpenTabs(prev => [...prev, {  
-                id: tabId, 
-                dbName: node.dbName!, 
+            setOpenTabs(prev => [...prev, {
+                id: tabId,
+                dbName: node.dbName!,
                 schemaName,
                 tableName: tableNameOnly,
-                queryName, 
-                title, 
+                queryName,
+                title,
                 type,
                 initialMode
             }]);
@@ -246,9 +246,9 @@ export default function DatabaseExplorer() {
         <div className="flex h-screen w-full bg-slate-950 text-slate-300 overflow-hidden">
             {/* @ts-expect-error Shadcn resizable types mismatch */}
             <ResizablePanelGroup direction="horizontal">
-                
+
                 {/* Object Explorer Sidebar */}
-                <ResizablePanel defaultSize={20} minSize={15} maxSize={40} className="bg-slate-900 border-r border-slate-800 flex flex-col z-10 w-full relative">
+                <ResizablePanel defaultSize={20} minSize={15} className="bg-slate-900 border-r border-slate-800 flex flex-col z-10 w-full relative">
                     <div className="p-4 border-b border-slate-800 flex items-center space-x-3 shrink-0">
                         <Button variant="ghost" size="icon" onClick={() => router.push('/desktop')} className="h-8 w-8 text-slate-400 hover:text-white shrink-0">
                             <ArrowLeft className="h-4 w-4" />
@@ -269,7 +269,7 @@ export default function DatabaseExplorer() {
                                     <span className="break-all">{connectionError}</span>
                                 </div>
                             ) : connectionMode === 'connected' ? (
-                                <ObjectExplorerTree 
+                                <ObjectExplorerTree
                                     onNodeDoubleClick={(node) => handleTreeAction('select', node)}
                                     onNodeAction={handleTreeAction}
                                 />
@@ -294,8 +294,8 @@ export default function DatabaseExplorer() {
                                 <ScrollArea className="w-full flex-1">
                                     <TabsList className="bg-transparent h-9 p-0 justify-start gap-1 w-max px-2">
                                         {openTabs.map(tab => (
-                                            <TabsTrigger 
-                                                key={tab.id} 
+                                            <TabsTrigger
+                                                key={tab.id}
                                                 value={tab.id}
                                                 className="group h-9 px-3 rounded-t-md rounded-b-none border border-transparent data-[state=active]:bg-slate-900 data-[state=active]:border-slate-800 data-[state=active]:border-b-slate-900 text-slate-400 data-[state=active]:text-slate-100 min-w-[140px] flex items-center justify-between shadow-none mb-[-1px] z-10"
                                             >
@@ -305,24 +305,31 @@ export default function DatabaseExplorer() {
                                                     {tab.type === 'query' && <Database className="h-4 w-4 shrink-0 text-yellow-500" />}
                                                     <span className="truncate text-xs font-medium">{tab.title.replace(/[\[\]]/g, '')}</span>
                                                 </div>
-                                                <button 
-                                                    onClick={(e) => handleCloseTab(e, tab.id)}
-                                                    className="opacity-0 group-hover:opacity-100 hover:bg-slate-700/50 rounded-sm p-0.5 text-slate-400 hover:text-white transition-all shrink-0"
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => handleCloseTab(e as any, tab.id)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            handleCloseTab(e as any, tab.id);
+                                                        }
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 hover:bg-slate-700/50 rounded-sm p-0.5 text-slate-400 hover:text-white transition-all shrink-0 cursor-pointer"
                                                 >
                                                     <X className="h-3.5 w-3.5" />
-                                                </button>
+                                                </div>
                                             </TabsTrigger>
                                         ))}
                                     </TabsList>
                                     <ScrollBar orientation="horizontal" className="h-1.5" />
                                 </ScrollArea>
                             </div>
-                            
+
                             <div className="flex-1 overflow-hidden relative w-full bg-slate-900">
                                 {openTabs.map(tab => (
-                                    <TabsContent 
-                                        key={tab.id} 
-                                        value={tab.id} 
+                                    <TabsContent
+                                        key={tab.id}
+                                        value={tab.id}
                                         className="h-full m-0 p-0 absolute inset-0 focus-visible:outline-none"
                                         forceMount={true}
                                         style={{ display: activeTabId === tab.id ? 'flex' : 'none', flexDirection: 'column' }}
@@ -342,7 +349,7 @@ export default function DatabaseExplorer() {
                         </Tabs>
                     )}
                 </ResizablePanel>
-                
+
             </ResizablePanelGroup>
         </div>
     );
