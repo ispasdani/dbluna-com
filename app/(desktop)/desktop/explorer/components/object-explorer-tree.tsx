@@ -37,7 +37,7 @@ export type DbObjectNode = {
 
 interface ObjectExplorerTreeProps {
     onNodeDoubleClick: (node: DbObjectNode) => void;
-    onNodeAction?: (action: 'select' | 'design' | 'script-create', node: DbObjectNode) => void;
+    onNodeAction?: (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => void;
 }
 
 export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectExplorerTreeProps) {
@@ -227,6 +227,20 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
                                 onClick={() => onNodeAction?.('script-create', node)}
                             >
                                 Script Table as <ChevronRight className="ml-1 h-3 w-3 inline" /> CREATE To <ChevronRight className="ml-1 h-3 w-3 inline" /> New Query Editor Window
+                            </ContextMenuItem>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                ) : node.type === 'database' ? (
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            {triggerContent}
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-64 bg-slate-900 border-slate-800 text-slate-300">
+                            <ContextMenuItem 
+                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                onClick={(e) => { e.stopPropagation(); onNodeAction?.('new-query', node); }}
+                            >
+                                New Query
                             </ContextMenuItem>
                         </ContextMenuContent>
                     </ContextMenu>

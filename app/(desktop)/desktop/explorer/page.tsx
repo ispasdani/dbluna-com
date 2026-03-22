@@ -179,14 +179,21 @@ export default function DatabaseExplorer() {
         connectSession();
     }, []);
 
-    const handleTreeAction = (action: 'select' | 'design' | 'script-create', node: DbObjectNode) => {
+    const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => {
         if (!node.dbName || !node.name) return;
         
-        const schemaName = node.schemaName || node.name.split('.')[0];
-        const tableNameOnly = node.name.split('.').slice(1).join('.');
-        const queryName = `[${schemaName}].[${tableNameOnly}]`;
+        let schemaName = '';
+        let tableNameOnly = '';
+        let queryName = '';
         
-        const tabId = `${action}::${node.dbName}::${queryName}`;
+        if (action !== 'new-query') {
+            schemaName = node.schemaName || node.name.split('.')[0];
+            tableNameOnly = node.name.split('.').slice(1).join('.');
+            queryName = `[${schemaName}].[${tableNameOnly}]`;
+        }
+        
+        const actionId = action === 'new-query' ? Date.now().toString() : queryName;
+        const tabId = `${action}::${node.dbName}::${actionId}`;
         const exists = openTabs.find(t => t.id === tabId);
         
         if (!exists) {
@@ -204,9 +211,13 @@ export default function DatabaseExplorer() {
                 title = `SQLQuery - ${node.name}`;
                 type = 'query';
                 initialMode = 'script-create';
+            } else if (action === 'new-query') {
+                title = `SQLQuery - ${node.dbName}`;
+                type = 'query';
+                initialMode = 'empty';
             }
 
-            setOpenTabs(prev => [...prev, { 
+            setOpenTabs(prev => [...prev, {  
                 id: tabId, 
                 dbName: node.dbName!, 
                 schemaName,
@@ -322,7 +333,7 @@ export default function DatabaseExplorer() {
                                         {tab.type === 'design' && tab.schemaName && tab.tableName && (
                                             <SchemaViewerGrid dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} />
                                         )}
-                                        {tab.type === 'query' && tab.schemaName && tab.tableName && (
+                                        {tab.type === 'query' && (
                                             <QueryEditorTab dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} initialMode={tab.initialMode} />
                                         )}
                                     </TabsContent>

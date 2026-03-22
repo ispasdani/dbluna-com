@@ -167,6 +167,22 @@ ipcMain.handle('db:getTableSchema', async (event, dbName, schemaName, tableName)
     }
 });
 
+ipcMain.handle('db:executeQuery', async (event, dbName, queryStr) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName ? `USE [${dbName}];\n${queryStr}` : queryStr;
+        const result = await dbPool.request().query(query);
+        return { 
+            success: true, 
+            recordsets: result.recordsets,
+            rowsAffected: result.rowsAffected 
+        };
+    } catch (err) {
+        console.error(`Failed to execute query:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('db:disconnect', async () => {
     try {
         if (dbPool) {

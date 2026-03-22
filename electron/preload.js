@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electron', {
     getStoredProcedures: (dbName) => ipcRenderer.invoke('db:getStoredProcedures', dbName),
     queryTable: (dbName, tableName) => ipcRenderer.invoke('db:queryTable', dbName, tableName),
     getTableSchema: (dbName, schemaName, tableName) => ipcRenderer.invoke('db:getTableSchema', dbName, schemaName, tableName),
+    executeQuery: (dbName, queryStr) => ipcRenderer.invoke('db:executeQuery', dbName, queryStr),
     disconnectDb: () => ipcRenderer.invoke('db:disconnect'),
 
     // Auth & License Methods
