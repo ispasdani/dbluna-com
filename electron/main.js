@@ -82,15 +82,29 @@ ipcMain.handle('db:connect', async (event, config) => {
     }
 });
 
-ipcMain.handle('db:getTables', async () => {
+ipcMain.handle('db:getDatabases', async () => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {
         const result = await dbPool.request().query(`
-            SELECT TABLE_SCHEMA, TABLE_NAME 
-            FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_TYPE = 'BASE TABLE'
-            ORDER BY TABLE_SCHEMA, TABLE_NAME;
+            SELECT name, database_id 
+            FROM sys.databases 
+            WHERE state_desc = 'ONLINE' 
+            ORDER BY name;
         `);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error("Failed to fetch databases:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:getTables', async (event, dbName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName 
+            ? `SELECT TABLE_SCHEMA, TABLE_NAME FROM [${dbName}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_SCHEMA, TABLE_NAME;`
+            : `SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_SCHEMA, TABLE_NAME;`;
+        const result = await dbPool.request().query(query);
         return { success: true, data: result.recordset };
     } catch (err) {
         console.error("Failed to fetch tables:", err);
@@ -98,11 +112,40 @@ ipcMain.handle('db:getTables', async () => {
     }
 });
 
-ipcMain.handle('db:queryTable', async (event, tableName) => {
+ipcMain.handle('db:getViews', async (event, dbName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName 
+            ? `SELECT TABLE_SCHEMA, TABLE_NAME FROM [${dbName}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'VIEW' ORDER BY TABLE_SCHEMA, TABLE_NAME;`
+            : `SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'VIEW' ORDER BY TABLE_SCHEMA, TABLE_NAME;`;
+        const result = await dbPool.request().query(query);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error("Failed to fetch views:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:getStoredProcedures', async (event, dbName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName
+            ? `SELECT s.name AS schema_name, p.name AS procedure_name FROM [${dbName}].sys.procedures p INNER JOIN [${dbName}].sys.schemas s ON p.schema_id = s.schema_id ORDER BY s.name, p.name;`
+            : `SELECT s.name AS schema_name, p.name AS procedure_name FROM sys.procedures p INNER JOIN sys.schemas s ON p.schema_id = s.schema_id ORDER BY s.name, p.name;`;
+        const result = await dbPool.request().query(query);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error("Failed to fetch stored procedures:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('db:queryTable', async (event, dbName, tableName) => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {
         // The tableName is already safely formatted as [schema].[table] by the frontend
-        const result = await dbPool.request().query(`SELECT TOP 100 * FROM ${tableName}`);
+        const query = dbName ? `SELECT TOP 100 * FROM [${dbName}].${tableName}` : `SELECT TOP 100 * FROM ${tableName}`;
+        const result = await dbPool.request().query(query);
         return { success: true, data: result.recordset };
     } catch (err) {
         console.error(`Failed to query table ${tableName}:`, err);

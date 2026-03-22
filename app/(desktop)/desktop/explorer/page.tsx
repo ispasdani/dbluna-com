@@ -20,9 +20,10 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useRouter } from "next/navigation";
+import { ObjectExplorerTree } from "./components/object-explorer-tree";
 
 // Sub-component to manage per-tab querying and rendering
-function TableDataGrid({ tableName }: { tableName: string }) {
+function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
     const [tableData, setTableData] = useState<any[]>([]);
     const [isQuerying, setIsQuerying] = useState(true);
 
@@ -32,7 +33,7 @@ function TableDataGrid({ tableName }: { tableName: string }) {
             if (typeof window !== "undefined" && (window as any).electron) {
                 setIsQuerying(true);
                 try {
-                    const result = await (window as any).electron.queryTable(tableName);
+                    const result = await (window as any).electron.queryTable(dbName, tableName);
                     if (isMounted) {
                         if (result && result.success) {
                             setTableData(result.data || []);
@@ -121,14 +122,15 @@ function TableDataGrid({ tableName }: { tableName: string }) {
 
 type TabItem = {
     id: string;
+    dbName: string;
+    queryName: string;
     title: string;
     type: 'table' | 'query';
 };
 
 export default function DatabaseExplorer() {
     const router = useRouter();
-    const [tables, setTables] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [connectionMode, setConnectionMode] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
     const [connectionError, setConnectionError] = useState<string | null>(null);
 
     // Tab state
@@ -136,8 +138,9 @@ export default function DatabaseExplorer() {
     const [activeTabId, setActiveTabId] = useState<string>('');
 
     useEffect(() => {
-        const fetchTables = async () => {
+        const connectSession = async () => {
             if (typeof window !== "undefined" && (window as any).electron) {
+                setConnectionMode('connecting');
                 try {
                     const config = {
                         server: "localhost",
@@ -152,38 +155,32 @@ export default function DatabaseExplorer() {
                     const connResult = await (window as any).electron.connectDb(config);
 
                     if (!connResult || !connResult.success) {
-                        setConnectionError(`Failed to connect to database: ${connResult?.error || 'Unknown error'}`);
-                        setIsLoading(false);
-                        return;
-                    }
-
-                    const result = await (window as any).electron.getTables();
-                    if (result && result.success) {
-                        setTables(result.data || []);
+                        setConnectionError(`Failed to connect: ${connResult?.error || 'Unknown error'}`);
+                        setConnectionMode('error');
                     } else {
-                        setConnectionError(`Failed to fetch tables: ${result?.error}`);
-                        console.error('Failed to get tables:', result?.error);
+                        setConnectionMode('connected');
                     }
-                } catch (error) {
-                    console.error("Failed to fetch tables", error);
-                } finally {
-                    setIsLoading(false);
+                } catch (error: any) {
+                    console.error("Failed to connect", error);
+                    setConnectionError(error.message);
+                    setConnectionMode('error');
                 }
             } else {
                 console.warn("Electron environment not detected.");
-                setIsLoading(false);
+                setConnectionMode('error');
             }
         };
 
-        fetchTables();
+        connectSession();
     }, []);
 
-    const handleOpenTable = (queryName: string, titleName: string) => {
-        const exists = openTabs.find(t => t.id === queryName);
+    const handleOpenTable = (dbName: string, queryName: string, titleName: string) => {
+        const tabId = `${dbName}::${queryName}`;
+        const exists = openTabs.find(t => t.id === tabId);
         if (!exists) {
-            setOpenTabs(prev => [...prev, { id: queryName, title: titleName, type: 'table' }]);
+            setOpenTabs(prev => [...prev, { id: tabId, dbName, queryName, title: titleName, type: 'table' }]);
         }
-        setActiveTabId(queryName);
+        setActiveTabId(tabId);
     };
 
     const handleCloseTab = (e: React.MouseEvent, id: string) => {
@@ -196,16 +193,6 @@ export default function DatabaseExplorer() {
             setActiveTabId('');
         }
     };
-
-    // Group tables by schema
-    const schemas = tables.reduce((acc, table) => {
-        const schema = table.TABLE_SCHEMA || 'dbo';
-        if (!acc[schema]) {
-            acc[schema] = [];
-        }
-        acc[schema].push(table);
-        return acc;
-    }, {} as Record<string, any[]>);
 
     return (
         <div className="flex h-screen w-full bg-slate-950 text-slate-300 overflow-hidden">
@@ -225,49 +212,17 @@ export default function DatabaseExplorer() {
                     </div>
 
                     <ScrollArea className="flex-1 w-full pl-0">
-                        <div className="p-4 space-y-6">
-                            {isLoading ? (
-                                <div className="text-sm text-slate-500 animate-pulse">Loading tables...</div>
-                            ) : connectionError ? (
-                                <div className="text-sm text-red-400 bg-red-950/30 p-3 rounded border border-red-900/50">
+                        <div className="flex-1 h-full w-full">
+                            {connectionMode === 'connecting' ? (
+                                <div className="p-4 text-sm text-slate-500 animate-pulse">Connecting to local server...</div>
+                            ) : connectionMode === 'error' ? (
+                                <div className="p-4 text-sm text-red-400 bg-red-950/30 m-4 rounded border border-red-900/50">
                                     <strong>Connection Error:</strong><br />
                                     <span className="break-all">{connectionError}</span>
                                 </div>
-                            ) : tables.length === 0 ? (
-                                <div className="text-sm text-slate-500">No tables found.</div>
-                            ) : (
-                                Object.entries(schemas).map(([schema, schemaTables]) => (
-                                    <div key={schema}>
-                                        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2 flex items-center">
-                                            <Database className="h-3 w-3 mr-1.5" />
-                                            {schema}
-                                        </h3>
-                                        <ul className="space-y-1">
-                                            {(schemaTables as any[]).map((t) => {
-                                                const tableName = t.TABLE_NAME || t.name || 'Unknown Table';
-                                                const escapeId = (id: string) => id.replace(/\]/g, ']]');
-                                                const queryName = t.TABLE_SCHEMA ? `[${escapeId(t.TABLE_SCHEMA)}].[${escapeId(tableName)}]` : `[${escapeId(tableName)}]`;
-                                                const isActive = activeTabId === queryName;
-
-                                                return (
-                                                    <li key={queryName}>
-                                                        <button
-                                                            onClick={() => handleOpenTable(queryName, tableName)}
-                                                            className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded-md text-sm transition-colors ${isActive
-                                                                ? "bg-blue-600/20 text-blue-400"
-                                                                : "hover:bg-slate-800/50 text-slate-300"
-                                                                }`}
-                                                        >
-                                                            <TableIcon className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-400" : "text-slate-500"}`} />
-                                                            <span className="truncate text-left">{tableName}</span>
-                                                        </button>
-                                                    </li>
-                                                )
-                                            })}
-                                        </ul>
-                                    </div>
-                                ))
-                            )}
+                            ) : connectionMode === 'connected' ? (
+                                <ObjectExplorerTree onNodeDoubleClick={handleOpenTable} />
+                            ) : null}
                         </div>
                         <ScrollBar orientation="horizontal" />
                     </ScrollArea>
@@ -320,7 +275,7 @@ export default function DatabaseExplorer() {
                                         style={{ display: activeTabId === tab.id ? 'flex' : 'none', flexDirection: 'column' }}
                                     >
                                         {/* Using generic data grid for table view */}
-                                        <TableDataGrid tableName={tab.id} />
+                                        <TableDataGrid dbName={tab.dbName} tableName={tab.queryName} />
                                     </TabsContent>
                                 ))}
                             </div>

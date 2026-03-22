@@ -5,8 +5,11 @@ contextBridge.exposeInMainWorld('electron', {
 
     // Database Explorer Methods
     connectDb: (config) => ipcRenderer.invoke('db:connect', config),
-    getTables: () => ipcRenderer.invoke('db:getTables'),
-    queryTable: (tableName) => ipcRenderer.invoke('db:queryTable', tableName),
+    getDatabases: () => ipcRenderer.invoke('db:getDatabases'),
+    getTables: (dbName) => ipcRenderer.invoke('db:getTables', dbName),
+    getViews: (dbName) => ipcRenderer.invoke('db:getViews', dbName),
+    getStoredProcedures: (dbName) => ipcRenderer.invoke('db:getStoredProcedures', dbName),
+    queryTable: (dbName, tableName) => ipcRenderer.invoke('db:queryTable', dbName, tableName),
     disconnectDb: () => ipcRenderer.invoke('db:disconnect'),
 
     // Auth & License Methods
