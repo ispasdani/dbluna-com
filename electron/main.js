@@ -153,6 +153,20 @@ ipcMain.handle('db:queryTable', async (event, dbName, tableName) => {
     }
 });
 
+ipcMain.handle('db:getTableSchema', async (event, dbName, schemaName, tableName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName 
+            ? `SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM [${dbName}].INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '${schemaName}' AND TABLE_NAME = '${tableName}' ORDER BY ORDINAL_POSITION;`
+            : `SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '${schemaName}' AND TABLE_NAME = '${tableName}' ORDER BY ORDINAL_POSITION;`;
+        const result = await dbPool.request().query(query);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error(`Failed to fetch schema for ${schemaName}.${tableName}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('db:disconnect', async () => {
     try {
         if (dbPool) {

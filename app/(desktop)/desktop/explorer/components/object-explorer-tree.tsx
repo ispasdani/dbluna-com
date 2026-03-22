@@ -17,6 +17,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 
 export type DbObjectNode = {
@@ -30,10 +36,11 @@ export type DbObjectNode = {
 };
 
 interface ObjectExplorerTreeProps {
-    onNodeDoubleClick: (dbName: string, queryName: string, titleName: string) => void;
+    onNodeDoubleClick: (node: DbObjectNode) => void;
+    onNodeAction?: (action: 'select' | 'design' | 'script-create', node: DbObjectNode) => void;
 }
 
-export function ObjectExplorerTree({ onNodeDoubleClick }: ObjectExplorerTreeProps) {
+export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectExplorerTreeProps) {
     const [databases, setDatabases] = useState<DbObjectNode[]>([]);
     const [isLoadingInit, setIsLoadingInit] = useState(true);
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['server:localhost']));
@@ -172,31 +179,60 @@ export function ObjectExplorerTree({ onNodeDoubleClick }: ObjectExplorerTreeProp
 
         const handleDoubleClick = () => {
             if (node.type === 'table' || node.type === 'view') {
-                if (node.dbName && node.schemaName && node.name) {
-                    const tableNameOnly = node.name.split('.').slice(1).join('.');
-                    const queryName = `[${node.schemaName}].[${tableNameOnly}]`;
-                    onNodeDoubleClick(node.dbName, queryName, node.name);
-                }
+                onNodeDoubleClick(node);
             }
         };
 
-        return (
-            <Collapsible open={isExpanded} onOpenChange={() => !isLeaf && toggleNode(node, updateNodeState)}>
-                <CollapsibleTrigger 
-                    className={cn(
-                        "flex items-center w-full py-1 px-2 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white rounded-md transition-colors",
+        const triggerContent = (
+            <div 
+                className={cn(
+                    "flex items-center w-full py-1 px-2 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white rounded-md transition-colors",
+                )}
+                style={{ paddingLeft: `${level * 12 + 8}px` }}
+                onDoubleClick={handleDoubleClick}
+                onClick={() => !isLeaf && toggleNode(node, updateNodeState)}
+            >
+                <div className="w-4 h-4 mr-1 flex items-center justify-center shrink-0">
+                    {!isLeaf && (
+                        isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-500" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
                     )}
-                    style={{ paddingLeft: `${level * 12 + 8}px` }}
-                    onDoubleClick={handleDoubleClick}
-                >
-                    <div className="w-4 h-4 mr-1 flex items-center justify-center shrink-0">
-                        {!isLeaf && (
-                            isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-500" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
-                        )}
-                    </div>
-                    {renderIcon(node.type, isExpanded)}
-                    <span className="ml-2 truncate select-none text-left">{node.name}</span>
-                </CollapsibleTrigger>
+                </div>
+                {renderIcon(node.type, isExpanded)}
+                <span className="ml-2 truncate select-none text-left">{node.name}</span>
+            </div>
+        );
+
+        let content = (
+            <Collapsible open={isExpanded} onOpenChange={() => {}}>
+                {isLeaf && node.type === 'table' ? (
+                    <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                            {triggerContent}
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-64 bg-slate-900 border-slate-800 text-slate-300">
+                            <ContextMenuItem 
+                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                onClick={() => onNodeAction?.('select', node)}
+                            >
+                                Select Top 1000 Rows
+                            </ContextMenuItem>
+                            <ContextMenuItem 
+                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                onClick={() => onNodeAction?.('design', node)}
+                            >
+                                Design
+                            </ContextMenuItem>
+                            <ContextMenuItem 
+                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                onClick={() => onNodeAction?.('script-create', node)}
+                            >
+                                Script Table as <ChevronRight className="ml-1 h-3 w-3 inline" /> CREATE To <ChevronRight className="ml-1 h-3 w-3 inline" /> New Query Editor Window
+                            </ContextMenuItem>
+                        </ContextMenuContent>
+                    </ContextMenu>
+                ) : (
+                    triggerContent
+                )}
                 {!isLeaf && node.childrenLoaded && node.children && (
                     <CollapsibleContent>
                         {node.children.map(child => (
@@ -211,6 +247,8 @@ export function ObjectExplorerTree({ onNodeDoubleClick }: ObjectExplorerTreeProp
                 )}
             </Collapsible>
         );
+
+        return content;
     };
 
     if (isLoadingInit) {

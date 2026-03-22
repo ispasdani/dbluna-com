@@ -20,7 +20,9 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useRouter } from "next/navigation";
-import { ObjectExplorerTree } from "./components/object-explorer-tree";
+import { ObjectExplorerTree, type DbObjectNode } from "./components/object-explorer-tree";
+import { SchemaViewerGrid } from "./components/schema-viewer-grid";
+import { QueryEditorTab } from "./components/query-editor-tab";
 
 // Sub-component to manage per-tab querying and rendering
 function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
@@ -123,9 +125,12 @@ function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: strin
 type TabItem = {
     id: string;
     dbName: string;
+    schemaName?: string;
+    tableName?: string;
     queryName: string;
     title: string;
-    type: 'table' | 'query';
+    type: 'table' | 'query' | 'design';
+    initialMode?: "script-create" | "empty";
 };
 
 export default function DatabaseExplorer() {
@@ -174,11 +179,43 @@ export default function DatabaseExplorer() {
         connectSession();
     }, []);
 
-    const handleOpenTable = (dbName: string, queryName: string, titleName: string) => {
-        const tabId = `${dbName}::${queryName}`;
+    const handleTreeAction = (action: 'select' | 'design' | 'script-create', node: DbObjectNode) => {
+        if (!node.dbName || !node.name) return;
+        
+        const schemaName = node.schemaName || node.name.split('.')[0];
+        const tableNameOnly = node.name.split('.').slice(1).join('.');
+        const queryName = `[${schemaName}].[${tableNameOnly}]`;
+        
+        const tabId = `${action}::${node.dbName}::${queryName}`;
         const exists = openTabs.find(t => t.id === tabId);
+        
         if (!exists) {
-            setOpenTabs(prev => [...prev, { id: tabId, dbName, queryName, title: titleName, type: 'table' }]);
+            let title = node.name;
+            let type: TabItem['type'] = 'table';
+            let initialMode: TabItem['initialMode'];
+
+            if (action === 'select') {
+                title = `${node.name} - Top 1000`;
+                type = 'table';
+            } else if (action === 'design') {
+                title = `${node.name} - Design`;
+                type = 'design';
+            } else if (action === 'script-create') {
+                title = `SQLQuery - ${node.name}`;
+                type = 'query';
+                initialMode = 'script-create';
+            }
+
+            setOpenTabs(prev => [...prev, { 
+                id: tabId, 
+                dbName: node.dbName!, 
+                schemaName,
+                tableName: tableNameOnly,
+                queryName, 
+                title, 
+                type,
+                initialMode
+            }]);
         }
         setActiveTabId(tabId);
     };
@@ -221,7 +258,10 @@ export default function DatabaseExplorer() {
                                     <span className="break-all">{connectionError}</span>
                                 </div>
                             ) : connectionMode === 'connected' ? (
-                                <ObjectExplorerTree onNodeDoubleClick={handleOpenTable} />
+                                <ObjectExplorerTree 
+                                    onNodeDoubleClick={(node) => handleTreeAction('select', node)}
+                                    onNodeAction={handleTreeAction}
+                                />
                             ) : null}
                         </div>
                         <ScrollBar orientation="horizontal" />
@@ -250,6 +290,8 @@ export default function DatabaseExplorer() {
                                             >
                                                 <div className="flex items-center space-x-2 truncate pr-4">
                                                     {tab.type === 'table' && <TableIcon className="h-4 w-4 shrink-0 text-blue-500" />}
+                                                    {tab.type === 'design' && <Database className="h-4 w-4 shrink-0 text-purple-500" />}
+                                                    {tab.type === 'query' && <Database className="h-4 w-4 shrink-0 text-yellow-500" />}
                                                     <span className="truncate text-xs font-medium">{tab.title.replace(/[\[\]]/g, '')}</span>
                                                 </div>
                                                 <button 
@@ -274,8 +316,15 @@ export default function DatabaseExplorer() {
                                         forceMount={true}
                                         style={{ display: activeTabId === tab.id ? 'flex' : 'none', flexDirection: 'column' }}
                                     >
-                                        {/* Using generic data grid for table view */}
-                                        <TableDataGrid dbName={tab.dbName} tableName={tab.queryName} />
+                                        {tab.type === 'table' && (
+                                            <TableDataGrid dbName={tab.dbName} tableName={tab.queryName} />
+                                        )}
+                                        {tab.type === 'design' && tab.schemaName && tab.tableName && (
+                                            <SchemaViewerGrid dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} />
+                                        )}
+                                        {tab.type === 'query' && tab.schemaName && tab.tableName && (
+                                            <QueryEditorTab dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} initialMode={tab.initialMode} />
+                                        )}
                                     </TabsContent>
                                 ))}
                             </div>
