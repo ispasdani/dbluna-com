@@ -44,4 +44,4 @@ Enhance the styling to be more dense, professional, and visually appealing, akin
 
 ## Conclusion
 
-Phase 4 will transform the application from a hardwired MVP into a dynamic, production-ready developer tool. Users will be able to manage connections fluidly, and the polished UI will feel like a natural, modern successor to SSMS.
+Phase 4 will transform the application from a hardwired MVP into a dynamic, production-ready developer tool. Users will be able to manage connections fluidly, and the polished UI will feel like a natural, modern successor to SSMS....
