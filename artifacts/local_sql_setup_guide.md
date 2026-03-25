@@ -1,64 +1,77 @@
-# Local SQL Server Setup Guide
+# Local MS SQL Server Setup Guide for MacBook Pro (i9, 2019)
 
-This guide details exactly how to configure your local development environment to successfully process and test `.bacpac` database imports into the dbluna-com Electron application.
+Since you are running a 2019 MacBook Pro with an Intel Core i9 processor, you are on the `x86_64` architecture. This means you do not need to use workarounds like Azure SQL Edge (which Apple Silicon/M-series Mac users need). Instead, you can run the standard **Microsoft SQL Server 2022 Linux container** perfectly via Docker.
 
-To test the application locally without relying on Cloud DBs, you need two things:
-1. **A running instance of SQL Server locally** (usually via Docker Desktop).
-2. **Microsoft's `sqlpackage` command-line tool** installed natively on the host machine.
+## Prerequisites
 
----
+1. **Install Docker Desktop for Mac**
+   - Download the **Mac with Intel chip** version from the [Docker website](https://docs.docker.com/desktop/install/mac-install/).
+   - Open the downloaded `.dmg` file and drag Docker to your Applications folder.
+   - Launch Docker Desktop and ensure it is running (you should see the whale icon in your menu bar).
 
-## 💻 macOS (Intel Processors / i9 from 2019)
+2. **Install a Database Client**
+   - **Azure Data Studio (Recommended for Mac):** A lightweight, cross-platform tool by Microsoft. [Download here](https://learn.microsoft.com/en-us/sql/azure-data-studio/download-azure-data-studio).
+   - **DBeaver:** Another great cross-platform database management tool.
+   - *(Note: SQL Server Management Studio (SSMS) is Windows-only, so Azure Data Studio is the direct macOS equivalent).*
 
-Your current machine uses an x86_64 architecture (Intel Processor). Because of this, you can run the official, full-featured Microsoft SQL Server Linux container natively.
+## Step-by-Step SQL Server Setup
 
-### 1. Start SQL Server (Docker required)
-Run this command in the terminal to start the standard SQL Server 2022 image.
+### 1. Pull the SQL Server Docker Image
+Open your Terminal and run the following command to download the latest SQL Server 2022 image:
+
 ```bash
-docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=yourStrong(!)Password" -p 1433:1433 --name sql_server_dev -d mcr.microsoft.com/mssql/server:2022-latest
+docker pull mcr.microsoft.com/mssql/server:2022-latest
 ```
 
-### 2. Install `sqlpackage`
-Homebrew is the easiest way to install Microsoft's native SQL command-line tools. Homebrew will seamlessly download the macOS `x64` binaries for your Intel chip.
+### 2. Run the SQL Server Container
+Run the following command to start a new container. Make sure to replace `<YourStrong!Passw0rd>` with a secure password of your choice.
+
 ```bash
-brew tap microsoft/sqlserver-osx
-brew install sqlpackage
+docker run -e 'ACCEPT_EULA=Y' \
+  -e 'MSSQL_SA_PASSWORD=<YourStrong!Passw0rd>' \
+  -p 1433:1433 \
+  --name local_sql_server \
+  --restart unless-stopped \
+  -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
----
+**Parameters explained:**
+- `-e 'ACCEPT_EULA=Y'`: Accepts the End-User License Agreement.
+- `-e 'MSSQL_SA_PASSWORD=...'`: Sets the System Administrator (`sa`) password. (It must be at least 8 characters long and contain characters from three of the following four sets: Uppercase letters, Lowercase letters, Base 10 digits, and Symbols).
+- `-p 1433:1433`: Maps port 1433 in the container to port 1433 on your Mac.
+- `--name local_sql_server`: Assigns a readable name to your container.
+- `--restart unless-stopped`: Ensures the database automatically starts if you restart Docker or your Mac.
+- `-d`: Runs the container in detached mode (in the background).
 
-## 🍏 macOS (Apple Silicon / M1, M2, M3 etc)
+### 3. Verify the Container is Running
+Check the status of your Docker container to ensure it's up and healthy:
 
-M-series Macs use ARM64 architecture. The standard MS-SQL image does not run natively and the emulation layer (Rosetta) often crashes during database queries. Instead, you **must use Azure SQL Edge**, which is uniquely compiled for ARM chips.
-
-### 1. Start SQL Server (Azure SQL Edge via Docker)
-Run this command to start an ARM-compatible lightweight SQL Server. Note the `SYS_PTRACE` capability flag is required for the OS container boot.
 ```bash
-docker run --cap-add SYS_PTRACE -e "ACCEPT_EULA=1" -e "MSSQL_SA_PASSWORD=yourStrong(!)Password" -p 1433:1433 --name sql_edge_dev -d mcr.microsoft.com/azure-sql-edge
+docker ps
 ```
+You should see `local_sql_server` in the list with a status of `Up`.
 
-### 2. Install `sqlpackage`
-Homebrew natively detects your architecture and installs the correct `arm64` binary.
-```bash
-brew tap microsoft/sqlserver-osx
-brew install sqlpackage
-```
+## Connecting to Your Local SQL Server
 
----
+1. Open **Azure Data Studio**.
+2. Click on **New Connection**.
+3. Fill in the connection details:
+   - **Connection type:** Microsoft SQL Server
+   - **Server:** `localhost`
+   - **Authentication type:** SQL Login
+   - **User name:** `sa`
+   - **Password:** `<YourStrong!Passw0rd>` (the one you set in Step 2)
+   - **Trust server certificate:** True (Check this box to avoid SSL errors on local development)
+4. Click **Connect**.
 
-## 🪟 Windows PC
+You are now connected to your local SQL Server instance and can begin creating databases and tables!
 
-Windows users have access to native installers and don't necessarily need Docker, though it keeps the system clean and isolated.
+## Useful Docker Commands for SQL Server
 
-### Option A: Native Setup (Recommended for pure speed)
-1. **Install SQL Server:** Download and install [SQL Server 2022 Developer Edition](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) directly onto the PC. 
-   - **Crucial step**: Ensure the server is configured with **SQL Server Authentication** checked and set the `sa` password to `yourStrong(!)Password`. It must match the dev config.
-2. **Install `sqlpackage`:** The CLI tool will automatically be installed into your system PATH if you install [Azure Data Studio](https://learn.microsoft.com/en-us/sql/azure-data-studio/download-azure-data-studio) or [SQL Server Management Studio (SSMS)](https://learn.microsoft.com/en-us/sql/ssms/download-sql-server-management-studio-ssms).
-   - *Alternative setup via `.NET Core`:* `dotnet tool install -g microsoft.sqlpackage`
-
-### Option B: Docker Setup (Recommended for clean isolation)
-Alternatively, start the SQL server container natively through Docker Desktop on Windows.
-```powershell
-docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=yourStrong(!)Password" -p 1433:1433 --name sql_server_dev -d mcr.microsoft.com/mssql/server:2022-latest
-```
-*Note: You will still need to download `sqlpackage` natively as described in Option A so Electron's main node process can invoke it directly.*
+- **Stop the server:** `docker stop local_sql_server`
+- **Start the server:** `docker start local_sql_server`
+- **View logs (useful for debugging):** `docker logs local_sql_server`
+- **Remove the server completely:**
+  ```bash
+  docker rm -f local_sql_server
+  ```
