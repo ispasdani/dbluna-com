@@ -151,7 +151,7 @@ export default function DatabaseExplorer() {
                         server: "localhost",
                         port: 1433,
                         user: "sa",
-                        password: "daniel", // Default dev SQL password
+                        password: "Armagedon-14", // Default dev SQL password
                         options: {
                             encrypt: false,
                             trustServerCertificate: true
