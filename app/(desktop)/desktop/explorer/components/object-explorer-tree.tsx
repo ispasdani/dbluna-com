@@ -160,10 +160,10 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
             case 'server': return <Server className="h-3.5 w-3.5 text-emerald-500 shrink-0" />;
             case 'database': return <Database className="h-3.5 w-3.5 text-yellow-500 shrink-0" />;
             case 'folder': return isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-blue-400 shrink-0" /> : <Folder className="h-3.5 w-3.5 text-blue-400 shrink-0" />;
-            case 'table': return <TableIcon className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
-            case 'view': return <LayoutGrid className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
-            case 'procedure': return <FileCode className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
-            default: return <Database className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+            case 'table': return <TableIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+            case 'view': return <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+            case 'procedure': return <FileCode className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
+            default: return <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
         }
     };
 
@@ -186,7 +186,7 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
         const triggerContent = (
             <div 
                 className={cn(
-                    "flex items-center w-full py-0.5 px-1 text-[13px] text-slate-300 hover:bg-slate-800/50 hover:text-white rounded-sm transition-colors cursor-pointer",
+                    "flex items-center w-full py-0.5 px-1 text-[13px] text-foreground hover:bg-accent/50 hover:text-white rounded-sm transition-colors cursor-pointer",
                 )}
                 style={{ paddingLeft: `${level * 12 + 4}px` }}
                 onDoubleClick={handleDoubleClick}
@@ -194,7 +194,7 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
             >
                 <div className="w-3.5 h-3.5 mr-1 flex items-center justify-center shrink-0">
                     {!isLeaf && (
-                        isExpanded ? <ChevronDown className="h-3 w-3 text-slate-500" /> : <ChevronRight className="h-3 w-3 text-slate-500" />
+                        isExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />
                     )}
                 </div>
                 {renderIcon(node.type, isExpanded)}
@@ -209,21 +209,21 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
                         <ContextMenuTrigger asChild>
                             {triggerContent}
                         </ContextMenuTrigger>
-                        <ContextMenuContent className="w-64 bg-slate-900 border-slate-800 text-slate-300">
+                        <ContextMenuContent className="w-64 bg-sidebar border-border text-foreground">
                             <ContextMenuItem 
-                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                className="cursor-pointer hover:bg-accent focus:bg-accent"
                                 onClick={() => onNodeAction?.('select', node)}
                             >
                                 Select Top 1000 Rows
                             </ContextMenuItem>
                             <ContextMenuItem 
-                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                className="cursor-pointer hover:bg-accent focus:bg-accent"
                                 onClick={() => onNodeAction?.('design', node)}
                             >
                                 Design
                             </ContextMenuItem>
                             <ContextMenuItem 
-                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                className="cursor-pointer hover:bg-accent focus:bg-accent"
                                 onClick={() => onNodeAction?.('script-create', node)}
                             >
                                 Script Table as <ChevronRight className="ml-1 h-3 w-3 inline" /> CREATE To <ChevronRight className="ml-1 h-3 w-3 inline" /> New Query Editor Window
@@ -235,9 +235,9 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
                         <ContextMenuTrigger asChild>
                             {triggerContent}
                         </ContextMenuTrigger>
-                        <ContextMenuContent className="w-64 bg-slate-900 border-slate-800 text-slate-300">
+                        <ContextMenuContent className="w-64 bg-sidebar border-border text-foreground">
                             <ContextMenuItem 
-                                className="cursor-pointer hover:bg-slate-800 focus:bg-slate-800"
+                                className="cursor-pointer hover:bg-accent focus:bg-accent"
                                 onClick={(e) => { e.stopPropagation(); onNodeAction?.('new-query', node); }}
                             >
                                 New Query
@@ -266,7 +266,7 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
     };
 
     if (isLoadingInit) {
-        return <div className="p-4 text-sm text-slate-500 animate-pulse">Loading Object Explorer...</div>;
+        return <div className="p-4 text-sm text-muted-foreground animate-pulse">Loading Object Explorer...</div>;
     }
 
     const serverNode: DbObjectNode = {

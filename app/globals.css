@@ -421,6 +421,60 @@ body[data-palette="contrast"] {
   --glow-primary: 0 0 0 3px #ffff00;
 }
 
+/* ---------- Claude Desktop ---------- */
+body[data-palette="claude"] {
+  --background: #fdfaf6;
+  --foreground: #38312e;
+
+  --card: #ffffff;
+  --card-foreground: #38312e;
+
+  --popover: #ffffff;
+  --popover-foreground: #38312e;
+
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f2ee;
+  --secondary-foreground: #38312e;
+
+  --muted: #f4f2ee;
+  --muted-foreground: #8a837e;
+
+  --accent: #f4f2ee;
+  --accent-foreground: #38312e;
+
+  --destructive: #df4444;
+
+  --border: #e6e4df;
+  --input: #e6e4df;
+  --ring: #d97757;
+
+  --sidebar: #f8f6f3;
+  --sidebar-foreground: #38312e;
+  --sidebar-primary: #d97757;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eceae5;
+  --sidebar-accent-foreground: #38312e;
+  --sidebar-border: #e6e4df;
+  --sidebar-ring: #d97757;
+
+  --divide: #e6e4df;
+
+  --dock-bg: #f8f6f3;
+  --dock-header: #f8f6f3;
+  --canvas-bg: #fdfaf6;
+  --tab-hover: #eceae5;
+  --drop-zone: var(--primary);
+  --table-bg: var(--card);
+  --glow-primary: 0 0 18px color-mix(in oklch, var(--primary) 25%, transparent);
+
+  --canvas-grid: rgba(56, 49, 46, 0.05);
+  --canvas-dots: rgba(56, 49, 46, 0.08);
+
+  --radius: 0.5rem;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);

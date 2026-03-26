@@ -79,32 +79,32 @@ export function ImportBacpacDialog({ open, onOpenChange }: ImportBacpacDialogPro
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px] bg-slate-900 border-slate-800 text-slate-300 p-0 overflow-hidden flex flex-col max-h-[80vh]">
-                <DialogHeader className="px-6 py-4 border-b border-slate-800 shrink-0">
-                    <DialogTitle className="text-xl font-semibold text-slate-100">Import BACPAC</DialogTitle>
+            <DialogContent className="sm:max-w-[600px] bg-sidebar border-border text-foreground p-0 overflow-hidden flex flex-col max-h-[80vh]">
+                <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
+                    <DialogTitle className="text-xl font-semibold text-foreground">Import BACPAC</DialogTitle>
                 </DialogHeader>
 
                 <div className="p-6 flex flex-col space-y-6 overflow-y-auto">
                     <div className="flex flex-col space-y-2">
-                        <span className="text-sm font-medium text-slate-400">Target File (.bacpac)</span>
+                        <span className="text-sm font-medium text-muted-foreground">Target File (.bacpac)</span>
                         <div className="flex items-center space-x-4">
                             <Button onClick={handleSelectFile} variant="secondary" disabled={isRunning}>
                                 Select .bacpac
                             </Button>
-                            <span className="text-sm text-slate-300 font-mono bg-slate-950 px-3 py-1 rounded-md border border-slate-800 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                            <span className="text-sm text-foreground font-mono bg-background px-3 py-1 rounded-md border border-border flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                                 {file ? file : "No file selected"}
                             </span>
                         </div>
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <span className="text-sm font-medium text-slate-400">Target SQL Server</span>
+                        <span className="text-sm font-medium text-muted-foreground">Target SQL Server</span>
                         <input
                             type="text"
                             value={targetServer}
                             onChange={(e) => setTargetServer(e.target.value)}
                             disabled={isRunning}
-                            className="bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-700"
+                            className="bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-slate-700"
                             placeholder="e.g. localhost, 1433"
                         />
                     </div>
@@ -118,14 +118,14 @@ export function ImportBacpacDialog({ open, onOpenChange }: ImportBacpacDialogPro
                     </Button>
 
                     {/* Terminal Window for Logs */}
-                    <div className="flex border-t border-slate-800 pt-6">
-                        <div className="w-full h-[200px] flex flex-col bg-slate-950 border border-slate-800 rounded-lg overflow-hidden shrink-0">
-                            <div className="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center shrink-0">
-                                <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">Console Output</span>
+                    <div className="flex border-t border-border pt-6">
+                        <div className="w-full h-[200px] flex flex-col bg-background border border-border rounded-lg overflow-hidden shrink-0">
+                            <div className="bg-sidebar px-3 py-1.5 border-b border-border flex items-center shrink-0">
+                                <span className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider">Console Output</span>
                             </div>
-                            <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-slate-300 whitespace-pre-wrap">
+                            <div className="flex-1 p-3 overflow-y-auto font-mono text-xs text-foreground whitespace-pre-wrap">
                                 {logs.length === 0 ? (
-                                    <span className="text-slate-600 italic">Logs will appear here when an import is running...</span>
+                                    <span className="text-muted-foreground italic">Logs will appear here when an import is running...</span>
                                 ) : (
                                     logs.map((log, i) => (
                                         <span key={i} className="block leading-relaxed">{log}</span>

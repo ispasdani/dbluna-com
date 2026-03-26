@@ -114,35 +114,35 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[450px] bg-slate-900 border border-slate-800 text-slate-300 shadow-2xl overflow-hidden p-0 gap-0">
-                <DialogHeader className="bg-slate-950 px-4 py-3 border-b border-slate-800 m-0 space-y-0">
-                    <DialogTitle className="text-slate-100 flex items-center space-x-2 text-md font-semibold font-sans m-0">
+            <DialogContent className="sm:max-w-[450px] bg-sidebar border border-border text-foreground shadow-2xl overflow-hidden p-0 gap-0">
+                <DialogHeader className="bg-background px-4 py-3 border-b border-border m-0 space-y-0">
+                    <DialogTitle className="text-foreground flex items-center space-x-2 text-md font-semibold font-sans m-0">
                         <Server className="w-5 h-5 text-blue-500" />
                         <span>Connect to Server</span>
                     </DialogTitle>
                 </DialogHeader>
                 
-                <div className="p-6 space-y-5 bg-[#0f111a]">
+                <div className="p-6 space-y-5 bg-background">
                     <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-2 items-center">
-                            <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">Server type:</Label>
+                            <Label className="text-right text-xs text-muted-foreground font-medium whitespace-nowrap">Server type:</Label>
                             <Select value={serverType} onValueChange={setServerType} disabled>
-                                <SelectTrigger className="col-span-2 h-8 bg-slate-800 border-slate-700 text-slate-300 px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 rounded-sm">
+                                <SelectTrigger className="col-span-2 h-8 bg-accent border-slate-700 text-foreground px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 rounded-sm">
                                     <SelectValue placeholder="Server type" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-slate-800 border-slate-700 text-slate-300">
+                                <SelectContent className="bg-accent border-slate-700 text-foreground">
                                     <SelectItem value="Database Engine" className="text-xs">Database Engine</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         
                         <div className="grid grid-cols-3 gap-2 items-center">
-                            <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">Server name:</Label>
+                            <Label className="text-right text-xs text-muted-foreground font-medium whitespace-nowrap">Server name:</Label>
                             <Input 
                                 value={serverName} 
                                 onChange={handleServerChange} 
                                 list="recent-servers"
-                                className="col-span-2 h-8 bg-slate-800 border-slate-700 text-slate-300 px-2 py-1 text-xs focus-visible:ring-1 focus-visible:ring-blue-500 rounded-sm"
+                                className="col-span-2 h-8 bg-accent border-slate-700 text-foreground px-2 py-1 text-xs focus-visible:ring-1 focus-visible:ring-blue-500 rounded-sm"
                             />
                             <datalist id="recent-servers">
                                 {recentConnections.map(c => (
@@ -152,12 +152,12 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 items-center">
-                            <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">Authentication:</Label>
+                            <Label className="text-right text-xs text-muted-foreground font-medium whitespace-nowrap">Authentication:</Label>
                             <Select value={authenticationMode} onValueChange={(v) => setAuthenticationMode(v as any)}>
-                                <SelectTrigger className="col-span-2 h-8 bg-slate-800 border-slate-700 text-slate-300 px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 rounded-sm">
+                                <SelectTrigger className="col-span-2 h-8 bg-accent border-slate-700 text-foreground px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 rounded-sm">
                                     <SelectValue placeholder="Authentication" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-slate-800 border-slate-700 text-slate-300">
+                                <SelectContent className="bg-accent border-slate-700 text-foreground">
                                     <SelectItem value="sql" className="text-xs">SQL Server Authentication</SelectItem>
                                     <SelectItem value="windows" className="text-xs">Windows Authentication</SelectItem>
                                 </SelectContent>
@@ -167,30 +167,30 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                         {authenticationMode === "sql" && (
                             <>
                                 <div className="grid grid-cols-3 gap-2 items-center">
-                                    <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">User name:</Label>
-                                    <div className="col-span-2 flex items-center bg-slate-800 border border-slate-700 rounded-sm focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
+                                    <Label className="text-right text-xs text-muted-foreground font-medium whitespace-nowrap">User name:</Label>
+                                    <div className="col-span-2 flex items-center bg-accent border border-slate-700 rounded-sm focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
                                         <div className="pl-2">
-                                            <Database className="w-3.5 h-3.5 text-slate-500" />
+                                            <Database className="w-3.5 h-3.5 text-muted-foreground" />
                                         </div>
                                         <Input 
                                             value={username} 
                                             onChange={(e) => setUsername(e.target.value)} 
-                                            className="h-8 border-none bg-transparent text-slate-300 px-2 py-1 text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            className="h-8 border-none bg-transparent text-foreground px-2 py-1 text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
                                             placeholder="Login"
                                         />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2 items-center">
-                                    <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">Password:</Label>
-                                    <div className="col-span-2 flex items-center bg-slate-800 border border-slate-700 rounded-sm focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
+                                    <Label className="text-right text-xs text-muted-foreground font-medium whitespace-nowrap">Password:</Label>
+                                    <div className="col-span-2 flex items-center bg-accent border border-slate-700 rounded-sm focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
                                         <div className="pl-2">
-                                            <Key className="w-3.5 h-3.5 text-slate-500" />
+                                            <Key className="w-3.5 h-3.5 text-muted-foreground" />
                                         </div>
                                         <Input 
                                             type="password"
                                             value={password} 
                                             onChange={(e) => setPassword(e.target.value)} 
-                                            className="h-8 border-none bg-transparent text-slate-300 px-2 py-1 text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
+                                            className="h-8 border-none bg-transparent text-foreground px-2 py-1 text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
                                             placeholder="Password"
                                         />
                                     </div>
@@ -199,16 +199,16 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                         )}
                     </div>
 
-                    <div className="space-y-3 pt-4 border-t border-slate-800/50">
+                    <div className="space-y-3 pt-4 border-t border-border/50">
                         <div className="flex items-center space-x-2">
                             <input 
                                 type="checkbox" 
                                 id="encrypt"
                                 checked={encrypt}
                                 onChange={(e) => setEncrypt(e.target.checked)}
-                                className="w-3 h-3 bg-slate-800 border-slate-700 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                className="w-3 h-3 bg-accent border-slate-700 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
                             />
-                            <Label htmlFor="encrypt" className="text-xs text-slate-400 flex items-center cursor-pointer">
+                            <Label htmlFor="encrypt" className="text-xs text-muted-foreground flex items-center cursor-pointer">
                                 <Shield className="w-3.5 h-3.5 mr-1.5" /> Encrypt connection
                             </Label>
                         </div>
@@ -218,9 +218,9 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                                 id="trustCert"
                                 checked={trustServerCertificate}
                                 onChange={(e) => setTrustServerCertificate(e.target.checked)}
-                                className="w-3 h-3 bg-slate-800 border-slate-700 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                className="w-3 h-3 bg-accent border-slate-700 rounded text-blue-500 focus:ring-blue-500 focus:ring-offset-slate-900"
                             />
-                            <Label htmlFor="trustCert" className="text-xs text-slate-400 flex items-center cursor-pointer">
+                            <Label htmlFor="trustCert" className="text-xs text-muted-foreground flex items-center cursor-pointer">
                                 <ShieldAlert className="w-3.5 h-3.5 mr-1.5" /> Trust server certificate
                             </Label>
                         </div>
@@ -234,7 +234,7 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                     )}
                 </div>
 
-                <DialogFooter className="bg-slate-950 px-4 py-3 border-t border-slate-800 flex justify-between items-center sm:justify-between m-0">
+                <DialogFooter className="bg-background px-4 py-3 border-t border-border flex justify-between items-center sm:justify-between m-0">
                     <Button 
                         variant="ghost" 
                         size="sm"
@@ -263,7 +263,7 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                             variant="secondary" 
                             size="sm" 
                             onClick={() => onOpenChange(false)}
-                            className="bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs h-8 px-5 border border-slate-700 rounded-sm"
+                            className="bg-accent/80 hover:bg-slate-700 text-foreground text-xs h-8 px-5 border border-slate-700 rounded-sm"
                         >
                             Cancel
                         </Button>
