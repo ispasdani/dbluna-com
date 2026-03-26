@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, Table as TableIcon, ArrowLeft, X } from "lucide-react";
+import { Database, Table as TableIcon, ArrowLeft, X, Server, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -23,6 +23,8 @@ import { useRouter } from "next/navigation";
 import { ObjectExplorerTree, type DbObjectNode } from "./components/object-explorer-tree";
 import { SchemaViewerGrid } from "./components/schema-viewer-grid";
 import { QueryEditorTab } from "./components/query-editor-tab";
+import { useConnectionStore } from "../store/connection";
+import { ConnectToServerDialog } from "./components/connect-dialog";
 
 // Sub-component to manage per-tab querying and rendering
 function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
@@ -135,49 +137,26 @@ type TabItem = {
 
 export default function DatabaseExplorer() {
     const router = useRouter();
-    const [connectionMode, setConnectionMode] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-    const [connectionError, setConnectionError] = useState<string | null>(null);
+    const connectionConfig = useConnectionStore(state => state.connectionConfig);
+    const setConnectionConfig = useConnectionStore(state => state.setConnectionConfig);
+
+    const [showConnectDialog, setShowConnectDialog] = useState(false);
 
     // Tab state
     const [openTabs, setOpenTabs] = useState<TabItem[]>([]);
     const [activeTabId, setActiveTabId] = useState<string>('');
 
     useEffect(() => {
-        const connectSession = async () => {
-            if (typeof window !== "undefined" && (window as any).electron) {
-                setConnectionMode('connecting');
-                try {
-                    const config = {
-                        server: "localhost",
-                        port: 1433,
-                        user: "sa",
-                        password: "Armagedon-14", // Default dev SQL password
-                        options: {
-                            encrypt: false,
-                            trustServerCertificate: true
-                        }
-                    };
-                    const connResult = await (window as any).electron.connectDb(config);
+        if (!connectionConfig) {
+            setShowConnectDialog(true);
+        }
+    }, [connectionConfig]);
 
-                    if (!connResult || !connResult.success) {
-                        setConnectionError(`Failed to connect: ${connResult?.error || 'Unknown error'}`);
-                        setConnectionMode('error');
-                    } else {
-                        setConnectionMode('connected');
-                    }
-                } catch (error: any) {
-                    console.error("Failed to connect", error);
-                    setConnectionError(error.message);
-                    setConnectionMode('error');
-                }
-            } else {
-                console.warn("Electron environment not detected.");
-                setConnectionMode('error');
-            }
-        };
-
-        connectSession();
-    }, []);
+    const handleDisconnect = () => {
+        setConnectionConfig(null);
+        setOpenTabs([]);
+        setActiveTabId('');
+    };
 
     const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => {
         if (!node.dbName || !node.name) return;
@@ -249,31 +228,66 @@ export default function DatabaseExplorer() {
 
                 {/* Object Explorer Sidebar */}
                 <ResizablePanel defaultSize={20} minSize={15} className="bg-slate-900 border-r border-slate-800 flex flex-col z-10 w-full relative">
-                    <div className="p-4 border-b border-slate-800 flex items-center space-x-3 shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => router.push('/desktop')} className="h-8 w-8 text-slate-400 hover:text-white shrink-0">
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center space-x-2 truncate">
-                            <Database className="h-5 w-5 text-blue-500 shrink-0" />
-                            <h2 className="font-semibold text-slate-100 truncate">Object Explorer</h2>
+                    <div className="p-3 border-b border-slate-800 flex flex-col space-y-2 shrink-0">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <Button variant="ghost" size="icon" onClick={() => router.push('/desktop')} className="h-7 w-7 text-slate-400 hover:text-white shrink-0">
+                                    <ArrowLeft className="h-4 w-4" />
+                                </Button>
+                                <h2 className="font-semibold text-slate-100 text-sm truncate">Object Explorer</h2>
+                            </div>
+                            <div className="flex space-x-1">
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    onClick={() => setShowConnectDialog(true)} 
+                                    className="h-7 w-7 text-slate-400 hover:text-white shrink-0" 
+                                    title="Connect to Object Explorer"
+                                >
+                                    <Plug className="h-4 w-4 text-green-500" />
+                                </Button>
+                                {connectionConfig && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={handleDisconnect} 
+                                        className="h-7 w-7 text-slate-400 hover:text-red-400 shrink-0" 
+                                        title="Disconnect"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
                     <ScrollArea className="flex-1 w-full pl-0">
                         <div className="flex-1 h-full w-full">
-                            {connectionMode === 'connecting' ? (
-                                <div className="p-4 text-sm text-slate-500 animate-pulse">Connecting to local server...</div>
-                            ) : connectionMode === 'error' ? (
-                                <div className="p-4 text-sm text-red-400 bg-red-950/30 m-4 rounded border border-red-900/50">
-                                    <strong>Connection Error:</strong><br />
-                                    <span className="break-all">{connectionError}</span>
+                            {!connectionConfig ? (
+                                <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 h-full text-slate-500 mt-10">
+                                    <Server className="h-10 w-10 text-slate-700" />
+                                    <p className="text-sm">Not connected to any server</p>
+                                    <Button size="sm" onClick={() => setShowConnectDialog(true)} className="bg-blue-600 hover:bg-blue-500 text-white mt-2 h-8">
+                                        Connect...
+                                    </Button>
                                 </div>
-                            ) : connectionMode === 'connected' ? (
-                                <ObjectExplorerTree
-                                    onNodeDoubleClick={(node) => handleTreeAction('select', node)}
-                                    onNodeAction={handleTreeAction}
-                                />
-                            ) : null}
+                            ) : (
+                                <div className="flex flex-col h-full w-full">
+                                    {/* Root Node Header */}
+                                    <div className="flex items-center px-2 py-1 space-x-1.5 hover:bg-slate-800/50 cursor-default select-none group">
+                                        <Server className="w-4 h-4 text-green-500 shrink-0" />
+                                        <span className="text-sm font-medium text-slate-200 truncate">
+                                            {connectionConfig.server} ({connectionConfig.user ? connectionConfig.user : 'Windows Auth'})
+                                        </span>
+                                    </div>
+                                    <div className="pl-4">
+                                        <ObjectExplorerTree
+                                            onNodeDoubleClick={(node) => handleTreeAction('select', node)}
+                                            onNodeAction={handleTreeAction}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <ScrollBar orientation="horizontal" />
                     </ScrollArea>
@@ -350,6 +364,11 @@ export default function DatabaseExplorer() {
                     )}
                 </ResizablePanel>
 
+                <ConnectToServerDialog 
+                    open={showConnectDialog} 
+                    onOpenChange={setShowConnectDialog}
+                    onConnected={() => setShowConnectDialog(false)}
+                />
             </ResizablePanelGroup>
         </div>
     );
