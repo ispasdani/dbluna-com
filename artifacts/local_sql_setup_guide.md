@@ -9,10 +9,9 @@ Since you are running a 2019 MacBook Pro with an Intel Core i9 processor, you ar
    - Open the downloaded `.dmg` file and drag Docker to your Applications folder.
    - Launch Docker Desktop and ensure it is running (you should see the whale icon in your menu bar).
 
-2. **Install a Database Client**
-   - **Azure Data Studio (Recommended for Mac):** A lightweight, cross-platform tool by Microsoft. [Download here](https://learn.microsoft.com/en-us/sql/azure-data-studio/download-azure-data-studio).
-   - **DBeaver:** Another great cross-platform database management tool.
-   - *(Note: SQL Server Management Studio (SSMS) is Windows-only, so Azure Data Studio is the direct macOS equivalent).*
+2. **Run DbLuna (Your App)**
+   - You do **not** need to install SSMS, Azure Data Studio, or DBeaver. 
+   - Since DbLuna is designed to be the database management tool, it replaces them completely!
 
 ## Step-by-Step SQL Server Setup
 
@@ -51,20 +50,19 @@ docker ps
 ```
 You should see `local_sql_server` in the list with a status of `Up`.
 
-## Connecting to Your Local SQL Server
+## Connecting to Your Local SQL Server via DbLuna
 
-1. Open **Azure Data Studio**.
-2. Click on **New Connection**.
+1. Start your **DbLuna** application locally.
+2. Navigate to the import or connection screen in your app.
 3. Fill in the connection details:
-   - **Connection type:** Microsoft SQL Server
-   - **Server:** `localhost`
-   - **Authentication type:** SQL Login
-   - **User name:** `sa`
-   - **Password:** `<YourStrong!Passw0rd>` (the one you set in Step 2)
-   - **Trust server certificate:** True (Check this box to avoid SSL errors on local development)
-4. Click **Connect**.
+   - **Server / Host:** `localhost`
+   - **Port:** `1433`
+   - **User:** `sa`
+   - **Password:** `<YourStrong!Passw0rd>` (the exact one you set in Step 2)
+   - **Trust Server Certificate:** `true` (if your app connection string requires it for local environments)
+4. Click to connect.
 
-You are now connected to your local SQL Server instance and can begin creating databases and tables!
+Your app is now connected to the local SQL Server instance and acts as the fully functioning alternative to Azure Data Studio/SSMS!
 
 ## Useful Docker Commands for SQL Server
 
