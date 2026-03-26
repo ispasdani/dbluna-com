@@ -44,11 +44,23 @@ function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: strin
                         } else {
                             console.error(`Error querying table:`, result?.error);
                             setTableData([]);
+                            
+                            // Check for fatal connection dropped errors
+                            const errMsg = (result?.error || "").toLowerCase();
+                            if (errMsg.includes("not connected") || errMsg.includes("connection is closed") || errMsg.includes("no active database")) {
+                                useConnectionStore.getState().clearConnection();
+                            }
                         }
                     }
-                } catch (error) {
+                } catch (error: any) {
                     console.error(`Failed to query table ${tableName}`, error);
-                    if (isMounted) setTableData([]);
+                    if (isMounted) {
+                        setTableData([]);
+                        const errMsg = (error?.message || "").toLowerCase();
+                        if (errMsg.includes("not connected") || errMsg.includes("connection is closed") || errMsg.includes("no active database")) {
+                            useConnectionStore.getState().clearConnection();
+                        }
+                    }
                 } finally {
                     if (isMounted) setIsQuerying(false);
                 }
@@ -57,7 +69,7 @@ function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: strin
 
         fetchTableData();
         return () => { isMounted = false; };
-    }, [tableName]);
+    }, [tableName, dbName]);
 
     if (isQuerying) {
         return (
@@ -147,10 +159,50 @@ export default function DatabaseExplorer() {
     const [activeTabId, setActiveTabId] = useState<string>('');
 
     useEffect(() => {
-        if (!connectionConfig) {
-            setShowConnectDialog(true);
-        }
-    }, [connectionConfig]);
+        let isMounted = true;
+
+        const handleAutoConnect = async () => {
+            if (!connectionConfig) {
+                let autoConnected = false;
+                try {
+                    const saved = localStorage.getItem("dbviewer_recent_connections");
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            const profile = parsed[0];
+                            // Only auto-connect for Windows Auth since we don't store passwords for SQL Auth yet
+                            if (profile.authenticationMode === "windows") {
+                                if (typeof window !== "undefined" && (window as any).electron) {
+                                    const config = {
+                                        server: profile.server,
+                                        port: 1433,
+                                        options: { encrypt: false, trustServerCertificate: true }
+                                    };
+                                    const result = await (window as any).electron.connectDb(config);
+                                    if (result && result.success && isMounted) {
+                                        setConnectionConfig({ ...config, authenticationMode: "windows" });
+                                        autoConnected = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Auto-connect failed:", e);
+                }
+                
+                if (isMounted && !autoConnected) {
+                    setShowConnectDialog(true);
+                }
+            }
+        };
+        
+        handleAutoConnect();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [connectionConfig, setConnectionConfig]);
 
     const handleDisconnect = () => {
         setConnectionConfig(null);
