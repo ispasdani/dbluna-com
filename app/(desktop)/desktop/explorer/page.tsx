@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Database, Table as TableIcon, ArrowLeft, X, Server, Plug } from "lucide-react";
+import { Database, Table as TableIcon, ArrowLeft, X, Server, Plug, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -25,6 +25,7 @@ import { SchemaViewerGrid } from "./components/schema-viewer-grid";
 import { QueryEditorTab } from "./components/query-editor-tab";
 import { useConnectionStore } from "../store/connection";
 import { ConnectToServerDialog } from "./components/connect-dialog";
+import { ImportBacpacDialog } from "./components/import-dialog";
 
 // Sub-component to manage per-tab querying and rendering
 function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
@@ -153,6 +154,7 @@ export default function DatabaseExplorer() {
     const setConnectionConfig = useConnectionStore(state => state.setConnectionConfig);
 
     const [showConnectDialog, setShowConnectDialog] = useState(false);
+    const [showImportDialog, setShowImportDialog] = useState(false);
 
     // Tab state
     const [openTabs, setOpenTabs] = useState<TabItem[]>([]);
@@ -292,6 +294,15 @@ export default function DatabaseExplorer() {
                                 <Button 
                                     variant="ghost" 
                                     size="icon" 
+                                    onClick={() => setShowImportDialog(true)} 
+                                    className="h-7 w-7 text-slate-400 hover:text-white shrink-0" 
+                                    title="Import BACPAC"
+                                >
+                                    <Upload className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
                                     onClick={() => setShowConnectDialog(true)} 
                                     className="h-7 w-7 text-slate-400 hover:text-white shrink-0" 
                                     title="Connect to Object Explorer"
@@ -420,6 +431,10 @@ export default function DatabaseExplorer() {
                     open={showConnectDialog} 
                     onOpenChange={setShowConnectDialog}
                     onConnected={() => setShowConnectDialog(false)}
+                />
+                <ImportBacpacDialog 
+                    open={showImportDialog} 
+                    onOpenChange={setShowImportDialog} 
                 />
             </ResizablePanelGroup>
         </div>
