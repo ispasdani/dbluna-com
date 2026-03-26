@@ -157,13 +157,13 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
 
     const renderIcon = (type: string, isExpanded: boolean) => {
         switch (type) {
-            case 'server': return <Server className="h-4 w-4 text-emerald-500 shrink-0" />;
-            case 'database': return <Database className="h-4 w-4 text-yellow-500 shrink-0" />;
-            case 'folder': return isExpanded ? <FolderOpen className="h-4 w-4 text-blue-400 shrink-0" /> : <Folder className="h-4 w-4 text-blue-400 shrink-0" />;
-            case 'table': return <TableIcon className="h-4 w-4 text-slate-400 shrink-0" />;
-            case 'view': return <LayoutGrid className="h-4 w-4 text-slate-400 shrink-0" />;
-            case 'procedure': return <FileCode className="h-4 w-4 text-slate-400 shrink-0" />;
-            default: return <Database className="h-4 w-4 text-slate-400 shrink-0" />;
+            case 'server': return <Server className="h-3.5 w-3.5 text-emerald-500 shrink-0" />;
+            case 'database': return <Database className="h-3.5 w-3.5 text-yellow-500 shrink-0" />;
+            case 'folder': return isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-blue-400 shrink-0" /> : <Folder className="h-3.5 w-3.5 text-blue-400 shrink-0" />;
+            case 'table': return <TableIcon className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+            case 'view': return <LayoutGrid className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+            case 'procedure': return <FileCode className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
+            default: return <Database className="h-3.5 w-3.5 text-slate-400 shrink-0" />;
         }
     };
 
@@ -186,19 +186,19 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
         const triggerContent = (
             <div 
                 className={cn(
-                    "flex items-center w-full py-1 px-2 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white rounded-md transition-colors",
+                    "flex items-center w-full py-0.5 px-1 text-[13px] text-slate-300 hover:bg-slate-800/50 hover:text-white rounded-sm transition-colors cursor-pointer",
                 )}
-                style={{ paddingLeft: `${level * 12 + 8}px` }}
+                style={{ paddingLeft: `${level * 12 + 4}px` }}
                 onDoubleClick={handleDoubleClick}
                 onClick={() => !isLeaf && toggleNode(node, updateNodeState)}
             >
-                <div className="w-4 h-4 mr-1 flex items-center justify-center shrink-0">
+                <div className="w-3.5 h-3.5 mr-1 flex items-center justify-center shrink-0">
                     {!isLeaf && (
-                        isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-slate-500" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+                        isExpanded ? <ChevronDown className="h-3 w-3 text-slate-500" /> : <ChevronRight className="h-3 w-3 text-slate-500" />
                     )}
                 </div>
                 {renderIcon(node.type, isExpanded)}
-                <span className="ml-2 truncate select-none text-left">{node.name}</span>
+                <span className="ml-1.5 truncate select-none text-left leading-tight py-0.5">{node.name}</span>
             </div>
         );
 
@@ -278,7 +278,7 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
     };
 
     return (
-        <div className="w-full h-full flex flex-col py-2">
+        <div className="w-full h-full flex flex-col py-1">
             <TreeNode 
                 node={serverNode} 
                 level={0} 

@@ -94,7 +94,7 @@ function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: strin
                             <TableHeader className="bg-slate-950 sticky top-0 z-10 border-b border-slate-800">
                                 <TableRow className="hover:bg-transparent border-none">
                                     {Object.keys(tableData[0] || {}).map((key) => (
-                                        <TableHead key={key} className="text-xs text-slate-400 uppercase whitespace-nowrap h-10 px-4">
+                                        <TableHead key={key} className="text-[11px] text-slate-400 uppercase whitespace-nowrap h-8 px-2 bg-slate-900 border-r border-slate-800 last:border-r-0">
                                             {key}
                                         </TableHead>
                                     ))}
@@ -104,7 +104,7 @@ function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: strin
                                 {tableData.map((row, i) => (
                                     <TableRow key={i} className="border-slate-800/50 hover:bg-slate-800/30 transition-colors">
                                         {Object.values(row).map((val: any, j) => (
-                                            <TableCell key={j} className="whitespace-nowrap text-slate-300 py-3 px-4">
+                                            <TableCell key={j} className="whitespace-nowrap text-slate-300 py-1 px-2 text-[13px] leading-tight border-r border-slate-800/50 last:border-r-0">
                                                 {val === null ? (
                                                     <span className="text-slate-600 italic">NULL</span>
                                                 ) : typeof val === 'object' ? (
@@ -274,9 +274,9 @@ export default function DatabaseExplorer() {
                             ) : (
                                 <div className="flex flex-col h-full w-full">
                                     {/* Root Node Header */}
-                                    <div className="flex items-center px-2 py-1 space-x-1.5 hover:bg-slate-800/50 cursor-default select-none group">
-                                        <Server className="w-4 h-4 text-green-500 shrink-0" />
-                                        <span className="text-sm font-medium text-slate-200 truncate">
+                                    <div className="flex items-center px-1.5 py-0.5 space-x-1 hover:bg-slate-800/50 cursor-default select-none group border-b border-transparent">
+                                        <Server className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                                        <span className="text-[13px] font-medium text-slate-200 truncate py-0.5">
                                             {connectionConfig.server} ({connectionConfig.user ? connectionConfig.user : 'Windows Auth'})
                                         </span>
                                     </div>
@@ -293,7 +293,7 @@ export default function DatabaseExplorer() {
                     </ScrollArea>
                 </ResizablePanel>
 
-                <ResizableHandle className="bg-slate-800" withHandle />
+                <ResizableHandle className="w-1 bg-slate-800 hover:bg-blue-500 data-[panel-group-direction=vertical]:h-1 data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=horizontal]:w-1 data-[panel-group-direction=horizontal]:h-full transition-colors cursor-col-resize" withHandle />
 
                 {/* Main Workspace Area (Tabs) */}
                 <ResizablePanel defaultSize={80} className="flex flex-col overflow-hidden bg-slate-950 relative w-full h-full">

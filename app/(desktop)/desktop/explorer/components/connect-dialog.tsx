@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConnectionStore } from "../../store/connection";
 import { Database, Server, Key, Shield, ShieldAlert, Loader2 } from "lucide-react";
+
+interface ConnectionProfile {
+    server: string;
+    authenticationMode: "sql" | "windows";
+    username?: string;
+}
 
 interface ConnectDialogProps {
     open: boolean;
@@ -23,6 +29,33 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
     const [authenticationMode, setAuthenticationMode] = useState<"sql" | "windows">("sql");
     const [username, setUsername] = useState("sa");
     const [password, setPassword] = useState("Armagedon-14");
+    const [recentConnections, setRecentConnections] = useState<ConnectionProfile[]>([]);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("dbviewer_recent_connections");
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    setRecentConnections(parsed);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load recent connections:", e);
+        }
+    }, []);
+
+    const handleServerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setServerName(val);
+        
+        // Auto-fill if profile exists
+        const existing = recentConnections.find(c => c.server === val);
+        if (existing) {
+            setAuthenticationMode(existing.authenticationMode);
+            if (existing.username) setUsername(existing.username);
+        }
+    };
     const [encrypt, setEncrypt] = useState(false);
     const [trustServerCertificate, setTrustServerCertificate] = useState(true);
 
@@ -49,6 +82,21 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                 const connResult = await (window as any).electron.connectDb(config);
                 if (connResult && connResult.success) {
                     setConnectionConfig({ ...config, authenticationMode });
+                    
+                    try {
+                        const newProfile: ConnectionProfile = {
+                            server: serverName,
+                            authenticationMode,
+                            username: authenticationMode === "sql" ? username : undefined
+                        };
+                        const existing = recentConnections.filter(c => c.server !== serverName);
+                        const updated = [newProfile, ...existing].slice(0, 10);
+                        setRecentConnections(updated);
+                        localStorage.setItem("dbviewer_recent_connections", JSON.stringify(updated));
+                    } catch (e) {
+                        console.error("Failed to save connection profile:", e);
+                    }
+
                     onConnected();
                     onOpenChange(false);
                 } else {
@@ -92,9 +140,15 @@ export function ConnectToServerDialog({ open, onOpenChange, onConnected }: Conne
                             <Label className="text-right text-xs text-slate-400 font-medium whitespace-nowrap">Server name:</Label>
                             <Input 
                                 value={serverName} 
-                                onChange={(e) => setServerName(e.target.value)} 
+                                onChange={handleServerChange} 
+                                list="recent-servers"
                                 className="col-span-2 h-8 bg-slate-800 border-slate-700 text-slate-300 px-2 py-1 text-xs focus-visible:ring-1 focus-visible:ring-blue-500 rounded-sm"
                             />
+                            <datalist id="recent-servers">
+                                {recentConnections.map(c => (
+                                    <option key={c.server} value={c.server} />
+                                ))}
+                            </datalist>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 items-center">
