@@ -21,5 +21,11 @@ contextBridge.exposeInMainWorld('electron', {
     // Job Runner Methods (For Step 4)
     runImport: (filePath, targetServer) => ipcRenderer.invoke('job:runImport', filePath, targetServer),
     onLog: (callback) => ipcRenderer.on('job:log', (event, log) => callback(log)),
-    removeLogListener: () => ipcRenderer.removeAllListeners('job:log')
+    removeLogListener: () => ipcRenderer.removeAllListeners('job:log'),
+
+    // Diagram Methods
+    listDiagrams: () => ipcRenderer.invoke('diagram:list'),
+    loadDiagram: (id) => ipcRenderer.invoke('diagram:load', id),
+    saveDiagram: (payload) => ipcRenderer.invoke('diagram:save', payload),
+    deleteDiagram: (id) => ipcRenderer.invoke('diagram:delete', id)
 });

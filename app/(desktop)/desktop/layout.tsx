@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
 import { LicenseGateway } from "@/components/LicenseGateway";
+import { DesktopSidebar } from "@/components/desktop-sidebar";
 
 export const metadata: Metadata = {
     title: "DBLuna Workstation",
@@ -11,10 +12,15 @@ export default function DesktopLayout({
     children,
 }: Readonly<{ children: React.ReactNode }>) {
     return (
-        <div className="min-h-dvh font-sans antialiased text-white bg-slate-950 flex flex-col">
+        <div className="h-screen w-screen font-sans antialiased text-foreground bg-background flex overflow-hidden">
             <AppThemeProvider>
                 <LicenseGateway>
-                    <main className="flex-1 overflow-hidden">{children}</main>
+                    <div className="flex w-full h-full">
+                        <DesktopSidebar />
+                        <main className="flex-1 overflow-hidden bg-background relative">
+                            {children}
+                        </main>
+                    </div>
                 </LicenseGateway>
             </AppThemeProvider>
         </div>

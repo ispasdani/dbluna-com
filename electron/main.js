@@ -196,7 +196,74 @@ ipcMain.handle('db:disconnect', async () => {
     }
 });
 
+// --- IPC Handlers for Diagrams ---
+const diagramsDir = path.join(userHomeDir, 'diagrams');
+if (!fs.existsSync(diagramsDir)) {
+    fs.mkdirSync(diagramsDir, { recursive: true });
+}
+
+ipcMain.handle('diagram:list', async () => {
+    try {
+        const files = fs.readdirSync(diagramsDir).filter(f => f.endsWith('.dbld'));
+        const diagrams = files.map(file => {
+            const data = fs.readFileSync(path.join(diagramsDir, file), 'utf8');
+            const parsed = JSON.parse(data);
+            return {
+                id: parsed.id,
+                name: parsed.name || file.replace('.dbld', ''),
+                lastModified: parsed.lastModified || fs.statSync(path.join(diagramsDir, file)).mtimeMs
+            };
+        });
+        // Sort by last Modified desc
+        diagrams.sort((a,b) => b.lastModified - a.lastModified);
+        return { success: true, data: diagrams };
+    } catch (err) {
+        console.error("Failed to list diagrams:", err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('diagram:load', async (event, id) => {
+    try {
+        const filePath = path.join(diagramsDir, `${id}.dbld`);
+        if (!fs.existsSync(filePath)) return { success: false, error: "Diagram not found." };
+        
+        const data = fs.readFileSync(filePath, 'utf8');
+        return { success: true, data: JSON.parse(data) };
+    } catch (err) {
+        console.error(`Failed to load diagram ${id}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('diagram:save', async (event, payload) => {
+    try {
+        if (!payload || !payload.id) return { success: false, error: "Invalid payload: missing id" };
+        const filePath = path.join(diagramsDir, `${payload.id}.dbld`);
+        payload.lastModified = Date.now();
+        fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+        return { success: true };
+    } catch (err) {
+        console.error(`Failed to save diagram ${payload?.id}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle('diagram:delete', async (event, id) => {
+    try {
+        const filePath = path.join(diagramsDir, `${id}.dbld`);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+        return { success: true };
+    } catch (err) {
+        console.error(`Failed to delete diagram ${id}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
 // --- IPC Handlers for Phase 1 ---
+
 
 // 1. File Picker
 ipcMain.handle('dialog:openFile', async () => {
