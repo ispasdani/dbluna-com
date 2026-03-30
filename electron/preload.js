@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
     openBacpacFile: () => ipcRenderer.invoke('dialog:openFile'),
+    saveBacpacFile: (defaultName) => ipcRenderer.invoke('dialog:saveFile', defaultName),
 
     // Database Explorer Methods
     connectDb: (config) => ipcRenderer.invoke('db:connect', config),
@@ -19,7 +20,8 @@ contextBridge.exposeInMainWorld('electron', {
     readLicense: () => ipcRenderer.invoke('license:read'),
 
     // Job Runner Methods (For Step 4)
-    runImport: (filePath, targetServer) => ipcRenderer.invoke('job:runImport', filePath, targetServer),
+    runImport: (filePath, targetServer, targetDb) => ipcRenderer.invoke('job:runImport', filePath, targetServer, targetDb),
+    runExport: (sourceServer, sourceDb, targetFile) => ipcRenderer.invoke('job:runExport', sourceServer, sourceDb, targetFile),
     onLog: (callback) => ipcRenderer.on('job:log', (event, log) => callback(log)),
     removeLogListener: () => ipcRenderer.removeAllListeners('job:log'),
 

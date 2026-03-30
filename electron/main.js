@@ -275,14 +275,23 @@ ipcMain.handle('dialog:openFile', async () => {
     return filePaths[0]; // Returns the fully qualified local path
 });
 
+ipcMain.handle('dialog:saveFile', async (event, defaultName) => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: defaultName || 'export.bacpac',
+        filters: [{ name: 'Bacpac', extensions: ['bacpac'] }]
+    });
+    if (canceled) return null;
+    return filePath;
+});
+
 // 2. Run Import Job (Phase 1 MVP)
 const { spawn } = require('child_process');
 
-ipcMain.handle('job:runImport', async (event, filePath, targetServer) => {
+ipcMain.handle('job:runImport', async (event, filePath, targetServer, targetDb) => {
     return new Promise((resolve) => {
         // Log the start
         if (mainWindow) {
-            mainWindow.webContents.send('job:log', `[SYSTEM] Preparing to import: ${filePath}\n[SYSTEM] Target: ${targetServer}\n`);
+            mainWindow.webContents.send('job:log', `[SYSTEM] Preparing to import: ${filePath}\n[SYSTEM] Target Server: ${targetServer}\n[SYSTEM] Target DB: ${targetDb}\n`);
         }
 
         // Basic sqlpackage import arguments
@@ -290,7 +299,7 @@ ipcMain.handle('job:runImport', async (event, filePath, targetServer) => {
             '/Action:Import',
             `/SourceFile:${filePath}`,
             `/TargetServerName:${targetServer}`,
-            `/TargetDatabaseName:ImportedDb_${Date.now()}`,
+            `/TargetDatabaseName:${targetDb || `ImportedDb_${Date.now()}`}`,
             '/TargetTrustServerCertificate:True'
         ];
 
@@ -309,17 +318,8 @@ ipcMain.handle('job:runImport', async (event, filePath, targetServer) => {
             child.on('error', (err) => {
                 hasError = true;
                 if (err.code === 'ENOENT') {
-                    if (mainWindow) mainWindow.webContents.send('job:log', `[SYSTEM WARNING] sqlpackage not found. Running dummy simulation for UI validation...\n`);
-                    let progress = 0;
-                    const interval = setInterval(() => {
-                        progress += 25;
-                        if (mainWindow) mainWindow.webContents.send('job:log', `Importing database schema... ${progress}%\n`);
-                        if (progress >= 100) {
-                            clearInterval(interval);
-                            if (mainWindow) mainWindow.webContents.send('job:log', `Importing data... Done.\n\n[SYSTEM] Dummy Process exited with code 0`);
-                            resolve(true);
-                        }
-                    }, 500);
+                    if (mainWindow) mainWindow.webContents.send('job:log', `[SYSTEM ERROR] sqlpackage.exe not found. You must install the Microsoft SQL Server Data-Tier Application Framework and add it to your system PATH.\n`);
+                    resolve(false);
                 } else {
                     if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM ERROR] Failed to start sqlpackage: ${err.message}`);
                     resolve(false);
@@ -329,6 +329,57 @@ ipcMain.handle('job:runImport', async (event, filePath, targetServer) => {
             child.on('close', (code) => {
                 // If an error already triggered our simulated fallback (or hard failed),
                 // we do not want to resolve here because it would shortcut the simulation.
+                if (!hasError) {
+                    if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM] Process exited with code ${code}`);
+                    resolve(code === 0);
+                }
+            });
+
+        } catch (error) {
+            if (mainWindow) mainWindow.webContents.send('job:log', `\n[EXCEPTION] ${error.message}`);
+            resolve(false);
+        }
+    });
+});
+
+ipcMain.handle('job:runExport', async (event, sourceServer, sourceDb, targetFile) => {
+    return new Promise((resolve) => {
+        if (mainWindow) {
+            mainWindow.webContents.send('job:log', `[SYSTEM] Preparing to export: ${sourceDb} from ${sourceServer}\n[SYSTEM] Target File: ${targetFile}\n`);
+        }
+
+        const args = [
+            '/Action:Export',
+            `/SourceServerName:${sourceServer}`,
+            `/SourceDatabaseName:${sourceDb}`,
+            `/TargetFile:${targetFile}`,
+            '/TargetTrustServerCertificate:True'
+        ];
+
+        try {
+            const child = spawn('sqlpackage', args);
+            let hasError = false;
+
+            child.stdout.on('data', (data) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', data.toString());
+            });
+
+            child.stderr.on('data', (data) => {
+                if (mainWindow) mainWindow.webContents.send('job:log', `[ERROR]: ${data.toString()}`);
+            });
+
+            child.on('error', (err) => {
+                hasError = true;
+                if (err.code === 'ENOENT') {
+                    if (mainWindow) mainWindow.webContents.send('job:log', `[SYSTEM ERROR] sqlpackage.exe not found. You must install the Microsoft SQL Server Data-Tier Application Framework and add it to your system PATH.\n`);
+                    resolve(false);
+                } else {
+                    if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM ERROR] Failed to start sqlpackage: ${err.message}`);
+                    resolve(false);
+                }
+            });
+
+            child.on('close', (code) => {
                 if (!hasError) {
                     if (mainWindow) mainWindow.webContents.send('job:log', `\n[SYSTEM] Process exited with code ${code}`);
                     resolve(code === 0);

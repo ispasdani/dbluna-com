@@ -26,6 +26,7 @@ import { QueryEditorTab } from "./components/query-editor-tab";
 import { useConnectionStore } from "../store/connection";
 import { ConnectToServerDialog } from "./components/connect-dialog";
 import { ImportBacpacDialog } from "./components/import-dialog";
+import { ExportBacpacDialog } from "./components/export-dialog";
 
 // Sub-component to manage per-tab querying and rendering
 function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
@@ -155,6 +156,8 @@ export default function DatabaseExplorer() {
 
     const [showConnectDialog, setShowConnectDialog] = useState(false);
     const [showImportDialog, setShowImportDialog] = useState(false);
+    const [showExportDialog, setShowExportDialog] = useState(false);
+    const [exportSourceDb, setExportSourceDb] = useState<string | null>(null);
 
     // Tab state
     const [openTabs, setOpenTabs] = useState<TabItem[]>([]);
@@ -212,8 +215,14 @@ export default function DatabaseExplorer() {
         setActiveTabId('');
     };
 
-    const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => {
+    const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query' | 'export-bacpac', node: DbObjectNode) => {
         if (!node.dbName || !node.name) return;
+
+        if (action === 'export-bacpac') {
+            setExportSourceDb(node.dbName);
+            setShowExportDialog(true);
+            return;
+        }
 
         let schemaName = '';
         let tableNameOnly = '';
@@ -435,6 +444,11 @@ export default function DatabaseExplorer() {
                 <ImportBacpacDialog 
                     open={showImportDialog} 
                     onOpenChange={setShowImportDialog} 
+                />
+                <ExportBacpacDialog
+                    open={showExportDialog}
+                    onOpenChange={setShowExportDialog}
+                    sourceDbName={exportSourceDb}
                 />
             </ResizablePanelGroup>
         </div>

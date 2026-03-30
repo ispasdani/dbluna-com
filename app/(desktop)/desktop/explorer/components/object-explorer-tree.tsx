@@ -22,6 +22,10 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +41,7 @@ export type DbObjectNode = {
 
 interface ObjectExplorerTreeProps {
     onNodeDoubleClick: (node: DbObjectNode) => void;
-    onNodeAction?: (action: 'select' | 'design' | 'script-create' | 'new-query', node: DbObjectNode) => void;
+    onNodeAction?: (action: 'select' | 'design' | 'script-create' | 'new-query' | 'export-bacpac', node: DbObjectNode) => void;
 }
 
 export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectExplorerTreeProps) {
@@ -242,6 +246,20 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
                             >
                                 New Query
                             </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger className="cursor-pointer hover:bg-accent focus:bg-accent">
+                                    Tasks
+                                </ContextMenuSubTrigger>
+                                <ContextMenuSubContent className="w-56 bg-sidebar border-border text-foreground">
+                                    <ContextMenuItem
+                                        className="cursor-pointer hover:bg-accent focus:bg-accent"
+                                        onClick={(e) => { e.stopPropagation(); onNodeAction?.('export-bacpac', node); }}
+                                    >
+                                        Export Data-tier Application...
+                                    </ContextMenuItem>
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : (
