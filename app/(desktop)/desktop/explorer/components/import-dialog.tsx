@@ -48,16 +48,21 @@ export function ImportBacpacDialog({ open, onOpenChange }: ImportBacpacDialogPro
             // Start import
             const success = await (window as any).electron.runImport(file, targetServer, targetDb);
 
-            // Stop listening
-            (window as any).electron.removeLogListener();
             setIsRunning(false);
 
             if (success) {
-                setLogs((prev) => [...prev, "\n[SYSTEM] Import successful!"]);
+                setLogs((prev) => [...prev, "\n[SYSTEM] Import successful! Data-tier application restored."]);
                 setImportSuccess(true);
             } else {
                 setLogs((prev) => [...prev, "\n[SYSTEM ERROR] Import failed or exited with an error."]);
             }
+
+            // Stop listening after a short delay
+            setTimeout(() => {
+                if (typeof window !== "undefined" && (window as any).electron) {
+                    (window as any).electron.removeLogListener();
+                }
+            }, 500);
         }
     };
 

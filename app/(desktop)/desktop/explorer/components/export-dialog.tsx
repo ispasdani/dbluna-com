@@ -49,8 +49,6 @@ export function ExportBacpacDialog({ open, onOpenChange, sourceDbName }: ExportB
             // Start export
             const success = await (window as any).electron.runExport(sourceServer, sourceDbName, targetFile);
 
-            // Stop listening
-            (window as any).electron.removeLogListener();
             setIsRunning(false);
 
             if (success) {
@@ -59,6 +57,13 @@ export function ExportBacpacDialog({ open, onOpenChange, sourceDbName }: ExportB
             } else {
                 setLogs((prev) => [...prev, "\n[SYSTEM ERROR] Export failed or exited with an error."]);
             }
+
+            // Stop listening after a short delay to ensure trailing IPC logs arrive
+            setTimeout(() => {
+                if (typeof window !== "undefined" && (window as any).electron) {
+                    (window as any).electron.removeLogListener();
+                }
+            }, 500);
         }
     };
 
