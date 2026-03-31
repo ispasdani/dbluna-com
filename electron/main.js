@@ -167,6 +167,42 @@ ipcMain.handle('db:getTableSchema', async (event, dbName, schemaName, tableName)
     }
 });
 
+ipcMain.handle('db:getSchemaDictionary', async (event, dbName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName
+            ? `
+                SELECT
+                    t.TABLE_SCHEMA AS schema_name,
+                    t.TABLE_NAME AS table_name,
+                    c.COLUMN_NAME AS column_name
+                FROM [${dbName}].INFORMATION_SCHEMA.TABLES t
+                JOIN [${dbName}].INFORMATION_SCHEMA.COLUMNS c 
+                    ON t.TABLE_CATALOG = c.TABLE_CATALOG
+                    AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
+                    AND t.TABLE_NAME = c.TABLE_NAME
+                WHERE t.TABLE_TYPE = 'BASE TABLE' OR t.TABLE_TYPE = 'VIEW'
+            `
+            : `
+                SELECT
+                    t.TABLE_SCHEMA AS schema_name,
+                    t.TABLE_NAME AS table_name,
+                    c.COLUMN_NAME AS column_name
+                FROM INFORMATION_SCHEMA.TABLES t
+                JOIN INFORMATION_SCHEMA.COLUMNS c 
+                    ON t.TABLE_CATALOG = c.TABLE_CATALOG
+                    AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
+                    AND t.TABLE_NAME = c.TABLE_NAME
+                WHERE t.TABLE_TYPE = 'BASE TABLE' OR t.TABLE_TYPE = 'VIEW'
+            `;
+        const result = await dbPool.request().query(query);
+        return { success: true, data: result.recordset };
+    } catch (err) {
+        console.error("Failed to fetch schema dictionary:", err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('db:executeQuery', async (event, dbName, queryStr) => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {

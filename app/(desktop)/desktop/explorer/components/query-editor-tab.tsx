@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { sql } from "@codemirror/lang-sql";
+import { useState, useEffect, useRef } from "react";
+import Editor, { useMonaco } from "@monaco-editor/react";
 import { Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -32,6 +31,82 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
     const [results, setResults] = useState<any[][]>([]);
     const [messages, setMessages] = useState<string[]>([]);
     const [activePaneTab, setActivePaneTab] = useState<"results" | "messages">("messages");
+
+    const monaco = useMonaco();
+    const schemaProviderRef = useRef<any>(null);
+    const queryRef = useRef(""); // Use ref to safely access current query in shortcuts
+
+    useEffect(() => {
+        queryRef.current = query;
+    }, [query]);
+
+    useEffect(() => {
+        if (monaco && dbName) {
+            const fetchSchemaAndRegister = async () => {
+                if (typeof window !== "undefined" && (window as any).electron) {
+                    try {
+                        const res = await (window as any).electron.getSchemaDictionary(dbName);
+                        if (res && res.success && res.data) {
+                            const dictionary = res.data;
+                            
+                            if (schemaProviderRef.current) {
+                                schemaProviderRef.current.dispose();
+                            }
+                            
+                            schemaProviderRef.current = monaco.languages.registerCompletionItemProvider('sql', {
+                                provideCompletionItems: (model: any, position: any) => {
+                                    const word = model.getWordUntilPosition(position);
+                                    const range = {
+                                        startLineNumber: position.lineNumber,
+                                        endLineNumber: position.lineNumber,
+                                        startColumn: word.startColumn,
+                                        endColumn: word.endColumn
+                                    };
+                                    
+                                    const suggestions: any[] = [];
+                                    const seen = new Set();
+                                    
+                                    dictionary.forEach((item: any) => {
+                                        if (!seen.has('table_' + item.table_name)) {
+                                            seen.add('table_' + item.table_name);
+                                            suggestions.push({
+                                                label: item.table_name,
+                                                kind: monaco.languages.CompletionItemKind.Struct,
+                                                insertText: item.table_name,
+                                                detail: `Table (${item.schema_name})`,
+                                                range: range
+                                            });
+                                        }
+                                        if (!seen.has('col_' + item.column_name)) {
+                                            seen.add('col_' + item.column_name);
+                                            suggestions.push({
+                                                label: item.column_name,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: item.column_name,
+                                                detail: `Column in ${item.table_name}`,
+                                                range: range
+                                            });
+                                        }
+                                    });
+                                    
+                                    return { suggestions };
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch schema dictionary for intellisense", e);
+                    }
+                }
+            };
+            fetchSchemaAndRegister();
+            
+            return () => {
+                if (schemaProviderRef.current) {
+                    schemaProviderRef.current.dispose();
+                }
+            };
+        }
+    }, [monaco, dbName]);
 
     useEffect(() => {
         if (initialMode === "script-create" && schemaName && tableName) {
@@ -68,14 +143,15 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
     }, [dbName, schemaName, tableName, initialMode]);
 
     const handleExecute = async () => {
-        if (!query.trim()) return;
+        const q = queryRef.current;
+        if (!q.trim()) return;
         setIsExecuting(true);
         setResults([]);
         setMessages([]);
         setActivePaneTab("messages");
         
         try {
-            const res = await (window as any).electron.executeQuery(dbName, query);
+            const res = await (window as any).electron.executeQuery(dbName, q);
             if (res.success) {
                 const newMsgs: string[] = [];
                 if (res.rowsAffected && res.rowsAffected.length > 0) {
@@ -98,6 +174,12 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
         } finally {
             setIsExecuting(false);
         }
+    };
+
+    const handleEditorMount = (editor: any, monaco: any) => {
+        editor.addCommand(monaco.KeyCode.F5, () => {
+            handleExecute();
+        });
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -139,14 +221,21 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
                     </div>
                 ) : (
-                    <div className="absolute inset-0 overflow-auto">
-                        <CodeMirror
-                            value={query}
+                    <div className="absolute inset-0">
+                        <Editor
                             height="100%"
-                            theme="dark"
-                            extensions={[sql()]}
-                            onChange={(val) => setQuery(val)}
-                            className="text-sm h-full font-mono"
+                            defaultLanguage="sql"
+                            value={query}
+                            theme="light"
+                            onChange={(val) => setQuery(val || "")}
+                            onMount={handleEditorMount}
+                            options={{
+                                minimap: { enabled: true },
+                                fontSize: 13,
+                                fontFamily: "'Consolas', 'Courier New', monospace",
+                                wordWrap: 'on',
+                                padding: { top: 16 }
+                            }}
                         />
                     </div>
                 )}
