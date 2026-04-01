@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electron', {
     getStoredProcedures: (dbName) => ipcRenderer.invoke('db:getStoredProcedures', dbName),
     queryTable: (dbName, tableName) => ipcRenderer.invoke('db:queryTable', dbName, tableName),
     getTableSchema: (dbName, schemaName, tableName) => ipcRenderer.invoke('db:getTableSchema', dbName, schemaName, tableName),
+    getObjectDefinition: (dbName, schemaName, objectName) => ipcRenderer.invoke('db:getObjectDefinition', dbName, schemaName, objectName),
     getSchemaDictionary: (dbName) => ipcRenderer.invoke('db:getSchemaDictionary', dbName),
     executeQuery: (dbName, queryStr) => ipcRenderer.invoke('db:executeQuery', dbName, queryStr),
     disconnectDb: () => ipcRenderer.invoke('db:disconnect'),

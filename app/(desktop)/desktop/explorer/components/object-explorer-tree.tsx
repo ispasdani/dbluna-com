@@ -41,7 +41,7 @@ export type DbObjectNode = {
 
 interface ObjectExplorerTreeProps {
     onNodeDoubleClick: (node: DbObjectNode) => void;
-    onNodeAction?: (action: 'select' | 'design' | 'script-create' | 'new-query' | 'export-bacpac', node: DbObjectNode) => void;
+    onNodeAction?: (action: 'select' | 'design' | 'script-create' | 'script-select' | 'new-query' | 'export-bacpac', node: DbObjectNode) => void;
 }
 
 export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectExplorerTreeProps) {
@@ -208,30 +208,64 @@ export function ObjectExplorerTree({ onNodeDoubleClick, onNodeAction }: ObjectEx
 
         let content = (
             <Collapsible open={isExpanded} onOpenChange={() => {}}>
-                {isLeaf && node.type === 'table' ? (
+                {isLeaf ? (
                     <ContextMenu>
                         <ContextMenuTrigger asChild>
                             {triggerContent}
                         </ContextMenuTrigger>
                         <ContextMenuContent className="w-64 bg-sidebar border-border text-foreground">
-                            <ContextMenuItem 
-                                className="cursor-pointer hover:bg-accent focus:bg-accent"
-                                onClick={() => onNodeAction?.('select', node)}
-                            >
-                                Select Top 1000 Rows
-                            </ContextMenuItem>
-                            <ContextMenuItem 
-                                className="cursor-pointer hover:bg-accent focus:bg-accent"
-                                onClick={() => onNodeAction?.('design', node)}
-                            >
-                                Design
-                            </ContextMenuItem>
-                            <ContextMenuItem 
-                                className="cursor-pointer hover:bg-accent focus:bg-accent"
-                                onClick={() => onNodeAction?.('script-create', node)}
-                            >
-                                Script Table as <ChevronRight className="ml-1 h-3 w-3 inline" /> CREATE To <ChevronRight className="ml-1 h-3 w-3 inline" /> New Query Editor Window
-                            </ContextMenuItem>
+                            {(node.type === 'table' || node.type === 'view') && (
+                                <>
+                                    <ContextMenuItem
+                                        className="cursor-pointer hover:bg-accent focus:bg-accent"
+                                        onClick={() => onNodeAction?.('select', node)}
+                                    >
+                                        Select Top 1000 Rows
+                                    </ContextMenuItem>
+                                    <ContextMenuItem
+                                        className="cursor-pointer hover:bg-accent focus:bg-accent"
+                                        onClick={() => onNodeAction?.('design', node)}
+                                    >
+                                        Design
+                                    </ContextMenuItem>
+                                    <ContextMenuSeparator />
+                                </>
+                            )}
+                            <ContextMenuSub>
+                                <ContextMenuSubTrigger className="cursor-pointer hover:bg-accent focus:bg-accent">
+                                    Script {node.type.charAt(0).toUpperCase() + node.type.slice(1)} as
+                                </ContextMenuSubTrigger>
+                                <ContextMenuSubContent className="w-64 bg-sidebar border-border text-foreground">
+                                    <ContextMenuSub>
+                                        <ContextMenuSubTrigger className="cursor-pointer hover:bg-accent focus:bg-accent">
+                                            CREATE To
+                                        </ContextMenuSubTrigger>
+                                        <ContextMenuSubContent className="w-56 bg-sidebar border-border text-foreground">
+                                            <ContextMenuItem
+                                                className="cursor-pointer hover:bg-accent focus:bg-accent"
+                                                onClick={(e) => { e.stopPropagation(); onNodeAction?.('script-create', node); }}
+                                            >
+                                                New Query Editor Window
+                                            </ContextMenuItem>
+                                        </ContextMenuSubContent>
+                                    </ContextMenuSub>
+                                    {(node.type === 'table' || node.type === 'view') && (
+                                        <ContextMenuSub>
+                                            <ContextMenuSubTrigger className="cursor-pointer hover:bg-accent focus:bg-accent">
+                                                SELECT To
+                                            </ContextMenuSubTrigger>
+                                            <ContextMenuSubContent className="w-56 bg-sidebar border-border text-foreground">
+                                                <ContextMenuItem
+                                                    className="cursor-pointer hover:bg-accent focus:bg-accent"
+                                                    onClick={(e) => { e.stopPropagation(); onNodeAction?.('script-select', node); }}
+                                                >
+                                                    New Query Editor Window
+                                                </ContextMenuItem>
+                                            </ContextMenuSubContent>
+                                        </ContextMenuSub>
+                                    )}
+                                </ContextMenuSubContent>
+                            </ContextMenuSub>
                         </ContextMenuContent>
                     </ContextMenu>
                 ) : node.type === 'database' ? (

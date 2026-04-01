@@ -167,6 +167,20 @@ ipcMain.handle('db:getTableSchema', async (event, dbName, schemaName, tableName)
     }
 });
 
+ipcMain.handle('db:getObjectDefinition', async (event, dbName, schemaName, objectName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const query = dbName
+            ? `USE [${dbName}]; SELECT OBJECT_DEFINITION(OBJECT_ID('[${schemaName}].[${objectName}]')) AS definition;`
+            : `SELECT OBJECT_DEFINITION(OBJECT_ID('[${schemaName}].[${objectName}]')) AS definition;`;
+        const result = await dbPool.request().query(query);
+        return { success: true, data: result.recordset[0]?.definition || null };
+    } catch (err) {
+        console.error(`Failed to fetch definition for ${schemaName}.${objectName}:`, err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('db:getSchemaDictionary', async (event, dbName) => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {

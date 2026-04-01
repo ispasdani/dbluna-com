@@ -19,10 +19,11 @@ interface QueryEditorTabProps {
     dbName: string;
     schemaName?: string;
     tableName?: string;
-    initialMode?: "script-create" | "empty";
+    initialMode?: "script-create" | "script-select" | "empty";
+    objectType?: 'table' | 'view' | 'procedure';
 }
 
-export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "empty" }: QueryEditorTabProps) {
+export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "empty", objectType }: QueryEditorTabProps) {
     const [query, setQuery] = useState("");
     const [isLoading, setIsLoading] = useState(initialMode !== "empty");
     const [isExecuting, setIsExecuting] = useState(false);
@@ -112,24 +113,34 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
         if (initialMode === "script-create" && schemaName && tableName) {
             const generateCreateScript = async () => {
                 if (typeof window !== "undefined" && (window as any).electron) {
+                    setIsLoading(true);
                     try {
-                        const result = await (window as any).electron.getTableSchema(dbName, schemaName, tableName);
-                        if (result && result.success && result.data) {
-                            const columns = result.data;
-                            let script = `CREATE TABLE [${schemaName}].[${tableName}] (\n`;
-                            const colDefs = columns.map((col: any) => {
-                                let def = `    [${col.COLUMN_NAME}] ${col.DATA_TYPE}`;
-                                if (['varchar', 'nvarchar', 'char', 'nchar'].includes(col.DATA_TYPE)) {
-                                    def += `(${col.CHARACTER_MAXIMUM_LENGTH === -1 ? 'MAX' : col.CHARACTER_MAXIMUM_LENGTH})`;
-                                }
-                                def += col.IS_NULLABLE === 'YES' ? ' NULL' : ' NOT NULL';
-                                return def;
-                            });
-                            script += colDefs.join(",\n");
-                            script += "\n);\nGO";
-                            setQuery(script);
+                        if (objectType === 'view' || objectType === 'procedure') {
+                            const result = await (window as any).electron.getObjectDefinition(dbName, schemaName, tableName);
+                            if (result && result.success && result.data) {
+                                setQuery(String(result.data).trim() + '\nGO');
+                            } else {
+                                setQuery(`-- Failed to load definition for ${schemaName}.${tableName}\n-- ${result?.error || 'Unknown error'}`);
+                            }
                         } else {
-                            setQuery(`-- Failed to load schema for ${schemaName}.${tableName}\n-- ${result?.error || 'Unknown error'}`);
+                            const result = await (window as any).electron.getTableSchema(dbName, schemaName, tableName);
+                            if (result && result.success && result.data) {
+                                const columns = result.data;
+                                let script = `CREATE TABLE [${schemaName}].[${tableName}] (\n`;
+                                const colDefs = columns.map((col: any) => {
+                                    let def = `    [${col.COLUMN_NAME}] ${col.DATA_TYPE}`;
+                                    if (['varchar', 'nvarchar', 'char', 'nchar'].includes(col.DATA_TYPE)) {
+                                        def += `(${col.CHARACTER_MAXIMUM_LENGTH === -1 ? 'MAX' : col.CHARACTER_MAXIMUM_LENGTH})`;
+                                    }
+                                    def += col.IS_NULLABLE === 'YES' ? ' NULL' : ' NOT NULL';
+                                    return def;
+                                });
+                                script += colDefs.join(",\n");
+                                script += "\n);\nGO";
+                                setQuery(script);
+                            } else {
+                                setQuery(`-- Failed to load schema for ${schemaName}.${tableName}\n-- ${result?.error || 'Unknown error'}`);
+                            }
                         }
                     } catch (error: any) {
                         setQuery(`-- Error generating script: ${error.message}`);
@@ -139,8 +150,11 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
                 }
             };
             generateCreateScript();
+        } else if (initialMode === "script-select" && schemaName && tableName) {
+            setQuery(`SELECT TOP 1000 * FROM [${schemaName}].[${tableName}]\nGO`);
+            setIsLoading(false);
         }
-    }, [dbName, schemaName, tableName, initialMode]);
+    }, [dbName, schemaName, tableName, initialMode, objectType]);
 
     const handleExportCSV = async (recordset: any[], rsIndex: number) => {
         if (!recordset || recordset.length === 0) return;

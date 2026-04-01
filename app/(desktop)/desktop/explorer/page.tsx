@@ -146,7 +146,8 @@ type TabItem = {
     queryName: string;
     title: string;
     type: 'table' | 'query' | 'design';
-    initialMode?: "script-create" | "empty";
+    initialMode?: "script-create" | "script-select" | "empty";
+    objectType?: 'table' | 'view' | 'procedure';
 };
 
 export default function DatabaseExplorer() {
@@ -215,7 +216,7 @@ export default function DatabaseExplorer() {
         setActiveTabId('');
     };
 
-    const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'new-query' | 'export-bacpac', node: DbObjectNode) => {
+    const handleTreeAction = (action: 'select' | 'design' | 'script-create' | 'script-select' | 'new-query' | 'export-bacpac', node: DbObjectNode) => {
         if (!node.dbName || !node.name) return;
 
         if (action === 'export-bacpac') {
@@ -253,6 +254,10 @@ export default function DatabaseExplorer() {
                 title = `SQLQuery - ${node.name}`;
                 type = 'query';
                 initialMode = 'script-create';
+            } else if (action === 'script-select') {
+                title = `SQLQuery - ${node.name}`;
+                type = 'query';
+                initialMode = 'script-select';
             } else if (action === 'new-query') {
                 title = `SQLQuery - ${node.dbName}`;
                 type = 'query';
@@ -267,7 +272,8 @@ export default function DatabaseExplorer() {
                 queryName,
                 title,
                 type,
-                initialMode
+                initialMode,
+                objectType: (node.type === 'table' || node.type === 'view' || node.type === 'procedure') ? node.type : undefined
             }]);
         }
         setActiveTabId(tabId);
@@ -427,7 +433,7 @@ export default function DatabaseExplorer() {
                                             <SchemaViewerGrid dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} />
                                         )}
                                         {tab.type === 'query' && (
-                                            <QueryEditorTab dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} initialMode={tab.initialMode} />
+                                            <QueryEditorTab dbName={tab.dbName} schemaName={tab.schemaName} tableName={tab.tableName} initialMode={tab.initialMode} objectType={tab.objectType} />
                                         )}
                                     </TabsContent>
                                 ))}
