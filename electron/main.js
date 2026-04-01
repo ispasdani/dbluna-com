@@ -311,13 +311,23 @@ ipcMain.handle('dialog:openFile', async () => {
     return filePaths[0]; // Returns the fully qualified local path
 });
 
-ipcMain.handle('dialog:saveFile', async (event, defaultName) => {
+ipcMain.handle('dialog:saveFile', async (event, defaultName, filters) => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         defaultPath: defaultName || 'export.bacpac',
-        filters: [{ name: 'Bacpac', extensions: ['bacpac'] }]
+        filters: filters || [{ name: 'Bacpac', extensions: ['bacpac'] }]
     });
     if (canceled) return null;
     return filePath;
+});
+
+ipcMain.handle('file:writeTextData', async (event, filePath, textData) => {
+    try {
+        fs.writeFileSync(filePath, textData, 'utf8');
+        return { success: true };
+    } catch (err) {
+        console.error("Failed to write text data:", err);
+        return { success: false, error: err.message };
+    }
 });
 
 // 2. Run Import Job (Phase 1 MVP)

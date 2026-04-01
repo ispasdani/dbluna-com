@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electron', {
     openBacpacFile: () => ipcRenderer.invoke('dialog:openFile'),
     saveBacpacFile: (defaultName) => ipcRenderer.invoke('dialog:saveFile', defaultName),
+    saveFile: (defaultName, filters) => ipcRenderer.invoke('dialog:saveFile', defaultName, filters),
+    writeTextData: (filePath, textData) => ipcRenderer.invoke('file:writeTextData', filePath, textData),
 
     // Database Explorer Methods
     connectDb: (config) => ipcRenderer.invoke('db:connect', config),

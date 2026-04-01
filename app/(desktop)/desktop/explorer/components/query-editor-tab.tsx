@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Editor, { useMonaco } from "@monaco-editor/react";
-import { Play } from "lucide-react";
+import { Play, Download, FileJson, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -142,6 +142,56 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
         }
     }, [dbName, schemaName, tableName, initialMode]);
 
+    const handleExportCSV = async (recordset: any[], rsIndex: number) => {
+        if (!recordset || recordset.length === 0) return;
+        try {
+            const filePath = await (window as any).electron.saveFile(`Result_${rsIndex + 1}.csv`, [{ name: 'CSV', extensions: ['csv'] }]);
+            if (!filePath) return;
+            
+            const headers = Object.keys(recordset[0]);
+            let csvString = headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',') + '\n';
+            
+            for (const row of recordset) {
+                const rowValues = headers.map(h => {
+                    let val = row[h];
+                    if (val === null || val === undefined) return '""';
+                    if (typeof val === 'object') val = JSON.stringify(val);
+                    const valStr = String(val).replace(/"/g, '""');
+                    return `"${valStr}"`;
+                });
+                csvString += rowValues.join(',') + '\n';
+            }
+            
+            const res = await (window as any).electron.writeTextData(filePath, csvString);
+            if (res.success) {
+                setMessages(prev => [...prev, `[SYSTEM] Exported Result ${rsIndex + 1} to CSV successfully: ${filePath}`]);
+            } else {
+                setMessages(prev => [...prev, `[SYSTEM ERROR] Failed to export CSV: ${res.error}`]);
+            }
+        } catch (e: any) {
+            setMessages(prev => [...prev, `[SYSTEM ERROR] Export exception: ${e.message}`]);
+        }
+    };
+
+    const handleExportJSON = async (recordset: any[], rsIndex: number) => {
+        if (!recordset || recordset.length === 0) return;
+        try {
+            const filePath = await (window as any).electron.saveFile(`Result_${rsIndex + 1}.json`, [{ name: 'JSON', extensions: ['json'] }]);
+            if (!filePath) return;
+            
+            const jsonString = JSON.stringify(recordset, null, 2);
+            
+            const res = await (window as any).electron.writeTextData(filePath, jsonString);
+            if (res.success) {
+                setMessages(prev => [...prev, `[SYSTEM] Exported Result ${rsIndex + 1} to JSON successfully: ${filePath}`]);
+            } else {
+                setMessages(prev => [...prev, `[SYSTEM ERROR] Failed to export JSON: ${res.error}`]);
+            }
+        } catch (e: any) {
+            setMessages(prev => [...prev, `[SYSTEM ERROR] Export exception: ${e.message}`]);
+        }
+    };
+
     const handleExecute = async () => {
         const q = queryRef.current;
         if (!q.trim()) return;
@@ -279,7 +329,18 @@ export function QueryEditorTab({ dbName, schemaName, tableName, initialMode = "e
                                 <div className="text-muted-foreground italic text-xs p-2">No results to display.</div>
                             ) : (
                                 results.map((recordset, rsIdx) => (
-                                    <div key={rsIdx} className="mb-6 border border-border rounded-md overflow-hidden">
+                                    <div key={rsIdx} className="mb-6 border border-border rounded-md overflow-hidden bg-background shadow-sm">
+                                        <div className="flex justify-between items-center bg-sidebar px-3 py-1.5 border-b border-border">
+                                            <span className="text-xs font-semibold text-muted-foreground">Result {rsIdx + 1} ({recordset.length} rows)</span>
+                                            <div className="flex space-x-2">
+                                                <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground" onClick={() => handleExportCSV(recordset, rsIdx)}>
+                                                    <FileText className="h-3 w-3 mr-1.5" /> CSV
+                                                </Button>
+                                                <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground" onClick={() => handleExportJSON(recordset, rsIdx)}>
+                                                    <FileJson className="h-3 w-3 mr-1.5" /> JSON
+                                                </Button>
+                                            </div>
+                                        </div>
                                         <ScrollArea className="w-full max-h-[400px]">
                                             <Table>
                                                 <TableHeader className="bg-sidebar sticky top-0 z-10 border-b border-border">
