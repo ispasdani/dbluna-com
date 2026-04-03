@@ -208,35 +208,34 @@ export function TablesPanel() {
                                     </Button>
                                 </div>
                                 
-                                {/* Constraints Row */}
                                 <div className="flex items-center gap-1">
                                    <ConstraintToggle 
                                       active={col.isPrimaryKey} 
                                       onClick={() => updateField(table.id, col.id, { isPrimaryKey: !col.isPrimaryKey })}
                                       icon={Key}
                                       label="PK"
-                                      activeColor="text-yellow-500 bg-yellow-500/10 border-yellow-500/20"
+                                      activeColor="text-foreground bg-accent border-border"
                                    />
                                    <ConstraintToggle 
                                       active={col.isNotNull} 
                                       onClick={() => updateField(table.id, col.id, { isNotNull: !col.isNotNull })}
                                       icon={Ban}
                                       label="NN"
-                                      activeColor="text-purple-500 bg-purple-500/10 border-purple-500/20"
+                                      activeColor="text-foreground bg-accent border-border"
                                    />
                                    <ConstraintToggle 
                                       active={col.isUnique} 
                                       onClick={() => updateField(table.id, col.id, { isUnique: !col.isUnique })}
                                       icon={Fingerprint}
                                       label="UQ"
-                                      activeColor="text-blue-500 bg-blue-500/10 border-blue-500/20"
+                                      activeColor="text-foreground bg-accent border-border"
                                    />
                                    <ConstraintToggle 
                                       active={col.isAutoIncrement} 
                                       onClick={() => updateField(table.id, col.id, { isAutoIncrement: !col.isAutoIncrement })}
                                       icon={ArrowUp10}
                                       label="AI"
-                                      activeColor="text-green-500 bg-green-500/10 border-green-500/20"
+                                      activeColor="text-foreground bg-accent border-border"
                                    />
                                 </div>
                              </div>

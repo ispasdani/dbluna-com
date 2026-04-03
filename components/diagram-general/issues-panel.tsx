@@ -172,20 +172,20 @@ export function IssuesPanel() {
         <div className="h-full flex flex-col">
             <div className="p-4 border-b border-border">
                 <h2 className="font-semibold text-lg">Issues</h2>
-                <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                        <AlertCircle className="w-4 h-4 text-destructive" />
-                        <span>{errorCount} Errors</span>
+                    <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-destructive" />
+                            <span>{errorCount} Errors</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                            <span>{warningCount} Warnings</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <Info className="w-4 h-4 text-muted-foreground" />
+                            <span>{infoCount} Info</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                        <AlertTriangle className="w-4 h-4 text-amber-500" />
-                        <span>{warningCount} Warnings</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Info className="w-4 h-4 text-blue-500" />
-                        <span>{infoCount} Info</span>
-                    </div>
-                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -200,21 +200,21 @@ export function IssuesPanel() {
                             key={issue.id}
                             onClick={() => handleIssueClick(issue)}
                             className={cn(
-                                "w-full text-left p-3 rounded-md border text-sm transition-colors hover:bg-accent/50",
+                                "w-full text-left p-3 rounded-none border text-sm transition-colors hover:bg-accent",
                                 issue.severity === "error"
-                                    ? "border-destructive/30 bg-destructive/5"
+                                    ? "border-destructive/20 bg-background"
                                     : issue.severity === "warning"
-                                        ? "border-amber-500/30 bg-amber-500/5"
-                                        : "border-blue-500/30 bg-blue-500/5"
+                                        ? "border-yellow-500/20 bg-background"
+                                        : "border-border bg-background"
                             )}
                         >
                             <div className="flex items-start gap-2">
                                 {issue.severity === "error" ? (
                                     <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                                 ) : issue.severity === "warning" ? (
-                                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                    <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0 mt-0.5" />
                                 ) : (
-                                    <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                                    <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
                                 )}
                                 <span className="text-foreground/90">{issue.message}</span>
                             </div>

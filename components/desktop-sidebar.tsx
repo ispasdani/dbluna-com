@@ -32,13 +32,13 @@ export function DesktopSidebar() {
                         key={tab.id}
                         onClick={() => router.push(tab.path)}
                         title={tab.title}
-                        className={`p-2.5 rounded-xl mb-3 transition-colors ${
+                        className={`p-2.5 rounded-none mb-2 transition-colors border-l-2 ${
                             isActive 
-                                ? "text-blue-500 bg-blue-500/10" 
-                                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                                ? "text-foreground bg-accent border-foreground" 
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent border-transparent"
                         }`}
                     >
-                        <Icon strokeWidth={isActive ? 2 : 1.5} className="w-6 h-6" />
+                        <Icon strokeWidth={isActive ? 2 : 1.5} className="w-5 h-5" />
                     </button>
                 );
             })}
