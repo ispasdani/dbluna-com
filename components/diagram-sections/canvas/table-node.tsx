@@ -13,13 +13,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+import React, { memo } from "react";
+
 interface TableNodeProps {
   table: Table;
   selected?: boolean;
   onColumnPointerDown?: (e: React.PointerEvent, columnId: string, isSource: boolean) => void;
 }
 
-export function TableNode({ table, selected, onColumnPointerDown }: TableNodeProps) {
+export const TableNode = memo(function TableNode({ table, selected, onColumnPointerDown }: TableNodeProps) {
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
@@ -258,4 +260,9 @@ export function TableNode({ table, selected, onColumnPointerDown }: TableNodePro
       })}
     </g>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.table === nextProps.table &&
+    prevProps.selected === nextProps.selected
+  );
+});

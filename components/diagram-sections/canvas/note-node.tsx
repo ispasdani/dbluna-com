@@ -13,12 +13,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+import React, { memo } from "react";
+
 interface NoteNodeProps {
   note: Note;
   selected?: boolean;
 }
 
-export function NoteNode({ note, selected }: NoteNodeProps) {
+export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps) {
   const updateNote = useCanvasStore((s) => s.updateNote);
   const deleteNote = useCanvasStore((s) => s.deleteNote);
 
@@ -173,4 +175,9 @@ export function NoteNode({ note, selected }: NoteNodeProps) {
       )}
     </g>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.note === nextProps.note &&
+    prevProps.selected === nextProps.selected
+  );
+});

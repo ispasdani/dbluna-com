@@ -13,13 +13,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+import React, { memo } from "react";
+
 interface AreaNodeProps {
   area: Area;
   selected?: boolean;
 }
 
 // DrawDB areas are usually dashed borders with a label
-export function AreaNode({ area, selected }: AreaNodeProps) {
+export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps) {
   const updateArea = useCanvasStore((s) => s.updateArea);
   const deleteArea = useCanvasStore((s) => s.deleteArea);
 
@@ -95,4 +97,9 @@ export function AreaNode({ area, selected }: AreaNodeProps) {
       )}
     </g>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.area === nextProps.area &&
+    prevProps.selected === nextProps.selected
+  );
+});
