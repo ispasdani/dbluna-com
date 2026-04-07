@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square, Table } from "lucide-react";
+import { useState } from "react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square, Table, Database } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
+import { ErdGenerationDialog } from "./erd-generation-dialog";
 
 export function TabLauncherBar() {
   const {
@@ -27,6 +29,7 @@ export function TabLauncherBar() {
   } = useViewStore();
   const { background, setBackground, snapToGrid, toggleSnapToGrid, addTable, addNote, addArea } =
     useCanvasStore();
+  const [showErdDialog, setShowErdDialog] = useState(false);
 
   return (
     <div className="h-12 border-b border-border bg-dock-header flex items-center justify-start px-3 gap-2">
@@ -140,6 +143,19 @@ export function TabLauncherBar() {
           <Square className="h-4 w-4" />
           Add Area
         </Button>
+
+        {/* Generate ERD Button */}
+        {typeof window !== "undefined" && (window as any).electron && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-white hover:text-white border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 gap-2 ml-2 transition-colors"
+              onClick={() => setShowErdDialog(true)}
+            >
+              <Database className="h-4 w-4 text-blue-400" />
+              Generate ERD
+            </Button>
+        )}
       </div>
 
       <ZoomMenu />
@@ -151,6 +167,8 @@ export function TabLauncherBar() {
 
       {/* Right side: optional area (future) */}
       <div className="w-[48px]" />
+      
+      <ErdGenerationDialog open={showErdDialog} onOpenChange={setShowErdDialog} />
     </div>
   );
 }

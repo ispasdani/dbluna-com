@@ -217,6 +217,62 @@ ipcMain.handle('db:getSchemaDictionary', async (event, dbName) => {
     }
 });
 
+ipcMain.handle('db:getERDData', async (event, dbName) => {
+    if (!dbPool) return { success: false, error: "No active database connection." };
+    try {
+        const useStmt = dbName ? `USE [${dbName}]; ` : '';
+        
+        // 1. Get Tables & Columns
+        const columnsQuery = useStmt + `
+            SELECT 
+                s.name AS schema_name,
+                t.name AS table_name,
+                c.name AS column_name,
+                ty.name AS data_type,
+                c.is_nullable,
+                CAST(ISNULL(ic.index_id, 0) AS BIT) AS is_pk,
+                c.is_identity AS is_auto_increment
+            FROM sys.tables t
+            JOIN sys.schemas s ON t.schema_id = s.schema_id
+            JOIN sys.columns c ON t.object_id = c.object_id
+            JOIN sys.types ty ON c.user_type_id = ty.user_type_id
+            LEFT JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id AND ic.index_id = 1
+        `;
+        
+        // 2. Get Foreign Key Relationships
+        const relationshipsQuery = useStmt + `
+            SELECT 
+                fk.name AS fk_name,
+                OBJECT_SCHEMA_NAME(fk.parent_object_id) AS source_schema,
+                tp.name AS source_table,
+                cp.name AS source_column,
+                OBJECT_SCHEMA_NAME(fk.referenced_object_id) AS target_schema,
+                tr.name AS target_table,
+                cr.name AS target_column
+            FROM sys.foreign_keys fk
+            JOIN sys.tables tp ON fk.parent_object_id = tp.object_id
+            JOIN sys.tables tr ON fk.referenced_object_id = tr.object_id
+            JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+            JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id
+            JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id
+        `;
+
+        const columnsResult = await dbPool.request().query(columnsQuery);
+        const relationshipsResult = await dbPool.request().query(relationshipsQuery);
+
+        return { 
+            success: true, 
+            data: {
+                columns: columnsResult.recordset,
+                relationships: relationshipsResult.recordset
+            } 
+        };
+    } catch (err) {
+        console.error("Failed to fetch ERD data:", err);
+        return { success: false, error: err.message };
+    }
+});
+
 ipcMain.handle('db:executeQuery', async (event, dbName, queryStr) => {
     if (!dbPool) return { success: false, error: "No active database connection." };
     try {
