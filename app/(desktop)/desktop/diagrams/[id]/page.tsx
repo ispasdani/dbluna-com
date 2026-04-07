@@ -8,6 +8,7 @@ import { DockPanel } from "@/components/diagram-general/dock-panel";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDesktopDiagramAutosave } from "@/hooks/use-desktop-diagram-autosave";
+import DatabaseExplorer from "@/components/desktop-explorer-workspace";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -29,6 +30,7 @@ export default function DiagramPage({ params }: PageProps) {
     isLeftDockVisible,
     leftDockWidth,
     setLeftDockWidth,
+    workspaceMode,
   } = useViewStore();
 
   const dragRef = useRef<{ active: boolean; startX: number; startW: number }>({
@@ -64,37 +66,43 @@ export default function DiagramPage({ params }: PageProps) {
       <TabLauncherBar />
 
       {/* Work area */}
-      <div className="relative flex-1 overflow-hidden w-full">
-        {/* Canvas is ALWAYS full size (fixed) */}
-        <div className="absolute inset-0">
-          <CanvasStage diagramId={id} />
-        </div>
-
-        {/* Left dock overlays the canvas */}
-        {isLeftDockVisible && (
-          <div
-            className="absolute inset-y-0 left-0 z-20 min-w-[260px] max-w-[720px]"
-            style={{ width: leftDockWidth }}
-          >
-            <div className="h-full bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-r">
-              <DockPanel
-                side="left"
-                tabs={leftTabs}
-                activeTab={activeLeftTab}
-              />
+      <div className="relative flex-1 overflow-hidden w-full flex">
+        {workspaceMode === "diagram" ? (
+          <>
+            {/* Canvas is ALWAYS full size (fixed) */}
+            <div className="absolute inset-0">
+              <CanvasStage diagramId={id} />
             </div>
 
-            {/* Drag handle */}
-            <div
-              className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
-              onPointerDown={onHandlePointerDown}
-              onPointerMove={onHandlePointerMove}
-              onPointerUp={onHandlePointerUp}
-              title="Resize"
-            >
-              <div className="mx-auto h-full w-[1px] bg-border/70" />
-            </div>
-          </div>
+            {/* Left dock overlays the canvas */}
+            {isLeftDockVisible && (
+              <div
+                className="absolute inset-y-0 left-0 z-20 min-w-[260px] max-w-[720px]"
+                style={{ width: leftDockWidth }}
+              >
+                <div className="h-full bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-r">
+                  <DockPanel
+                    side="left"
+                    tabs={leftTabs}
+                    activeTab={activeLeftTab}
+                  />
+                </div>
+
+                {/* Drag handle */}
+                <div
+                  className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
+                  onPointerDown={onHandlePointerDown}
+                  onPointerMove={onHandlePointerMove}
+                  onPointerUp={onHandlePointerUp}
+                  title="Resize"
+                >
+                  <div className="mx-auto h-full w-[1px] bg-border/70" />
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <DatabaseExplorer />
         )}
       </div>
     </div>

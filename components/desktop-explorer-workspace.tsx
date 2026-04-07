@@ -20,13 +20,14 @@ import {
     ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { useRouter } from "next/navigation";
-import { ObjectExplorerTree, type DbObjectNode } from "./components/object-explorer-tree";
-import { SchemaViewerGrid } from "./components/schema-viewer-grid";
-import { QueryEditorTab } from "./components/query-editor-tab";
-import { useConnectionStore } from "../store/connection";
-import { ConnectToServerDialog } from "./components/connect-dialog";
-import { ImportBacpacDialog } from "./components/import-dialog";
-import { ExportBacpacDialog } from "./components/export-dialog";
+import { ObjectExplorerTree, type DbObjectNode } from "./explorer/object-explorer-tree";
+import { SchemaViewerGrid } from "./explorer/schema-viewer-grid";
+import { QueryEditorTab } from "./explorer/query-editor-tab";
+import { useConnectionStore } from "@/store/connection";
+import { ConnectToServerDialog } from "./explorer/connect-dialog";
+import { ImportBacpacDialog } from "./explorer/import-dialog";
+import { ExportBacpacDialog } from "./explorer/export-dialog";
+import { useViewStore } from "@/store/useViewStore";
 
 // Sub-component to manage per-tab querying and rendering
 function TableDataGrid({ dbName, tableName }: { dbName: string, tableName: string }) {
@@ -160,6 +161,8 @@ export default function DatabaseExplorer() {
     const [showExportDialog, setShowExportDialog] = useState(false);
     const [exportSourceDb, setExportSourceDb] = useState<string | null>(null);
 
+    const setWorkspaceMode = useViewStore(state => state.setWorkspaceMode);
+
     // Tab state
     const [openTabs, setOpenTabs] = useState<TabItem[]>([]);
     const [activeTabId, setActiveTabId] = useState<string>('');
@@ -291,7 +294,7 @@ export default function DatabaseExplorer() {
     };
 
     return (
-        <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+        <div className="flex w-full h-full bg-background text-foreground overflow-hidden">
             {/* @ts-expect-error Shadcn resizable types mismatch */}
             <ResizablePanelGroup direction="horizontal">
 
@@ -300,7 +303,7 @@ export default function DatabaseExplorer() {
                     <div className="p-3 border-b border-border flex flex-col space-y-2 shrink-0">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
-                                <Button variant="ghost" size="icon" onClick={() => router.push('/desktop')} className="h-7 w-7 text-muted-foreground hover:text-white shrink-0">
+                                <Button variant="ghost" size="icon" onClick={() => setWorkspaceMode('diagram')} className="h-7 w-7 text-muted-foreground hover:text-white shrink-0">
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
                                 <h2 className="font-semibold text-foreground text-sm truncate">Object Explorer</h2>

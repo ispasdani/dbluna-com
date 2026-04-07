@@ -28,7 +28,7 @@ export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps
   const HEADER_HEIGHT = 40;
   
   return (
-    <g transform={`translate(${note.x}, ${note.y})`}>
+    <g>
       {/* 
         Container Rect
         - Resizable width/height
@@ -175,7 +175,8 @@ export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps
       )}
     </g>
   );
-}, (prevProps, nextProps) => {
+}
+, (prevProps, nextProps) => {
   return (
     prevProps.note === nextProps.note &&
     prevProps.selected === nextProps.selected

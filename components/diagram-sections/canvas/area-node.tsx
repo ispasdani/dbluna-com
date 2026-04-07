@@ -26,7 +26,7 @@ export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps
   const deleteArea = useCanvasStore((s) => s.deleteArea);
 
   return (
-    <g transform={`translate(${area.x}, ${area.y})`}>
+    <g>
       {/* Border & Background */}
       <rect
         x={0}
@@ -97,7 +97,8 @@ export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps
       )}
     </g>
   );
-}, (prevProps, nextProps) => {
+}
+, (prevProps, nextProps) => {
   return (
     prevProps.area === nextProps.area &&
     prevProps.selected === nextProps.selected

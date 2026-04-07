@@ -59,6 +59,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   // Selection Rect State (in world coordinates)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
 
+  const [dragOffset, setDragOffset] = useState({ dx: 0, dy: 0, active: false });
+
   // Inform stores which diagram we are working on
   const setDiagramId = useCanvasStore((s) => s.setDiagramId);
   const setEditorDiagramId = useEditorStore((s) => s.setEditorDiagramId);
@@ -261,8 +263,25 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     const ROW_HEIGHT = 30;
     const WIDTH = 220;
 
-    const x = table.x + (isSource ? WIDTH : 0);
-    const y = table.y + HEADER_HEIGHT + colIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+    let x = table.x;
+    let y = table.y;
+    
+    if (dragOffset.active) {
+      if (dragTable.current.active && dragTable.current.initialPositions.has(tableId)) {
+          x += dragOffset.dx;
+          y += dragOffset.dy;
+      } else if (dragArea.current.active && dragArea.current.childTables.includes(tableId)) {
+          x += dragOffset.dx;
+          y += dragOffset.dy;
+      }
+      if (snapToGrid) {
+          x = Math.round(x / 24) * 24;
+          y = Math.round(y / 24) * 24;
+      }
+    }
+
+    x += (isSource ? WIDTH : 0);
+    y += HEADER_HEIGHT + colIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
     return { x, y };
   };
 
@@ -674,24 +693,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragTable.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragTable.current.initialMouseY) / camera.zoom;
-
-      const moves: { id: string, x: number, y: number }[] = [];
-      const SNAP = 24;
-
-      dragTable.current.initialPositions.forEach((initPos, id) => {
-        let newX = initPos.x + dx;
-        let newY = initPos.y + dy;
-
-        if (snapToGrid) {
-          newX = Math.round(newX / SNAP) * SNAP;
-          newY = Math.round(newY / SNAP) * SNAP;
-        }
-        moves.push({ id, x: newX, y: newY });
-      });
-
-      if (moves.length > 0) {
-        moveTables(moves);
-      }
+      setDragOffset({ dx, dy, active: true });
       return;
     }
 
@@ -700,24 +702,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragNote.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragNote.current.initialMouseY) / camera.zoom;
-
-      const moves: { id: string, x: number, y: number }[] = [];
-      const SNAP = 24;
-
-      dragNote.current.initialPositions.forEach((initPos, id) => {
-        let newX = initPos.x + dx;
-        let newY = initPos.y + dy;
-
-        if (snapToGrid) {
-          newX = Math.round(newX / SNAP) * SNAP;
-          newY = Math.round(newY / SNAP) * SNAP;
-        }
-        moves.push({ id, x: newX, y: newY });
-      });
-
-      if (moves.length > 0) {
-        moveNotes(moves);
-      }
+      setDragOffset({ dx, dy, active: true });
       return;
     }
 
@@ -746,57 +731,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragArea.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragArea.current.initialMouseY) / camera.zoom;
-      const SNAP = 24;
-
-      const moves: { id: string, x: number, y: number }[] = [];
-      // Move Areas
-      const areasState = useCanvasStore.getState().areas;
-      dragArea.current.initialPositions.forEach((initPos, id) => {
-        const area = areasState.find(a => a.id === id);
-        if (area?.isLocked) return;
-
-        let newX = initPos.x + dx;
-        let newY = initPos.y + dy;
-        if (snapToGrid) {
-          newX = Math.round(newX / SNAP) * SNAP;
-          newY = Math.round(newY / SNAP) * SNAP;
-        }
-        moves.push({ id, x: newX, y: newY });
-      });
-      if (moves.length > 0) moveAreas(moves);
-
-      // Move Children (Tables)
-      const tableMoves: { id: string, x: number, y: number }[] = [];
-      dragArea.current.childTables.forEach(tId => {
-        const init = dragArea.current.childInitPositions.get(`t:${tId}`);
-        if (init) {
-          let newX = init.x + dx;
-          let newY = init.y + dy;
-          if (snapToGrid) {
-            newX = Math.round(newX / SNAP) * SNAP;
-            newY = Math.round(newY / SNAP) * SNAP;
-          }
-          tableMoves.push({ id: tId, x: newX, y: newY });
-        }
-      });
-      if (tableMoves.length > 0) moveTables(tableMoves);
-
-      // Move Children (Notes)
-      const noteMoves: { id: string, x: number, y: number }[] = [];
-      dragArea.current.childNotes.forEach(nId => {
-        const init = dragArea.current.childInitPositions.get(`n:${nId}`);
-        if (init) {
-          let newX = init.x + dx;
-          let newY = init.y + dy;
-          if (snapToGrid) {
-            newX = Math.round(newX / SNAP) * SNAP;
-            newY = Math.round(newY / SNAP) * SNAP;
-          }
-          noteMoves.push({ id: nId, x: newX, y: newY });
-        }
-      });
-      if (noteMoves.length > 0) moveNotes(noteMoves);
-
+      setDragOffset({ dx, dy, active: true });
       return;
     }
 
@@ -892,6 +827,24 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
 
     // Handle Table Drop
     if (dragTable.current.active && dragTable.current.pointerId === e.pointerId) {
+      const finalDx = (e.clientX - dragTable.current.initialMouseX) / camera.zoom;
+      const finalDy = (e.clientY - dragTable.current.initialMouseY) / camera.zoom;
+      const moves: { id: string, x: number, y: number }[] = [];
+      const SNAP = 24;
+
+      dragTable.current.initialPositions.forEach((initPos, id) => {
+        let newX = initPos.x + finalDx;
+        let newY = initPos.y + finalDy;
+        if (snapToGrid) {
+           newX = Math.round(newX / SNAP) * SNAP;
+           newY = Math.round(newY / SNAP) * SNAP;
+        }
+        if (newX !== initPos.x || newY !== initPos.y) moves.push({ id, x: newX, y: newY });
+      });
+
+      if (moves.length > 0) moveTables(moves);
+      setDragOffset({ dx: 0, dy: 0, active: false });
+
       dragTable.current.active = false;
       dragTable.current.pointerId = null;
       dragTable.current.initialPositions.clear();
@@ -903,6 +856,24 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
 
     // Handle Note Drop
     if (dragNote.current.active && dragNote.current.pointerId === e.pointerId) {
+      const finalDx = (e.clientX - dragNote.current.initialMouseX) / camera.zoom;
+      const finalDy = (e.clientY - dragNote.current.initialMouseY) / camera.zoom;
+      const moves: { id: string, x: number, y: number }[] = [];
+      const SNAP = 24;
+
+      dragNote.current.initialPositions.forEach((initPos, id) => {
+        let newX = initPos.x + finalDx;
+        let newY = initPos.y + finalDy;
+        if (snapToGrid) {
+           newX = Math.round(newX / SNAP) * SNAP;
+           newY = Math.round(newY / SNAP) * SNAP;
+        }
+        if (newX !== initPos.x || newY !== initPos.y) moves.push({ id, x: newX, y: newY });
+      });
+
+      if (moves.length > 0) moveNotes(moves);
+      setDragOffset({ dx: 0, dy: 0, active: false });
+
       dragNote.current.active = false;
       dragNote.current.pointerId = null;
       dragNote.current.initialPositions.clear();
@@ -922,6 +893,54 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     }
 
     if (dragArea.current.active && dragArea.current.pointerId === e.pointerId) {
+      const finalDx = (e.clientX - dragArea.current.initialMouseX) / camera.zoom;
+      const finalDy = (e.clientY - dragArea.current.initialMouseY) / camera.zoom;
+      const SNAP = 24;
+
+      const moves: { id: string, x: number, y: number }[] = [];
+      dragArea.current.initialPositions.forEach((initPos, id) => {
+        let newX = initPos.x + finalDx;
+        let newY = initPos.y + finalDy;
+        if (snapToGrid) {
+           newX = Math.round(newX / SNAP) * SNAP;
+           newY = Math.round(newY / SNAP) * SNAP;
+        }
+        if (newX !== initPos.x || newY !== initPos.y) moves.push({ id, x: newX, y: newY });
+      });
+      if (moves.length > 0) moveAreas(moves);
+
+      const tableMoves: { id: string, x: number, y: number }[] = [];
+      dragArea.current.childTables.forEach(tId => {
+        const init = dragArea.current.childInitPositions.get(`t:${tId}`);
+        if (init) {
+          let newX = init.x + finalDx;
+          let newY = init.y + finalDy;
+          if (snapToGrid) {
+            newX = Math.round(newX / SNAP) * SNAP;
+            newY = Math.round(newY / SNAP) * SNAP;
+          }
+          if (newX !== init.x || newY !== init.y) tableMoves.push({ id: tId, x: newX, y: newY });
+        }
+      });
+      if (tableMoves.length > 0) moveTables(tableMoves);
+
+      const noteMoves: { id: string, x: number, y: number }[] = [];
+      dragArea.current.childNotes.forEach(nId => {
+        const init = dragArea.current.childInitPositions.get(`n:${nId}`);
+        if (init) {
+          let newX = init.x + finalDx;
+          let newY = init.y + finalDy;
+          if (snapToGrid) {
+            newX = Math.round(newX / SNAP) * SNAP;
+            newY = Math.round(newY / SNAP) * SNAP;
+          }
+          if (newX !== init.x || newY !== init.y) noteMoves.push({ id: nId, x: newX, y: newY });
+        }
+      });
+      if (noteMoves.length > 0) moveNotes(noteMoves);
+
+      setDragOffset({ dx: 0, dy: 0, active: false });
+
       dragArea.current.active = false;
       dragArea.current.pointerId = null;
       dragArea.current.initialPositions.clear();
@@ -1204,46 +1223,90 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
             )}
 
             {/* Areas */}
-            {areas.map((area) => (
+            {areas.map((area) => {
+              let adjustedX = area.x;
+              let adjustedY = area.y;
+              if (dragOffset.active && dragArea.current.active && dragArea.current.initialPositions.has(area.id)) {
+                  adjustedX += dragOffset.dx;
+                  adjustedY += dragOffset.dy;
+                  if (snapToGrid) {
+                      adjustedX = Math.round(adjustedX / 24) * 24;
+                      adjustedY = Math.round(adjustedY / 24) * 24;
+                  }
+              }
+
+              return (
               <g
                 key={area.id}
                 className="pointer-events-auto cursor-grab active:cursor-grabbing"
                 onPointerDown={(e) => onAreaPointerDown(e, area.id)}
+                transform={`translate(${adjustedX}, ${adjustedY})`}
               >
                 <AreaNode
                   area={area}
                   selected={selectedAreaIds.includes(area.id)}
                 />
               </g>
-            ))}
+            )})}
 
             {/* Notes */}
-            {notes.map((note) => (
+            {notes.map((note) => {
+              let adjustedX = note.x;
+              let adjustedY = note.y;
+              if (dragOffset.active) {
+                if (dragNote.current.active && dragNote.current.initialPositions.has(note.id)) {
+                    adjustedX += dragOffset.dx;
+                    adjustedY += dragOffset.dy;
+                } else if (dragArea.current.active && dragArea.current.childNotes.includes(note.id)) {
+                    adjustedX += dragOffset.dx;
+                    adjustedY += dragOffset.dy;
+                }
+                if (snapToGrid && (dragNote.current.initialPositions.has(note.id) || dragArea.current.childNotes.includes(note.id))) {
+                    adjustedX = Math.round(adjustedX / 24) * 24;
+                    adjustedY = Math.round(adjustedY / 24) * 24;
+                }
+              }
+
+              return (
               <g
                 key={note.id}
                 className="pointer-events-auto cursor-pointer"
                 onPointerDown={(e) => onNotePointerDown(e, note.id)}
+                transform={`translate(${adjustedX}, ${adjustedY})`}
               >
                 <NoteNode
                   note={note}
                   selected={selectedNoteIds.includes(note.id)}
                 />
               </g>
-            ))}
+            )})}
 
             {/* Tables */}
-            {tables.map((table) => (
+            {tables.map((table) => {
+              let adjustedX = table.x;
+              let adjustedY = table.y;
+              if (dragOffset.active) {
+                if (dragTable.current.active && dragTable.current.initialPositions.has(table.id)) {
+                    adjustedX += dragOffset.dx;
+                    adjustedY += dragOffset.dy;
+                } else if (dragArea.current.active && dragArea.current.childTables.includes(table.id)) {
+                    adjustedX += dragOffset.dx;
+                    adjustedY += dragOffset.dy;
+                }
+                if (snapToGrid && (dragTable.current.initialPositions.has(table.id) || dragArea.current.childTables.includes(table.id))) {
+                    adjustedX = Math.round(adjustedX / 24) * 24;
+                    adjustedY = Math.round(adjustedY / 24) * 24;
+                }
+              }
+
+              return (
               <g
                 key={table.id}
                 className="pointer-events-auto cursor-pointer"
                 onPointerDown={(e) => onTablePointerDown(e, table.id)}
+                transform={`translate(${adjustedX}, ${adjustedY})`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Click logic now handled in onPointerDown/Up mostly, 
-                  // but we might want to ensure robust behavior here if needed.
-                  // For now, let's leave it empty or remove this handler as selection is pointer-down based.
-                  // However, let's keep it to catch any edge cases or bubbling, but do nothing 
-                  // to avoid conflict with drag start selection logic.
                 }}
               >
                 <TableNode
@@ -1252,7 +1315,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                   onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
                 />
               </g>
-            ))}
+            )})}
 
             {/* Marquee Selection Rectangle */}
             {selectionRect && (

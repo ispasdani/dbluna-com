@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
 import { LicenseGateway } from "@/components/LicenseGateway";
-import { DesktopSidebar } from "@/components/desktop-sidebar";
-
 export const metadata: Metadata = {
     title: "DBLuna Workstation",
     description: "Offline database import workstation",
@@ -16,7 +14,6 @@ export default function DesktopLayout({
             <AppThemeProvider>
                 <LicenseGateway>
                     <div className="flex w-full h-full">
-                        <DesktopSidebar />
                         <main className="flex-1 overflow-hidden bg-background relative">
                             {children}
                         </main>

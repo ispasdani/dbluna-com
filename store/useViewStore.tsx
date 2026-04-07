@@ -7,8 +7,10 @@ type ViewState = {
   toggleTopNavbar: () => void;
   leftDockWidth: number;
   setLeftDockWidth: (w: number) => void;
-
   toggleLeftDock: () => void;
+  
+  workspaceMode: 'diagram' | 'explorer';
+  setWorkspaceMode: (mode: 'diagram' | 'explorer') => void;
 };
 
 const clamp = (n: number, min: number, max: number) =>
@@ -23,4 +25,7 @@ export const useViewStore = create<ViewState>((set, get) => ({
   setLeftDockWidth: (w) => set({ leftDockWidth: clamp(w, 260, 720) }),
 
   toggleLeftDock: () => set({ isLeftDockVisible: !get().isLeftDockVisible }),
+
+  workspaceMode: 'diagram',
+  setWorkspaceMode: (mode) => set({ workspaceMode: mode }),
 }));

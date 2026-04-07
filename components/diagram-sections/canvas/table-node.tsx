@@ -32,7 +32,7 @@ export const TableNode = memo(function TableNode({ table, selected, onColumnPoin
   const totalHeight = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
 
   return (
-    <g transform={`translate(${table.x}, ${table.y})`}>
+    <g>
       {/* 
         Container Frame 
         - rx=8 for rounded corners
@@ -260,7 +260,8 @@ export const TableNode = memo(function TableNode({ table, selected, onColumnPoin
       })}
     </g>
   );
-}, (prevProps, nextProps) => {
+}
+, (prevProps, nextProps) => {
   return (
     prevProps.table === nextProps.table &&
     prevProps.selected === nextProps.selected

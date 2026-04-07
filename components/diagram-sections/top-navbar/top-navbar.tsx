@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus, Pencil } from "lucide-react";
+import { ChevronDown, Plus, Pencil, Database, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useViewStore } from "@/store/useViewStore";
 import { useDockStore } from "@/store/useDockStore";
 import { PlatformPaletteToggle } from "@/components/diagram-general/platform-palette-toggle";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
@@ -38,6 +39,9 @@ export function TopNavbar() {
   const [newDiagramName, setNewDiagramName] = useState("");
   const [diagramToRename, setDiagramToRename] = useState("");
   const [renamedName, setRenamedName] = useState("");
+  const [isFakeInstallerOpen, setIsFakeInstallerOpen] = useState(false);
+
+  const { workspaceMode, setWorkspaceMode } = useViewStore();
 
   const handleCreateNew = () => {
     setNewDiagramName("");
@@ -64,8 +68,20 @@ export function TopNavbar() {
       renameDiagram(diagramToRename, renamedName.trim());
     }
     setIsRenameOpen(false);
+    setIsRenameOpen(false);
     setDiagramToRename("");
     setRenamedName("");
+  };
+
+  const handleObjectExplorerClick = () => {
+    // Check if we are in desktop context
+    const isDesktop = typeof window !== "undefined" && (window as any).electron;
+
+    if (!isDesktop) {
+      setIsFakeInstallerOpen(true);
+    } else {
+      setWorkspaceMode(workspaceMode === "diagram" ? "explorer" : "diagram");
+    }
   };
 
   return (
@@ -112,6 +128,16 @@ export function TopNavbar() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button 
+            variant={workspaceMode === "explorer" ? "secondary" : "ghost"}
+            size="sm"
+            className="gap-2"
+            onClick={handleObjectExplorerClick}
+          >
+            <Database className="w-4 h-4" />
+            <span className="hidden sm:inline">Object Explorer</span>
+          </Button>
 
           <SavingIndicator />
         </div>
@@ -180,6 +206,29 @@ export function TopNavbar() {
               disabled={!renamedName.trim() || renamedName === diagramToRename}
             >
               Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fake Installer Dialog for Web */}
+      <Dialog open={isFakeInstallerOpen} onOpenChange={setIsFakeInstallerOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Download Desktop App</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-muted-foreground">
+            The Object Explorer and database connections are exclusively available in the DBLuna Desktop application.
+            <br /><br />
+            Download the desktop app to directly connect to your SQL Server and script out objects.
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFakeInstallerOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => setIsFakeInstallerOpen(false)} className="gap-2">
+              <Download className="w-4 h-4" />
+              Download Installer (Fake)
             </Button>
           </DialogFooter>
         </DialogContent>
