@@ -1090,6 +1090,13 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     [camera.x, camera.y, camera.zoom]
   );
 
+  // Viewport Culling Bounds (with generous margin to prevent clipping)
+  const CULL_MARGIN = 1500;
+  const vLeft = -camera.x / camera.zoom - CULL_MARGIN;
+  const vTop = -camera.y / camera.zoom - CULL_MARGIN;
+  const vRight = (-camera.x + viewport.w) / camera.zoom + CULL_MARGIN;
+  const vBottom = (-camera.y + viewport.h) / camera.zoom + CULL_MARGIN;
+
   return (
     <div
       ref={rootRef}
@@ -1127,6 +1134,15 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
               const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, false);
 
               if (!start || !end) return null;
+
+              const minX = Math.min(start.x, end.x);
+              const maxX = Math.max(start.x, end.x);
+              const minY = Math.min(start.y, end.y);
+              const maxY = Math.max(start.y, end.y);
+
+              if (maxX < vLeft || minX > vRight || maxY < vTop || minY > vBottom) {
+                return null;
+              }
 
               const pathData = calculatePath(start.x, start.y, end.x, end.y);
               const mid = calculateMidpoint(start.x, start.y, end.x, end.y);
@@ -1228,6 +1244,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                   }
               }
 
+              if (adjustedX > vRight || adjustedY > vBottom || adjustedX < vLeft || adjustedY < vTop) return null;
+
               return (
               <g
                 key={area.id}
@@ -1260,6 +1278,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                 }
               }
 
+              if (adjustedX > vRight || adjustedY > vBottom || adjustedX < vLeft || adjustedY < vTop) return null;
+
               return (
               <g
                 key={note.id}
@@ -1291,6 +1311,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                     adjustedY = Math.round(adjustedY / 24) * 24;
                 }
               }
+
+              if (adjustedX > vRight || adjustedY > vBottom || adjustedX < vLeft || adjustedY < vTop) return null;
 
               return (
               <g
