@@ -7,7 +7,6 @@ type Camera = { x: number; y: number; zoom: number };
 
 export function Minimap({
   className,
-  world,
   viewport,
   camera,
   tables = [],
@@ -16,7 +15,6 @@ export function Minimap({
   onRecenter,
 }: {
   className?: string;
-  world: { w: number; h: number };
   viewport: { w: number; h: number };
   camera: Camera;
   tables?: { id: string; x: number; y: number; width?: number; height?: number }[];
@@ -26,10 +24,6 @@ export function Minimap({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const size = { w: 220, h: 160 };
-
-  const scale = useMemo(() => {
-    return Math.min(size.w / world.w, size.h / world.h);
-  }, [size.w, size.h, world.w, world.h]);
 
   // Convert camera -> visible world rect:
   const viewWorld = useMemo(() => {
@@ -46,14 +40,44 @@ export function Minimap({
     };
   }, [camera.x, camera.y, camera.zoom, viewport.w, viewport.h]);
 
+  const bounds = useMemo(() => {
+    let minX = viewWorld.x;
+    let minY = viewWorld.y;
+    let maxX = viewWorld.x + viewWorld.w;
+    let maxY = viewWorld.y + viewWorld.h;
+
+    const expand = (x: number, y: number, w: number, h: number) => {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + w > maxX) maxX = x + w;
+      if (y + h > maxY) maxY = y + h;
+    };
+
+    tables.forEach(t => expand(t.x, t.y, t.width ?? 220, t.height ?? 100));
+    notes.forEach(n => expand(n.x, n.y, n.width, n.height));
+    areas.forEach(a => expand(a.x, a.y, a.width, a.height));
+
+    const padding = 500;
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }, [tables, notes, areas, viewWorld]);
+
+  const scale = useMemo(() => {
+    return Math.min(size.w / bounds.w, size.h / bounds.h);
+  }, [size.w, size.h, bounds.w, bounds.h]);
+
   const viewMini = useMemo(() => {
     return {
-      x: viewWorld.x * scale,
-      y: viewWorld.y * scale,
+      x: (viewWorld.x - bounds.x) * scale,
+      y: (viewWorld.y - bounds.y) * scale,
       w: viewWorld.w * scale,
       h: viewWorld.h * scale,
     };
-  }, [viewWorld, scale]);
+  }, [viewWorld, bounds, scale]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ref.current) return;
@@ -61,8 +85,8 @@ export function Minimap({
     const mx = e.clientX - r.left;
     const my = e.clientY - r.top;
 
-    const worldX = mx / scale;
-    const worldY = my / scale;
+    const worldX = (mx / scale) + bounds.x;
+    const worldY = (my / scale) + bounds.y;
 
     onRecenter(worldX, worldY);
   };
@@ -83,18 +107,10 @@ export function Minimap({
       <div className="relative h-full w-full overflow-hidden rounded-lg bg-muted/40">
         <MinimapContent
           scale={scale}
+          bounds={bounds}
           tables={tables}
           notes={notes}
           areas={areas}
-        />
-
-        {/* World bounds border */}
-        <div
-          className="absolute left-0 top-0 border border-border/60 pointer-events-none"
-          style={{
-            width: world.w * scale,
-            height: world.h * scale,
-          }}
         />
 
         {/* Viewport rect */}
@@ -117,11 +133,13 @@ export function Minimap({
 const MinimapContent = React.memo(
   ({
     scale,
+    bounds,
     tables,
     notes,
     areas,
   }: {
     scale: number;
+    bounds: { x: number; y: number; w: number; h: number };
     tables: { id: string; x: number; y: number; width?: number; height?: number }[];
     notes: { id: string; x: number; y: number; width: number; height: number }[];
     areas: { id: string; x: number; y: number; width: number; height: number }[];
@@ -134,8 +152,8 @@ const MinimapContent = React.memo(
             key={area.id}
             className="absolute border border-indigo-500/30 bg-indigo-500/10 rounded-[1px]"
             style={{
-              left: area.x * scale,
-              top: area.y * scale,
+              left: (area.x - bounds.x) * scale,
+              top: (area.y - bounds.y) * scale,
               width: area.width * scale,
               height: area.height * scale,
             }}
@@ -149,8 +167,8 @@ const MinimapContent = React.memo(
             // Using a distinct color for notes (yellow-ish)
             className="absolute bg-amber-200/50 dark:bg-amber-500/50 rounded-[1px]"
             style={{
-              left: note.x * scale,
-              top: note.y * scale,
+              left: (note.x - bounds.x) * scale,
+              top: (note.y - bounds.y) * scale,
               width: note.width * scale,
               height: note.height * scale,
             }}
@@ -163,10 +181,8 @@ const MinimapContent = React.memo(
             key={table.id}
             className="absolute bg-foreground/20 rounded-[1px]"
             style={{
-              left: table.x * scale,
-              top: table.y * scale,
-              // Tables might not have explicit width in store depending on implementation
-              // Defaulting to typical table size if missing
+              left: (table.x - bounds.x) * scale,
+              top: (table.y - bounds.y) * scale,
               width: (table.width ?? 220) * scale,
               height: (table.height ?? 100) * scale,
             }}

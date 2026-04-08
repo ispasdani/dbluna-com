@@ -4,22 +4,20 @@ import { useMemo } from "react";
 import type { CanvasBackground } from "@/store/useCanvasStore";
 
 export function WorldBackground({
-  w,
-  h,
+  camera,
   variant,
 }: {
-  w: number;
-  h: number;
+  camera: { x: number; y: number; zoom: number };
   variant: CanvasBackground;
 }) {
-  const minor = 24;
+  const minor = 24 * camera.zoom;
   const major = minor * 5;
 
   const style = useMemo<React.CSSProperties>(() => {
     if (variant === "dots") {
       return {
-        width: w,
-        height: h,
+        width: "100%",
+        height: "100%",
         position: "absolute",
         inset: 0,
         pointerEvents: "none",
@@ -27,14 +25,14 @@ export function WorldBackground({
         backgroundImage:
           "radial-gradient(var(--canvas-dots) 1px, transparent 1px)",
         backgroundSize: `${minor}px ${minor}px`,
-        backgroundPosition: "0 0",
+        backgroundPosition: `${camera.x}px ${camera.y}px`,
       };
     }
 
     // variant === "grid"
     return {
-      width: w,
-      height: h,
+      width: "100%",
+      height: "100%",
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
@@ -55,9 +53,9 @@ export function WorldBackground({
         `${major}px ${major}px`,
       ].join(","),
 
-      backgroundPosition: "0 0, 0 0, 0 0, 0 0",
+      backgroundPosition: `${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px`,
     };
-  }, [w, h, variant]);
+  }, [camera.x, camera.y, minor, major, variant]);
 
   return <div style={style} />;
 }

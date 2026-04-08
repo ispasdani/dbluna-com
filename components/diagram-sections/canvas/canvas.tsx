@@ -11,8 +11,7 @@ import { NoteNode } from "./note-node";
 import { AreaNode } from "./area-node";
 import styles from "./canvas.module.scss";
 
-const WORLD_WIDTH = 6000;
-const WORLD_HEIGHT = 6000;
+
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -50,7 +49,6 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   const zoomAt = useEditorStore((s) => s.zoomAt);
 
   const setViewportStore = useEditorStore((s) => s.setViewport);
-  const setWorldStore = useEditorStore((s) => s.setWorld);
   const setCameraXY = useEditorStore((s) => s.setCameraXY);
 
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
@@ -70,10 +68,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     setEditorDiagramId(diagramId);
   }, [diagramId, setDiagramId, setEditorDiagramId]);
 
-  // Tell store the world bounds (so clamping uses the same world as the grid)
-  useEffect(() => {
-    setWorldStore(WORLD_WIDTH, WORLD_HEIGHT);
-  }, [setWorldStore]);
+
 
   // Measure viewport (so minimap + zoomAt math is correct) + inform store (for clamping)
   useEffect(() => {
@@ -1108,24 +1103,22 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
         onPointerUp={onPointerUp}
         style={{ cursor: spaceDown ? "grab" : "default" }}
       >
+        <WorldBackground
+          camera={camera}
+          variant={background}
+        />
         <div
           className="absolute left-0 top-0 origin-top-left"
           style={{
-            width: WORLD_WIDTH,
-            height: WORLD_HEIGHT,
+            width: 1,
+            height: 1,
             transform: worldTransform,
           }}
         >
-          <WorldBackground
-            w={WORLD_WIDTH}
-            h={WORLD_HEIGHT}
-            variant={background}
-          />
-
           {/* SVG Layer for Tables */}
           <svg
-            width={WORLD_WIDTH}
-            height={WORLD_HEIGHT}
+            width={1}
+            height={1}
             className="absolute inset-0 overflow-visible pointer-events-none"
           >
             {/* Existing Relationships */}
@@ -1337,7 +1330,6 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       {/* Minimap overlay */}
       <Minimap
         className="absolute bottom-4 right-4"
-        world={{ w: WORLD_WIDTH, h: WORLD_HEIGHT }}
         viewport={viewport}
         camera={camera}
         tables={tables}
