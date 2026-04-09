@@ -9,6 +9,7 @@ import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDesktopDiagramAutosave } from "@/hooks/use-desktop-diagram-autosave";
 import DatabaseExplorer from "@/components/desktop-explorer-workspace";
+import { DocsLayout } from "@/components/documentation/docs-layout";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -67,7 +68,7 @@ export default function DiagramPage({ params }: PageProps) {
 
       {/* Work area */}
       <div className="relative flex-1 overflow-hidden w-full flex">
-        {workspaceMode === "diagram" ? (
+        {workspaceMode === "diagram" && (
           <>
             {/* Canvas is ALWAYS full size (fixed) */}
             <div className="absolute inset-0">
@@ -101,9 +102,9 @@ export default function DiagramPage({ params }: PageProps) {
               </div>
             )}
           </>
-        ) : (
-          <DatabaseExplorer />
         )}
+        {workspaceMode === "explorer" && <DatabaseExplorer />}
+        {workspaceMode === "docs" && <DocsLayout />}
       </div>
     </div>
   );

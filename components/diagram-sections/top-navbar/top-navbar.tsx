@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus, Pencil, Database, Download } from "lucide-react";
+import { ChevronDown, Plus, Pencil, Database, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -137,6 +137,16 @@ export function TopNavbar() {
           >
             <Database className="w-4 h-4" />
             <span className="hidden sm:inline">Object Explorer</span>
+          </Button>
+
+          <Button 
+            variant={workspaceMode === "docs" ? "secondary" : "ghost"}
+            size="sm"
+            className="gap-2"
+            onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
+          >
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">DBML Docs</span>
           </Button>
 
           <SavingIndicator />
