@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
+import { DownloadCloud } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
+import { useCanvasStore } from "@/store/useCanvasStore";
+import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
 
@@ -37,7 +41,10 @@ Table merchants {
 Ref: orders.user_id > users.id
 Ref: orders.merchant_id > merchants.id
 `);
+    
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
+    const canvasTables = useCanvasStore(s => s.tables);
+    const canvasRelationships = useCanvasStore(s => s.relationships);
 
     useEffect(() => {
         const parsed = parseDbml(dslCode);
@@ -46,12 +53,21 @@ Ref: orders.merchant_id > merchants.id
         }
     }, [dslCode, setParsedDbml]);
 
+    const handleSyncCanvas = () => {
+        const generated = generateDbmlFromCanvas(canvasTables, canvasRelationships);
+        setDslCode(generated);
+    };
+
     return (
         <div className="flex h-full w-full bg-background border-t border-border overflow-hidden">
             {/* Editor Pane (Left) */}
             <div className="w-1/3 border-r border-border flex flex-col bg-[#1e1e1e]">
-                <div className="px-4 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center">
-                    DBML Editor
+                <div className="px-4 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between">
+                    <span>DBML Editor</span>
+                    <Button variant="ghost" size="sm" onClick={handleSyncCanvas} className="h-6 text-xs text-blue-500 hover:text-blue-400 hover:bg-blue-500/10">
+                        <DownloadCloud className="w-3.5 h-3.5 mr-1" />
+                        Sync from Canvas
+                    </Button>
                 </div>
                 <div className="flex-1 relative">
                     <Editor
