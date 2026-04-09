@@ -3,41 +3,31 @@
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { TableDocView } from "./table-view";
 import { RelationshipDocView } from "./relationship-view";
-import ReactMarkdown from "react-markdown";
+import { ProjectOverview } from "./project-overview";
+import { AlertTriangle } from "lucide-react";
 
 export const DocumentationViewer = () => {
-    const { parsedDbml, tables, project, selectedTableId } = useDocumentationStore();
+    const { parsedDbml, tables, selectedTableId } = useDocumentationStore();
 
+    // No parsed DBML at all (syntax error or empty editor)
     if (!parsedDbml) {
         return (
-            <div className="h-full flex items-center justify-center text-muted-foreground flex-col gap-4">
-                <div className="text-lg font-medium">Syntax Error in DBML</div>
-                <div className="text-sm max-w-md text-center">Failed to parse DBML code. Please check your syntax in the editor.</div>
+            <div className="h-full flex items-center justify-center flex-col gap-3 text-muted-foreground">
+                <AlertTriangle className="w-8 h-8 opacity-50" />
+                <div className="text-sm font-medium">DBML Syntax Error</div>
+                <div className="text-xs max-w-sm text-center opacity-70">
+                    The editor contains invalid DBML. Check your syntax — all output will appear here once the code is valid.
+                </div>
             </div>
         );
     }
 
-    // No table selected → show Project Overview
+    // No table selected → show the Project Overview / README page
     if (!selectedTableId) {
-        const title = project?.name || "Database Documentation";
-        const note = project?.note || "Select a table from the sidebar to view its schema details, columns, and relationships.";
-
-        return (
-            <div className="max-w-4xl mx-auto py-10 animate-in fade-in">
-                <h1 className="text-4xl font-bold tracking-tight mb-6">{title}</h1>
-                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                    <ReactMarkdown>{note}</ReactMarkdown>
-                </div>
-
-                <div className="mt-12 p-8 border border-dashed border-border rounded-xl flex items-center justify-center text-muted-foreground bg-accent/20">
-                    Select a table from the sidebar to inspect
-                </div>
-            </div>
-        );
+        return <ProjectOverview />;
     }
 
     const activeTable = tables.find((t) => t.id === selectedTableId) ?? null;
-
     if (!activeTable) return null;
 
     return (
