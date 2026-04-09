@@ -13,7 +13,7 @@ export const TableDocView = ({ table }: { table: any }) => {
                 <h1 className="text-3xl font-bold tracking-tight">{table.name}</h1>
                 {table.note ? (
                     <div className="mt-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                        <ReactMarkdown>{table.note}</ReactMarkdown>
+                        <ReactMarkdown>{table.note?.value ?? table.note}</ReactMarkdown>
                     </div>
                 ) : (
                     <p className="mt-2 text-sm text-muted-foreground italic">No description provided.</p>
@@ -52,7 +52,7 @@ export const TableDocView = ({ table }: { table: any }) => {
                                         )}
                                         {field.note && (
                                             <div className="text-muted-foreground prose prose-sm dark:prose-invert">
-                                                <ReactMarkdown>{field.note}</ReactMarkdown>
+                                                <ReactMarkdown>{field.note?.value ?? field.note}</ReactMarkdown>
                                             </div>
                                         )}
                                     </div>

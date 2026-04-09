@@ -6,7 +6,7 @@ import { RelationshipDocView } from "./relationship-view";
 import ReactMarkdown from "react-markdown";
 
 export const DocumentationViewer = () => {
-    const { parsedDbml, selectedTableId } = useDocumentationStore();
+    const { parsedDbml, tables, project, selectedTableId } = useDocumentationStore();
 
     if (!parsedDbml) {
         return (
@@ -17,17 +17,18 @@ export const DocumentationViewer = () => {
         );
     }
 
+    // No table selected → show Project Overview
     if (!selectedTableId) {
-        const title = parsedDbml.project?.name || "Database Documentation";
-        const note = parsedDbml.project?.note || "Select a table from the sidebar to view its schema details, columns, and relationships.";
-        
+        const title = project?.name || "Database Documentation";
+        const note = project?.note || "Select a table from the sidebar to view its schema details, columns, and relationships.";
+
         return (
             <div className="max-w-4xl mx-auto py-10 animate-in fade-in">
                 <h1 className="text-4xl font-bold tracking-tight mb-6">{title}</h1>
                 <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
                     <ReactMarkdown>{note}</ReactMarkdown>
                 </div>
-                
+
                 <div className="mt-12 p-8 border border-dashed border-border rounded-xl flex items-center justify-center text-muted-foreground bg-accent/20">
                     Select a table from the sidebar to inspect
                 </div>
@@ -35,11 +36,7 @@ export const DocumentationViewer = () => {
         );
     }
 
-    let activeTable = null;
-    parsedDbml.schemas.forEach((s: any) => {
-        const found = s.tables.find((t: any) => t.id === selectedTableId);
-        if (found) activeTable = found;
-    });
+    const activeTable = tables.find((t) => t.id === selectedTableId) ?? null;
 
     if (!activeTable) return null;
 

@@ -4,16 +4,17 @@ import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { ArrowLeftRight, Link as LinkIcon } from "lucide-react";
 
 export const RelationshipDocView = ({ table }: { table: any }) => {
-    const { parsedDbml, setSelectedTableId } = useDocumentationStore();
+    const { parsedDbml, tables, setSelectedTableId } = useDocumentationStore();
     
     if (!table || !parsedDbml) return null;
 
-    // A DBML ast might store endpoints globally or inside schema refs
+    // Traverse the raw AST for all endpoints (refs)
+    const raw = parsedDbml.raw;
     let allEndpoints: any[] = [];
-    if (parsedDbml.endpoints) {
-        allEndpoints = parsedDbml.endpoints;
-    } else if (parsedDbml.schemas) {
-        parsedDbml.schemas.forEach((s: any) => {
+    if (raw.endpoints) {
+        allEndpoints = raw.endpoints;
+    } else if (raw.schemas) {
+        raw.schemas.forEach((s: any) => {
             if (s.endpoints) {
                 allEndpoints.push(...s.endpoints);
             } else if (s.refs) {
@@ -47,13 +48,9 @@ export const RelationshipDocView = ({ table }: { table: any }) => {
                     const otherEp = isIncoming ? ep1 : ep2;
                     const thisEp = isIncoming ? ep2 : ep1;
 
-                    // Match table ID from parsed schema
-                    let targetTableId: number | null = null;
-                    parsedDbml.schemas.forEach((s: any) => {
-                        s.tables.forEach((t: any) => {
-                            if (t.name === otherEp.tableName) targetTableId = t.id;
-                        });
-                    });
+                    // Use the flat tables list from the store
+                    const targetTable = tables.find((t) => t.name === otherEp.tableName);
+                    const targetTableId = targetTable?.id ?? null;
 
                     return (
                         <div key={idx} className="p-4 rounded-lg border border-border bg-sidebar hover:bg-accent/50 transition-colors cursor-pointer group" onClick={() => targetTableId && setSelectedTableId(targetTableId)}>
