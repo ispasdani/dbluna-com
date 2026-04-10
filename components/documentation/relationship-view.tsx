@@ -2,6 +2,7 @@
 
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { ArrowLeftRight, Link as LinkIcon } from "lucide-react";
+import { RelationshipDiagram } from "./relationship-diagram";
 
 export const RelationshipDocView = ({ table }: { table: any }) => {
     const { parsedDbml, tables, setSelectedTableId } = useDocumentationStore();
@@ -70,6 +71,8 @@ export const RelationshipDocView = ({ table }: { table: any }) => {
                     );
                 })}
             </div>
+            {/* Mini-Diagram: Visual relationship graph */}
+            <RelationshipDiagram table={table} />
         </div>
     );
 };
