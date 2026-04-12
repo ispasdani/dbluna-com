@@ -5,10 +5,10 @@ import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
 import { json } from "@codemirror/lang-json";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { useEditorStore } from "@/store/useEditorStore";
 import { Parser } from "@dbml/core";
-import { Copy, Download, FileCode, Check, AlertCircle, ChevronDown } from "lucide-react";
+import { Copy, Download, FileCode, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "motion/react";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 
@@ -70,7 +70,7 @@ export function CodeEditor() {
   const [language, setLanguage] = useState<EditorLanguage>("dbml");
   const [copied, setCopied] = useState(false);
 
-  const debouncedCode = useDebounce(code, 800);
+  const debouncedCode = useDebounce(code, 400);
   const isTypingRef = useRef(false);
 
   // Custom Linter (Only for DBML currently)
@@ -164,7 +164,7 @@ export function CodeEditor() {
     try {
       if (language === "json") {
         const newTables = jsonToTables(debouncedCode);
-        // Basic validation succeeded if no throw
+        isTypingRef.current = false;
         setTables(newTables);
         return;
       }
@@ -178,13 +178,23 @@ export function CodeEditor() {
       const database = Parser.parse(debouncedCode, "dbml");
       const schema = database.schemas[0];
 
-      const newTables = schema.tables.map((dbTable: any) => {
-        const existingTable = tables.find(t => t.name === dbTable.name);
+      // Read tables fresh from the store (not stale closure) to get current positions
+      const currentTables = useCanvasStore.getState().tables;
+
+      // For new tables: position them near the current viewport center
+      const { camera, viewport } = useEditorStore.getState();
+      const viewCenterX = viewport.w / 2;
+      const viewCenterY = viewport.h / 2;
+      const worldCenterX = (viewCenterX - camera.x) / camera.zoom;
+      const worldCenterY = (viewCenterY - camera.y) / camera.zoom;
+
+      const newTables = schema.tables.map((dbTable: any, index: number) => {
+        const existingTable = currentTables.find(t => t.name === dbTable.name);
 
         const newColumns = dbTable.fields.map((field: any) => {
           const existingCol = existingTable?.columns.find(c => c.name === field.name);
           return {
-            id: existingCol?.id || crypto.randomUUID(),
+            id: existingCol?.id ?? crypto.randomUUID(),
             name: field.name,
             type: field.type.type_name.toUpperCase(),
             isPrimaryKey: field.pk || false,
@@ -194,23 +204,32 @@ export function CodeEditor() {
           };
         });
 
+        // Use nullish coalescing (??) so x=0 / y=0 are treated as valid positions.
+        // New tables are staggered from viewport center so they're immediately visible.
+        const defaultX = worldCenterX - 110 + index * 40;
+        const defaultY = worldCenterY - 60 + index * 40;
+
         return {
-          id: existingTable?.id || crypto.randomUUID(),
+          id: existingTable?.id ?? crypto.randomUUID(),
           name: dbTable.name,
-          x: existingTable?.x || Math.random() * 500,
-          y: existingTable?.y || Math.random() * 500,
-          color: existingTable?.color || "#6366f1", // fallback color
-          columns: newColumns
+          x: existingTable?.x ?? defaultX,
+          y: existingTable?.y ?? defaultY,
+          color: existingTable?.color ?? "#6366f1",
+          isLocked: existingTable?.isLocked ?? false,
+          comment: existingTable?.comment,
+          columns: newColumns,
         };
       });
 
-      setTables(newTables);
+      // Clear the typing flag BEFORE setTables so the Canvas->Code effect
+      // doesn't immediately overwrite the editor on the next render.
       isTypingRef.current = false;
+      setTables(newTables);
 
     } catch (e: any) {
-      // Errors are handled by the linter or ignored for now
+      // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }
-  }, [debouncedCode, setTables, language]); // Exclude 'tables' to avoid loops, but language change triggers re-parse? No, language change triggers Code gen first.
+  }, [debouncedCode, setTables, language]);
 
   const handleChange = useCallback((val: string) => {
     isTypingRef.current = true;
