@@ -114,6 +114,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>("");
   const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
+  const pendingTablesRef = useRef<{name: string; columns: {name: string; type: string; isPk?: boolean; isNotNull?: boolean}[]}[]>([]);
 
   const handleField = (key: keyof DbConnectionForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -171,8 +172,8 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       setStatus("success");
       setMessage(`Found ${rawTables.length} table(s). Click "Import to Canvas" to add them.`);
 
-      // Store for import
-      (handleConnect as any)._pendingTables = rawTables;
+      // Store for import via ref (stable across renders)
+      pendingTablesRef.current = rawTables;
     } catch (err: any) {
       setStatus("error");
       setMessage(err?.message ?? "Connection failed. Check your credentials and try again.");
@@ -180,10 +181,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   };
 
   const handleImport = () => {
-    const rawTables: {
-      name: string;
-      columns: { name: string; type: string; isPk?: boolean; isNotNull?: boolean }[];
-    }[] = (handleConnect as any)._pendingTables ?? [];
+    const rawTables = pendingTablesRef.current;
 
     if (rawTables.length === 0) return;
 
@@ -208,7 +206,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
     setStatus("idle");
     setMessage(`✓ Imported ${canvasTables.length} table(s) to canvas.`);
     setPreview(null);
-    (handleConnect as any)._pendingTables = [];
+    pendingTablesRef.current = [];
   };
 
   const isReady = form.host && form.port && form.user && form.database;
@@ -270,12 +268,12 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
 
         <div className="col-span-2 flex flex-col gap-1.5">
           <Label className="text-xs text-muted-foreground">
-            {engine === "oracle" ? "Service Name / SID" : "Database Name"}
+            Database Name
           </Label>
           <Input
             value={form.database}
             onChange={(e) => handleField("database", e.target.value)}
-            placeholder={engine === "oracle" ? "ORCL" : "my_database"}
+            placeholder="my_database"
             className="h-9 bg-background border-border text-sm"
           />
         </div>
@@ -528,7 +526,6 @@ function EngineBadge({ engine }: { engine: DbEngine }) {
   const colors: Record<DbEngine, string> = {
     mysql: "text-orange-400",
     postgresql: "text-sky-400",
-    oracle: "text-red-400",
   };
   return (
     <span className={`font-semibold text-[11px] uppercase tracking-wider ${colors[engine]}`}>
@@ -562,8 +559,8 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
 
         <div className="flex-1 overflow-y-auto p-5">
           <Tabs defaultValue="mysql">
-            <TabsList className="mb-5 h-9 w-full grid grid-cols-4 bg-background border border-border rounded-lg p-0.5">
-              {(["mysql", "postgresql", "oracle"] as DbEngine[]).map((engine) => (
+            <TabsList className="mb-5 h-9 w-full grid grid-cols-3 bg-background border border-border rounded-lg p-0.5">
+              {(["mysql", "postgresql"] as DbEngine[]).map((engine) => (
                 <TabsTrigger
                   key={engine}
                   value={engine}
@@ -580,7 +577,7 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
               </TabsTrigger>
             </TabsList>
 
-            {(["mysql", "postgresql", "oracle"] as DbEngine[]).map((engine) => (
+            {(["mysql", "postgresql"] as DbEngine[]).map((engine) => (
               <TabsContent key={engine} value={engine} className="mt-0 focus-visible:outline-none">
                 <div className="mb-4 flex items-center gap-2">
                   <div className="h-px flex-1 bg-border" />
