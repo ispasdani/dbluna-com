@@ -33,7 +33,7 @@ interface ImportSchemaDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type DbEngine = "mysql" | "postgresql" | "oracle";
+type DbEngine = "mysql" | "postgresql" | "oracle" | "sqlserver";
 
 interface DbConnectionForm {
   host: string;
@@ -52,12 +52,14 @@ const DEFAULT_PORTS: Record<DbEngine, string> = {
   mysql: "3306",
   postgresql: "5432",
   oracle: "1521",
+  sqlserver: "1433",
 };
 
 const ENGINE_LABELS: Record<DbEngine, string> = {
   mysql: "MySQL",
   postgresql: "PostgreSQL",
   oracle: "Oracle SQL",
+  sqlserver: "SQL Server",
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -133,7 +135,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       const isElectron = typeof window !== "undefined" && (window as any).electron;
 
       let result: any;
-      if (isElectron) {
+      if (isElectron && (window as any).electron.importSchema) {
         result = await (window as any).electron.importSchema({
           engine,
           host: form.host,
@@ -526,6 +528,8 @@ function EngineBadge({ engine }: { engine: DbEngine }) {
   const colors: Record<DbEngine, string> = {
     mysql: "text-orange-400",
     postgresql: "text-sky-400",
+    oracle: "text-red-500",
+    sqlserver: "text-indigo-400",
   };
   return (
     <span className={`font-semibold text-[11px] uppercase tracking-wider ${colors[engine]}`}>
@@ -559,8 +563,8 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
 
         <div className="flex-1 overflow-y-auto p-5">
           <Tabs defaultValue="mysql">
-            <TabsList className="mb-5 h-9 w-full grid grid-cols-3 bg-background border border-border rounded-lg p-0.5">
-              {(["mysql", "postgresql"] as DbEngine[]).map((engine) => (
+            <TabsList className="mb-5 h-9 w-full grid grid-cols-4 bg-background border border-border rounded-lg p-0.5">
+              {(["mysql", "postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
                 <TabsTrigger
                   key={engine}
                   value={engine}
@@ -577,7 +581,7 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
               </TabsTrigger>
             </TabsList>
 
-            {(["mysql", "postgresql"] as DbEngine[]).map((engine) => (
+            {(["mysql", "postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
               <TabsContent key={engine} value={engine} className="mt-0 focus-visible:outline-none">
                 <div className="mb-4 flex items-center gap-2">
                   <div className="h-px flex-1 bg-border" />
