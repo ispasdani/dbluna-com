@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type Engine = "mysql" | "postgresql" | "sqlserver";
+type Engine = "postgresql" | "sqlserver";
 
 interface ImportSchemaBody {
   engine: Engine;
@@ -21,46 +21,6 @@ interface ColumnInfo {
 interface TableInfo {
   name: string;
   columns: ColumnInfo[];
-}
-
-// ─── MySQL ────────────────────────────────────────────────────────────────────
-async function fetchMysqlSchema(body: ImportSchemaBody): Promise<TableInfo[]> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mysql = require("mysql2/promise");
-  // Node.js resolves "localhost" to ::1 (IPv6) first on modern systems; MySQL
-  // typically only listens on 127.0.0.1 (IPv4), causing ECONNREFUSED. Force IPv4.
-  const host = body.host === "localhost" ? "127.0.0.1" : body.host;
-  const conn = await mysql.createConnection({
-    host,
-    port: body.port,
-    user: body.user,
-    password: body.password,
-    database: body.database,
-    connectTimeout: 8000,
-  });
-
-  try {
-    const [cols]: any[] = await conn.execute(
-      `SELECT
-         c.TABLE_NAME         AS table_name,
-         c.COLUMN_NAME        AS column_name,
-         c.DATA_TYPE          AS data_type,
-         c.IS_NULLABLE        AS is_nullable,
-         IF(kcu.COLUMN_NAME IS NOT NULL, 1, 0) AS is_pk
-       FROM INFORMATION_SCHEMA.COLUMNS c
-       LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-         ON kcu.TABLE_SCHEMA = c.TABLE_SCHEMA
-        AND kcu.TABLE_NAME   = c.TABLE_NAME
-        AND kcu.COLUMN_NAME  = c.COLUMN_NAME
-        AND kcu.CONSTRAINT_NAME = 'PRIMARY'
-       WHERE c.TABLE_SCHEMA = ?
-       ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION`,
-      [body.database]
-    );
-    return groupColumns(cols);
-  } finally {
-    await conn.end();
-  }
 }
 
 // ─── PostgreSQL ───────────────────────────────────────────────────────────────
@@ -196,9 +156,7 @@ export async function POST(req: NextRequest) {
 
   try {
     let tables: TableInfo[];
-    if (engine === "mysql") {
-      tables = await fetchMysqlSchema(body);
-    } else if (engine === "postgresql") {
+    if (engine === "postgresql") {
       tables = await fetchPostgresSchema(body);
     } else if (engine === "sqlserver") {
       tables = await fetchSqlServerSchema(body);
@@ -210,7 +168,7 @@ export async function POST(req: NextRequest) {
     const msg: string = err?.message ?? String(err);
     // Friendly message for missing native drivers
     if (msg.includes("Cannot find module")) {
-      const pkg = engine === "mysql" ? "mysql2" : engine === "sqlserver" ? "mssql" : "pg";
+      const pkg = engine === "sqlserver" ? "mssql" : "pg";
       return NextResponse.json(
         {
           success: false,
