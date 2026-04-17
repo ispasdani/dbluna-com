@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanvasStore, Table as CanvasTable, TABLE_COLORS } from "@/store/useCanvasStore";
 import dagre from "@dagrejs/dagre";
+import JSZip from "jszip";
 import {
   Database,
   FileText,
@@ -63,7 +64,7 @@ const ENGINE_LABELS: Record<DbEngine, string> = {
 /* ─────────────────────────────────────────────────────────────────────────────
    Utility: layout tables with dagre and push to canvas
 ───────────────────────────────────────────────────────────────────────────── */
-function layoutAndImport(tables: CanvasTable[], relationships?: { sourceId: string; targetId: string }[]) {
+function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "LR", ranksep: 220, nodesep: 80 });
   g.setDefaultEdgeLabel(() => ({}));
@@ -76,7 +77,8 @@ function layoutAndImport(tables: CanvasTable[], relationships?: { sourceId: stri
   }
 
   for (const rel of relationships ?? []) {
-    g.setEdge(rel.sourceId, rel.targetId);
+    // If it's a legacy map `{sourceId, targetId}` use that, otherwise use `sourceTableId` / `targetTableId`
+    g.setEdge(rel.sourceId || rel.sourceTableId, rel.targetId || rel.targetTableId);
   }
 
   dagre.layout(g);
@@ -86,7 +88,27 @@ function layoutAndImport(tables: CanvasTable[], relationships?: { sourceId: stri
     return { ...t, x: node.x - NODE_WIDTH / 2, y: node.y - node.height / 2 };
   });
 
-  useCanvasStore.setState((s) => ({ tables: [...s.tables, ...positioned] }));
+  useCanvasStore.setState((s) => {
+    const newRelationships = (relationships ?? []).map(r => {
+       if (r.sourceTableId) return r; // already a valid store relationship
+       return {
+         id: crypto.randomUUID(),
+         name: "",
+         sourceTableId: r.sourceId,
+         sourceColumnId: "",
+         targetTableId: r.targetId,
+         targetColumnId: "",
+         cardinality: "One to many",
+         onUpdate: "No action",
+         onDelete: "No action"
+       };
+    });
+
+    return { 
+      tables: [...s.tables, ...positioned],
+      relationships: [...s.relationships, ...newRelationships]
+    };
+  });
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -520,6 +542,237 @@ function CsvImportTab() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Sub-component: BACPAC Import Tab
+───────────────────────────────────────────────────────────────────────────── */
+function BacpacImportTab() {
+  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [message, setMessage] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  
+  const pendingDataRef = useRef<{ tables: any[]; relationships: any[] }>({ tables: [], relationships: [] });
+  const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.toLowerCase().endsWith(".bacpac")) {
+      setFile(f);
+      setStatus("idle");
+      setPreview(null);
+      setMessage("");
+    }
+  };
+
+  const handleConnect = async () => {
+    if (!file) return;
+    setStatus("loading");
+    setMessage("");
+    setPreview(null);
+
+    try {
+      setMessage("Extracting model.xml locally...");
+      const zip = new JSZip();
+      const loadedZip = await zip.loadAsync(file);
+      const xmlFile = loadedZip.file("model.xml");
+      
+      if (!xmlFile) {
+        throw new Error("Could not find model.xml inside this BACPAC file");
+      }
+      
+      // We extract it strictly as a Blob to easily POST to backend
+      const xmlBlob = await xmlFile.async("blob");
+
+      setMessage("Parsing database schema...");
+      const res = await fetch("/api/import-bacpac", {
+        method: "POST",
+        headers: { "Content-Type": "text/xml" },
+        body: xmlBlob,
+      });
+
+      const result = await res.json();
+      if (!result?.success) {
+        throw new Error(result?.error ?? "Unknown error");
+      }
+
+      const rawTables = result.tables ?? [];
+      const relationships = result.relationships ?? [];
+
+      setPreview(rawTables.map((t: any) => ({ tableName: t.name, columns: t.columns.map((c: any) => c.name) })));
+      setStatus("success");
+      setMessage(`Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`);
+
+      pendingDataRef.current = { tables: rawTables, relationships };
+    } catch (err: any) {
+      setStatus("error");
+      setMessage(err?.message ?? "Failed to parse BACPAC. Check the file and try again.");
+    }
+  };
+
+  const handleImport = () => {
+    const { tables: rawTables, relationships } = pendingDataRef.current;
+    if (rawTables.length === 0) return;
+
+    const canvasTables: CanvasTable[] = rawTables.map((t: any, i: number) => ({
+      id: crypto.randomUUID(),
+      name: t.name,
+      x: 0,
+      y: 0,
+      color: TABLE_COLORS[i % TABLE_COLORS.length],
+      columns: t.columns.map((c: any) => ({
+        id: crypto.randomUUID(),
+        name: c.name,
+        type: c.type || "VARCHAR",
+        isPrimaryKey: c.isPk ?? false,
+        isNotNull: c.isNotNull ?? false,
+        isUnique: false,
+        isAutoIncrement: false,
+      })),
+    }));
+
+    const tableMap = new Map(canvasTables.map(t => [t.name, t]));
+    const canvasRelationships = relationships
+      .map((r: any) => {
+        const sTbl = tableMap.get(r.sourceTable);
+        const tTbl = tableMap.get(r.targetTable);
+        if (!sTbl || !tTbl) return null;
+        
+        const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
+        const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
+
+        return {
+          id: crypto.randomUUID(),
+          name: "",
+          sourceTableId: sTbl.id,
+          sourceColumnId: sCol,
+          targetTableId: tTbl.id,
+          targetColumnId: tCol,
+          cardinality: "One to many",
+          onUpdate: "No action",
+          onDelete: "No action"
+        };
+      })
+      .filter(Boolean);
+
+    layoutAndImport(canvasTables, canvasRelationships);
+    
+    setStatus("idle");
+    setMessage(`✓ Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
+    setPreview(null);
+    pendingDataRef.current = { tables: [], relationships: [] };
+    setFile(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => fileRef.current?.click()}
+        className={`relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed py-10 cursor-pointer transition-all ${
+          isDragging
+            ? "border-indigo-500 bg-indigo-500/10"
+            : "border-border bg-background/40 hover:border-muted-foreground/50 hover:bg-background/60"
+        }`}
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/15 border border-indigo-500/30">
+          <Database className="h-6 w-6 text-indigo-400" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-foreground">{file ? file.name : "Drop a .bacpac file here"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "or click to select your SQL Server schema export"}</p>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".bacpac"
+          className="sr-only"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) {
+              setFile(f);
+              setStatus("idle");
+              setPreview(null);
+              setMessage("");
+            }
+          }}
+        />
+      </div>
+
+      {message && (
+        <div
+          className={`flex items-start gap-2.5 rounded-md px-3 py-2.5 text-sm border ${
+            status === "success"
+              ? "bg-green-500/10 border-green-500/30 text-green-400"
+              : status === "error"
+              ? "bg-red-500/10 border-red-500/30 text-red-400"
+              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
+          }`}
+        >
+          {status === "success" ? (
+            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+          ) : status === "error" ? (
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          ) : null}
+          <span>{message}</span>
+        </div>
+      )}
+
+      {preview && preview.length > 0 && (
+        <div className="rounded-md border border-border bg-background/60 overflow-hidden">
+          <div className="px-3 py-2 border-b border-border bg-sidebar flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Tables Preview
+            </span>
+            <span className="text-xs text-muted-foreground">{preview.length} tables</span>
+          </div>
+          <div className="max-h-40 overflow-y-auto divide-y divide-border">
+            {preview.map((t) => (
+              <div key={t.tableName} className="px-3 py-2 flex items-start gap-2">
+                <Database className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-xs font-medium text-foreground">{t.tableName}</span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {t.columns.slice(0, 5).join(", ")}
+                    {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-1">
+        <Button
+          onClick={handleConnect}
+          disabled={!file || status === "loading"}
+          variant="secondary"
+          className="flex-1 h-9 gap-2"
+        >
+          {status === "loading" ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Parsing…</>
+          ) : (
+            <><Database className="h-4 w-4" /> Parse Schema</>
+          )}
+        </Button>
+        <Button
+          onClick={handleImport}
+          disabled={status !== "success" || !preview?.length}
+          className="flex-1 h-9 gap-2 bg-indigo-600 hover:bg-indigo-500 text-white"
+        >
+          <Upload className="h-4 w-4" />
+          Import to Canvas
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Engine icon badge
 ───────────────────────────────────────────────────────────────────────────── */
 function EngineBadge({ engine }: { engine: DbEngine }) {
@@ -560,7 +813,7 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
 
         <div className="flex-1 overflow-y-auto p-5">
           <Tabs defaultValue="postgresql">
-            <TabsList className="mb-5 h-9 w-full grid grid-cols-3 bg-background border border-border rounded-lg p-0.5">
+            <TabsList className="mb-5 h-9 w-full grid grid-cols-4 bg-background border border-border rounded-lg p-0.5">
               {(["postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
                 <TabsTrigger
                   key={engine}
@@ -575,6 +828,12 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
                 className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
               >
                 CSV
+              </TabsTrigger>
+              <TabsTrigger
+                value="bacpac"
+                className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
+              >
+                BACPAC
               </TabsTrigger>
             </TabsList>
 
@@ -596,6 +855,15 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
                 <div className="h-px flex-1 bg-border" />
               </div>
               <CsvImportTab />
+            </TabsContent>
+
+            <TabsContent value="bacpac" className="mt-0 focus-visible:outline-none">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="font-semibold text-[11px] uppercase tracking-wider text-indigo-500">BACPAC</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <BacpacImportTab />
             </TabsContent>
           </Tabs>
         </div>
