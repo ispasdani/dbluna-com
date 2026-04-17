@@ -113,6 +113,9 @@ export async function POST(req: NextRequest) {
         if (isFk && node.name === "Relationship" && node.attributes?.Name === "ForeignTable") {
             currentFkStep = 2;
         }
+        if (isFk && node.name === "Relationship" && node.attributes?.Name === "ForeignColumns") {
+            currentFkStep = 3;
+        }
         if (node.name === "Relationship" && node.attributes?.Name === "Type") {
             isTypeRel = true;
         }
@@ -130,9 +133,12 @@ export async function POST(req: NextRequest) {
               }
             }
             if (isFk && currentFkStep === 2) {
+              fkTargetTable = node.attributes.Name;
+            }
+            if (isFk && currentFkStep === 3) {
               const parts = extractTableAndColumn(node.attributes.Name);
               if (parts) {
-                  fkTargetTable = parts.table;
+                  fkTargetTable = parts.table; // Ensure it overwrites just in case
                   fkTargetCol = parts.column;
               }
             }

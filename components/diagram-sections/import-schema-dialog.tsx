@@ -136,7 +136,10 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>("");
   const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
-  const pendingTablesRef = useRef<{name: string; columns: {name: string; type: string; isPk?: boolean; isNotNull?: boolean}[]}[]>([]);
+  const pendingDataRef = useRef<{
+    tables: { name: string; columns: { name: string; type: string; isPk?: boolean; isNotNull?: boolean }[] }[];
+    relationships: any[];
+  }>({ tables: [], relationships: [] });
 
   const handleField = (key: keyof DbConnectionForm, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -189,13 +192,14 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
         name: string;
         columns: { name: string; type: string; isPk?: boolean; isNotNull?: boolean }[];
       }[] = result.tables ?? [];
+      const relationships = result.relationships ?? [];
 
       setPreview(rawTables.map((t) => ({ tableName: t.name, columns: t.columns.map((c) => c.name) })));
       setStatus("success");
-      setMessage(`Found ${rawTables.length} table(s). Click "Import to Canvas" to add them.`);
+      setMessage(`Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`);
 
       // Store for import via ref (stable across renders)
-      pendingTablesRef.current = rawTables;
+      pendingDataRef.current = { tables: rawTables, relationships };
     } catch (err: any) {
       setStatus("error");
       setMessage(err?.message ?? "Connection failed. Check your credentials and try again.");
@@ -203,7 +207,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   };
 
   const handleImport = () => {
-    const rawTables = pendingTablesRef.current;
+    const { tables: rawTables, relationships } = pendingDataRef.current;
 
     if (rawTables.length === 0) return;
 
@@ -224,11 +228,35 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       })),
     }));
 
-    layoutAndImport(canvasTables);
+    const tableMap = new Map(canvasTables.map(t => [t.name, t]));
+    const canvasRelationships = relationships
+      .map((r: any) => {
+        const sTbl = tableMap.get(r.sourceTable);
+        const tTbl = tableMap.get(r.targetTable);
+        if (!sTbl || !tTbl) return null;
+        
+        const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
+        const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
+
+        return {
+          id: crypto.randomUUID(),
+          name: "",
+          sourceTableId: sTbl.id,
+          sourceColumnId: sCol,
+          targetTableId: tTbl.id,
+          targetColumnId: tCol,
+          cardinality: "One to many",
+          onUpdate: "No action",
+          onDelete: "No action"
+        };
+      })
+      .filter(Boolean);
+
+    layoutAndImport(canvasTables, canvasRelationships);
     setStatus("idle");
-    setMessage(`✓ Imported ${canvasTables.length} table(s) to canvas.`);
+    setMessage(`✓ Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
     setPreview(null);
-    pendingTablesRef.current = [];
+    pendingDataRef.current = { tables: [], relationships: [] };
   };
 
   const isReady = form.host && form.port && form.user && form.database;
