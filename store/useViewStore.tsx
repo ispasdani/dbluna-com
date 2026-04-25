@@ -9,8 +9,8 @@ type ViewState = {
   setLeftDockWidth: (w: number) => void;
   toggleLeftDock: () => void;
   
-  workspaceMode: 'diagram' | 'explorer' | 'docs';
-  setWorkspaceMode: (mode: 'diagram' | 'explorer' | 'docs') => void;
+  workspaceMode: 'diagram' | 'docs';
+  setWorkspaceMode: (mode: 'diagram' | 'docs') => void;
 };
 
 const clamp = (n: number, min: number, max: number) =>

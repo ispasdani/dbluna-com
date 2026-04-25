@@ -2,13 +2,11 @@
   "name": "dbluna-com",
   "version": "0.1.0",
   "private": true,
-  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:3000 && electron .\""
+    "lint": "eslint"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
@@ -51,13 +49,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sax": "^1.2.7",
-    "concurrently": "^9.2.1",
-    "cross-env": "^10.1.0",
-    "electron": "^41.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "wait-on": "^9.0.4"
+    "typescript": "^5"
   }
 }

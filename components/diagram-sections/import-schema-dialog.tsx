@@ -154,34 +154,19 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
     setPreview(null);
 
     try {
-      // In Electron, delegate to the main process. In browser, call the proxy API.
-      const isElectron = typeof window !== "undefined" && (window as any).electron;
-
-      let result: any;
-      if (isElectron && (window as any).electron.importSchema) {
-        result = await (window as any).electron.importSchema({
+      const res = await fetch("/api/import-schema", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           engine,
           host: form.host,
           port: parseInt(form.port, 10),
           user: form.user,
           password: form.password,
           database: form.database,
-        });
-      } else {
-        const res = await fetch("/api/import-schema", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            engine,
-            host: form.host,
-            port: parseInt(form.port, 10),
-            user: form.user,
-            password: form.password,
-            database: form.database,
-          }),
-        });
-        result = await res.json();
-      }
+        }),
+      });
+      const result = await res.json();
 
       if (!result?.success) {
         throw new Error(result?.error ?? "Unknown error");

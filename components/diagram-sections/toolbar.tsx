@@ -18,7 +18,6 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
-import { ErdGenerationDialog } from "./erd-generation-dialog";
 import { ImportSchemaDialog } from "./import-schema-dialog";
 
 export function TabLauncherBar() {
@@ -30,7 +29,6 @@ export function TabLauncherBar() {
   } = useViewStore();
   const { background, setBackground, snapToGrid, toggleSnapToGrid, addTable, addNote, addArea } =
     useCanvasStore();
-  const [showErdDialog, setShowErdDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   return (
@@ -146,19 +144,6 @@ export function TabLauncherBar() {
           Add Area
         </Button>
 
-        {/* Generate ERD Button */}
-        {typeof window !== "undefined" && (window as any).electron && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-white hover:text-white border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 gap-2 ml-2 transition-colors"
-              onClick={() => setShowErdDialog(true)}
-            >
-              <Database className="h-4 w-4 text-blue-400" />
-              Generate ERD
-            </Button>
-        )}
-
         {/* Import Schema Button */}
         <Button
           variant="outline"
@@ -181,7 +166,6 @@ export function TabLauncherBar() {
       {/* Right side: optional area (future) */}
       <div className="w-[48px]" />
       
-      <ErdGenerationDialog open={showErdDialog} onOpenChange={setShowErdDialog} />
       <ImportSchemaDialog open={showImportDialog} onOpenChange={setShowImportDialog} />
     </div>
   );

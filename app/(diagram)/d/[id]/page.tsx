@@ -9,7 +9,6 @@ import { DockPanel } from "@/components/diagram-general/dock-panel";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
-import DatabaseExplorer from "@/components/desktop-explorer-workspace";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 
 function clamp(n: number, min: number, max: number) {
@@ -101,7 +100,6 @@ export default function DiagramPage({ params }: PageProps) {
             )}
           </>
         )}
-        {workspaceMode === "explorer" && <DatabaseExplorer />}
         {workspaceMode === "docs" && <DocsLayout />}
       </div>
     </div>

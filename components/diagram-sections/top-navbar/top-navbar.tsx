@@ -39,7 +39,6 @@ export function TopNavbar() {
   const [newDiagramName, setNewDiagramName] = useState("");
   const [diagramToRename, setDiagramToRename] = useState("");
   const [renamedName, setRenamedName] = useState("");
-  const [isFakeInstallerOpen, setIsFakeInstallerOpen] = useState(false);
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
 
@@ -71,17 +70,6 @@ export function TopNavbar() {
     setIsRenameOpen(false);
     setDiagramToRename("");
     setRenamedName("");
-  };
-
-  const handleObjectExplorerClick = () => {
-    // Check if we are in desktop context
-    const isDesktop = typeof window !== "undefined" && (window as any).electron;
-
-    if (!isDesktop) {
-      setIsFakeInstallerOpen(true);
-    } else {
-      setWorkspaceMode(workspaceMode === "diagram" ? "explorer" : "diagram");
-    }
   };
 
   return (
@@ -128,16 +116,6 @@ export function TopNavbar() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button 
-            variant={workspaceMode === "explorer" ? "secondary" : "ghost"}
-            size="sm"
-            className="gap-2"
-            onClick={handleObjectExplorerClick}
-          >
-            <Database className="w-4 h-4" />
-            <span className="hidden sm:inline">Object Explorer</span>
-          </Button>
 
           <Button 
             variant={workspaceMode === "docs" ? "secondary" : "ghost"}
@@ -216,29 +194,6 @@ export function TopNavbar() {
               disabled={!renamedName.trim() || renamedName === diagramToRename}
             >
               Rename
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Fake Installer Dialog for Web */}
-      <Dialog open={isFakeInstallerOpen} onOpenChange={setIsFakeInstallerOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Download Desktop App</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 text-sm text-muted-foreground">
-            The Object Explorer and database connections are exclusively available in the DBLuna Desktop application.
-            <br /><br />
-            Download the desktop app to directly connect to your SQL Server and script out objects.
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsFakeInstallerOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setIsFakeInstallerOpen(false)} className="gap-2">
-              <Download className="w-4 h-4" />
-              Download Installer (Fake)
             </Button>
           </DialogFooter>
         </DialogContent>
