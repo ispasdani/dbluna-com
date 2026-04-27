@@ -92,6 +92,8 @@ type CanvasState = {
   toggleBackground: () => void;
   snapToGrid: boolean;
   toggleSnapToGrid: () => void;
+  isFocusModeEnabled: boolean;
+  toggleFocusMode: () => void;
   addTable: () => void;
   updateTable: (id: string, updates: Partial<Table>) => void;
   updateTablePos: (id: string, x: number, y: number) => void;
@@ -139,6 +141,7 @@ const DEFAULT_DIAGRAM: DiagramData = {
   relationships: [],
   background: "grid",
   snapToGrid: false,
+  isFocusModeEnabled: true,
 };
 
 
@@ -153,7 +156,7 @@ export const useCanvasStore = create<CanvasState>()(
         // 1. Save current active state to map
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid };
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled: get().isFocusModeEnabled };
         }
 
         // 2. Load new state from map or default
@@ -178,6 +181,8 @@ export const useCanvasStore = create<CanvasState>()(
         set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
       snapToGrid: false,
       toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
+      isFocusModeEnabled: true,
+      toggleFocusMode: () => set((s) => ({ isFocusModeEnabled: !s.isFocusModeEnabled })),
       setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
       setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
       addTable: () =>
@@ -464,10 +469,10 @@ export const useCanvasStore = create<CanvasState>()(
     {
       name: "canvas-storage",
       partialize: (state) => {
-        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid } = state;
+        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = state;
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid };
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled };
         }
         // savingStatus is intentionally NOT here to avoid persisting it
         return { diagrams: newDiagrams };

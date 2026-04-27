@@ -88,6 +88,14 @@ export function TabLauncherBar() {
               )}
             </DropdownMenuItem>
 
+            <DropdownMenuItem onClick={useCanvasStore.getState().toggleFocusMode} className="gap-2">
+              <Eye className="h-4 w-4" />
+              <span className="flex-1">Focus Mode</span>
+              {useCanvasStore((s) => s.isFocusModeEnabled) && (
+                <span className="text-xs text-muted-foreground">✓</span>
+              )}
+            </DropdownMenuItem>
+
             <DropdownMenuItem
               onClick={() => setBackground("grid")}
               className="gap-2"

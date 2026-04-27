@@ -41,6 +41,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   const selectedAreaIds = useCanvasStore((s) => s.selectedAreaIds);
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
   const moveAreas = useCanvasStore((s) => s.moveAreas);
+  const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -246,6 +247,40 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   }>({ active: false, sourceTableId: "", sourceColumnId: "", startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
 
   const [, setTick] = useState(0);
+
+  // Focus Mode Calculation (1st and 2nd degree)
+  const { focusedTables, focusedRelationships } = useMemo(() => {
+    if (!isFocusModeEnabled || selectedTableIds.length !== 1) {
+      return { focusedTables: null, focusedRelationships: null };
+    }
+
+    const selectedId = selectedTableIds[0];
+    const tablesSet = new Set<string>([selectedId]);
+    const relsSet = new Set<string>();
+
+    // 1st degree
+    relationships.forEach(rel => {
+      if (rel.sourceTableId === selectedId) {
+        tablesSet.add(rel.targetTableId);
+        relsSet.add(rel.id);
+      } else if (rel.targetTableId === selectedId) {
+        tablesSet.add(rel.sourceTableId);
+        relsSet.add(rel.id);
+      }
+    });
+
+    // 2nd degree
+    const firstDegreeTables = Array.from(tablesSet);
+    relationships.forEach(rel => {
+      if (firstDegreeTables.includes(rel.sourceTableId) || firstDegreeTables.includes(rel.targetTableId)) {
+        tablesSet.add(rel.sourceTableId);
+        tablesSet.add(rel.targetTableId);
+        relsSet.add(rel.id);
+      }
+    });
+
+    return { focusedTables: tablesSet, focusedRelationships: relsSet };
+  }, [isFocusModeEnabled, selectedTableIds, relationships]);
 
   // Helper to get column position in world coordinates
   const getColumnPosition = (tableId: string, columnId: string, isSource: boolean) => {
@@ -1179,7 +1214,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                     className={`${styles["relationship-path"]} ${isHovered ? styles["marching-ants"] : ""}`}
                     style={{
                       filter: isSelected ? "drop-shadow(0 0 4px var(--primary))" : "none",
-                      opacity: isSelected ? 1 : 0.8
+                      opacity: focusedRelationships !== null && !focusedRelationships.has(rel.id) ? 0.15 : (isSelected ? 1 : 0.8),
+                      transition: "opacity 0.3s ease"
                     }}
                   />
 
@@ -1327,6 +1363,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                 <TableNode
                   table={table}
                   selected={selectedTableIds.includes(table.id)}
+                  isDimmed={focusedTables !== null && !focusedTables.has(table.id)}
                   onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
                 />
               </g>

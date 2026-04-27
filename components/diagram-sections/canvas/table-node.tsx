@@ -18,10 +18,11 @@ import React, { memo } from "react";
 interface TableNodeProps {
   table: Table;
   selected?: boolean;
+  isDimmed?: boolean;
   onColumnPointerDown?: (e: React.PointerEvent, columnId: string, isSource: boolean) => void;
 }
 
-export const TableNode = memo(function TableNode({ table, selected, onColumnPointerDown }: TableNodeProps) {
+export const TableNode = memo(function TableNode({ table, selected, isDimmed, onColumnPointerDown }: TableNodeProps) {
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
@@ -32,7 +33,7 @@ export const TableNode = memo(function TableNode({ table, selected, onColumnPoin
   const totalHeight = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
 
   return (
-    <g>
+    <g className={cn("transition-opacity duration-300", isDimmed && "opacity-30 pointer-events-none grayscale")}>
       {/* 
         Container Frame 
         - rx=8 for rounded corners
@@ -264,6 +265,7 @@ export const TableNode = memo(function TableNode({ table, selected, onColumnPoin
 , (prevProps, nextProps) => {
   return (
     prevProps.table === nextProps.table &&
-    prevProps.selected === nextProps.selected
+    prevProps.selected === nextProps.selected &&
+    prevProps.isDimmed === nextProps.isDimmed
   );
 });
