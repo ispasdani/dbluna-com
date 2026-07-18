@@ -143,20 +143,4 @@ export default defineSchema({
     features: v.optional(v.any()),
     createdAt: v.number(),
   }),
-
-  // ✅ Sandbox tracking (public, cookie-based)
-  sandboxSessions: defineTable({
-    visitorId: v.string(), // from middleware cookie
-    createdAt: v.number(),
-    lastSeenAt: v.number(),
-    userAgent: v.optional(v.string()),
-    firstPath: v.optional(v.string()),
-  }).index("by_visitorId", ["visitorId"]),
-
-  sandboxEvents: defineTable({
-    visitorId: v.string(),
-    type: v.string(), // e.g. 'open', 'add_table', 'move_table'
-    ts: v.number(),
-    meta: v.optional(v.any()),
-  }).index("by_visitorId", ["visitorId"]),
 });

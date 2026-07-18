@@ -81,6 +81,3 @@ Stores user-specific settings.
 
 ### Plans (`plans`)
 Stores subscription plan definitions.
-
-### Sandbox Sessions (`sandboxSessions`) & Events (`sandboxEvents`)
-Tracks anonymous usage for analytics and temporary sessions.

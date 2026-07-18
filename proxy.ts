@@ -18,9 +18,6 @@ const isPublicRoute = createRouteMatcher([
   "/about(.*)",
   "/pricing(.*)",
 
-  // ✅ public sandbox (new)
-  "/sandbox(.*)",
-
   // ✅ webhooks / endpoints that must remain public
   "/clerk(.*)",
 
@@ -32,28 +29,13 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(
   async (auth: ClerkMiddlewareAuth, req: NextRequest) => {
-    const res = NextResponse.next();
-
-    // 1) Assign visitorId cookie (analytics-only)
-    if (!req.cookies.get("visitorId")) {
-      res.cookies.set({
-        name: "visitorId",
-        value: crypto.randomUUID(),
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 365,
-      });
-    }
-
-    // 2) Require sign-in for protected routes
-    // ✅ This now includes /d/* because it is NOT in isPublicRoute anymore
+    // Require sign-in for protected routes
+    // ✅ This includes /d/* because it is NOT in isPublicRoute
     if (!isPublicRoute(req)) {
       await auth.protect();
     }
 
-    return res;
+    return NextResponse.next();
   }
 );
 
