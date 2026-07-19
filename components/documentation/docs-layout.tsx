@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import Editor from "@monaco-editor/react";
+import CodeMirror, { EditorView } from "@uiw/react-codemirror";
+import { sql } from "@codemirror/lang-sql";
 import { Eye } from "lucide-react";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
+import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
 
@@ -44,20 +46,19 @@ export const DocsLayout = () => {
                         Read-only · reflects canvas
                     </span>
                 </div>
-                <div className="flex-1 relative">
-                    <Editor
-                        height="100%"
-                        defaultLanguage="graphql"
+                <div className="flex-1 overflow-auto relative">
+                    <CodeMirror
                         value={dslCode}
-                        theme="vs-dark"
-                        options={{
-                            readOnly: true,
-                            domReadOnly: true,
-                            minimap: { enabled: false },
-                            fontSize: 13,
-                            wordWrap: 'on',
-                            fontFamily: "'Consolas', 'Courier New', monospace",
-                            padding: { top: 16 }
+                        height="100%"
+                        theme={dbmlCodeMirrorTheme}
+                        editable={false}
+                        extensions={[sql(), EditorView.lineWrapping]}
+                        className="h-full text-[13px]"
+                        basicSetup={{
+                            lineNumbers: true,
+                            foldGutter: true,
+                            highlightActiveLine: false,
+                            highlightActiveLineGutter: false,
                         }}
                     />
                 </div>

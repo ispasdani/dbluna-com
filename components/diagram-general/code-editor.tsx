@@ -13,47 +13,7 @@ import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { parseDbml, parsedTablesToCanvasTables, parsedToCanvasSchemaMeta } from "@/lib/parser/dsl-parser";
-
-// Custom theme extension to use CSS variables
-const themeExtension = EditorView.theme({
-  "&": {
-    backgroundColor: "var(--dock-bg)",
-    color: "var(--foreground)",
-    height: "100%",
-    fontSize: "13px",
-    fontFamily: "var(--font-mono)",
-  },
-  ".cm-content": {
-    caretColor: "var(--primary)",
-    fontFamily: "var(--font-mono)",
-  },
-  ".cm-gutters": {
-    backgroundColor: "var(--dock-header)", // Slightly different to separate
-    color: "var(--muted-foreground)",
-    borderRight: "1px solid var(--border)",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "color-mix(in srgb, var(--accent) 50%, transparent)",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "var(--accent)",
-    color: "var(--foreground)",
-  },
-  "&.cm-focused .cm-cursor": {
-    borderLeftColor: "var(--primary)",
-  },
-  "&.cm-focused .cm-selectionBackground, ::selection": {
-    backgroundColor: "color-mix(in srgb, var(--primary) 20%, transparent)",
-  },
-  ".cm-line": {
-    fontFamily: "var(--font-mono)",
-  },
-  ".cm-tooltip-lint": {
-    backgroundColor: "var(--popover) !important",
-    color: "var(--popover-foreground) !important",
-    border: "1px solid var(--border) !important",
-  }
-});
+import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -292,7 +252,7 @@ export function CodeEditor() {
         <CodeMirror
           value={code}
           height="100%"
-          theme={themeExtension}
+          theme={dbmlCodeMirrorTheme}
           extensions={extensions}
           onChange={handleChange}
           className="h-full text-[13px]"

@@ -165,14 +165,20 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 
 ---
 
-### 4. Standardize on one editor library
+### 4. Standardize on one editor library  ✅ DONE
 
-#### [MODIFY] `components/documentation/docs-layout.tsx`
-- Replace the Monaco `<Editor>` with the CodeMirror-based read-only view (shared theme + DBML
-  highlighting). If §2 drops the docs editor pane entirely, this is moot.
+#### [DONE] `lib/codemirror/dbml-theme.ts`
+- Extracted the CodeMirror theme (previously inline in `code-editor.tsx`) into a shared module so the
+  canvas editor and docs preview render identically. `code-editor.tsx` now imports it.
 
-#### [REMOVE] `@monaco-editor/react`
-- Drop the dependency from `package.json` once docs no longer use Monaco.
+#### [DONE] `components/documentation/docs-layout.tsx`
+- Replaced the Monaco `<Editor>` with a read-only `<CodeMirror>` (shared theme + `sql()` DBML
+  highlighting + line wrapping).
+
+#### [DONE] `@monaco-editor/react`
+- Removed from `package.json`; no remaining Monaco usage in the app.
+
+**Verified:** `next build` passes; `npm test` → 10/10.
 
 ---
 
@@ -216,8 +222,8 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 | 2 | **§2 Docs = live read-only reflection** | ✅ done | Removed the island; docs mirrors canvas live |
 | 3 | **§3 Enums / groups / notes on canvas** | ✅ done | Rich docs, persisted; fixed latent project-note bug |
 | 4 | **§5 Round-trip tests** | ✅ done | vitest; caught 2 more parser bugs |
-| 5 | **§4 One editor library** | next | Cleanup: swap docs Monaco → CodeMirror, drop dep |
-| 6 | **§6 Deep-linking + export** | | Product polish |
+| 5 | **§4 One editor library** | ✅ done | Docs on CodeMirror; Monaco dependency removed |
+| 6 | **§6 Deep-linking + export** | next | Product polish |
 
 ---
 
