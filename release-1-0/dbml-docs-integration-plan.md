@@ -203,14 +203,23 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 
 ---
 
-### 6. Deep-linking + export  *(product polish — do last)*
+### 6. Deep-linking + export  ✅ DONE
 
-#### [MODIFY] `components/documentation/docs-sidebar.tsx` + docs viewer
-- Support URL anchors (e.g. `?table=users`) for shareable deep links. Low-risk now that docs state is
-  derived from the persisted canvas. Validate history behavior inside the Desktop/Electron container.
+#### [DONE] `lib/generator/docs-markdown.ts` + Export button
+- New `generateDocsMarkdown(parsed)` renders the project overview, per-table column tables
+  (type/constraints/notes), per-table relationships, and enum listings. An **Export .md** button in
+  `docs-layout.tsx` downloads `<project>.md`. Covered by `lib/__tests__/docs-markdown.test.ts`.
 
-#### [NEW] export path
-- Add Markdown / PDF export of the rendered documentation — the shareable "publish" step.
+#### [DONE] Deep-linking (`?table=<name>`) in `components/documentation/docs-layout.tsx`
+- Selection is reflected into the URL via `history.replaceState` — **no** Next.js router and **no**
+  browser-history entries, sidestepping the Electron history open question entirely.
+- Restored/reconciled by stable table **name** on every reparse, so shared links resolve and the
+  selection survives the live canvas→docs reflection (tables get fresh AST ids each parse).
+
+**Deferred:** PDF export (would add a heavy dependency) — Markdown covers the shareable "publish" need
+for now.
+
+**Verified:** `next build` passes; `npm test` → 15/15.
 
 ---
 
@@ -223,7 +232,9 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 | 3 | **§3 Enums / groups / notes on canvas** | ✅ done | Rich docs, persisted; fixed latent project-note bug |
 | 4 | **§5 Round-trip tests** | ✅ done | vitest; caught 2 more parser bugs |
 | 5 | **§4 One editor library** | ✅ done | Docs on CodeMirror; Monaco dependency removed |
-| 6 | **§6 Deep-linking + export** | next | Product polish |
+| 6 | **§6 Deep-linking + export** | ✅ done | Markdown export + `?table=` deep links |
+
+**All plan items complete.** 15 round-trip / export tests green; `next build` passes.
 
 ---
 
