@@ -38,6 +38,35 @@ export interface Relationship {
   onDelete: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
 }
 
+// ─── Documentation-oriented schema metadata ──────────────────────────────────
+// These have no visual representation on the canvas yet; they are authored via
+// the DBML code editor and surfaced in the read-only Docs reflection.
+
+export interface EnumValue {
+  name: string;
+  note?: string;
+}
+
+export interface CanvasEnum {
+  id: string;
+  name: string;
+  values: EnumValue[];
+  note?: string;
+}
+
+export interface CanvasTableGroup {
+  id: string;
+  name: string;
+  // Canvas table names (may be schema-qualified, e.g. "dbo.Users").
+  tableNames: string[];
+}
+
+export interface CanvasProject {
+  name?: string;
+  databaseType?: string;
+  note?: string;
+}
+
 export const TABLE_COLORS = [
   "#e11d48", // rose
   "#ea580c", // orange
@@ -78,6 +107,9 @@ export interface DiagramData {
   notes: Note[];
   areas: Area[];
   relationships: Relationship[];
+  enums: CanvasEnum[];
+  tableGroups: CanvasTableGroup[];
+  project: CanvasProject | null;
   background: CanvasBackground;
   snapToGrid: boolean;
   isFocusModeEnabled: boolean;
@@ -115,6 +147,14 @@ type CanvasState = {
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
 
+  // Documentation schema metadata (authored via the DBML code editor)
+  enums: CanvasEnum[];
+  tableGroups: CanvasTableGroup[];
+  project: CanvasProject | null;
+  setEnums: (enums: CanvasEnum[]) => void;
+  setTableGroups: (groups: CanvasTableGroup[]) => void;
+  setProject: (project: CanvasProject | null) => void;
+
   // Notes
   notes: Note[];
   selectedNoteIds: string[];
@@ -141,6 +181,9 @@ const DEFAULT_DIAGRAM: DiagramData = {
   notes: [],
   areas: [],
   relationships: [],
+  enums: [],
+  tableGroups: [],
+  project: null,
   background: "grid",
   snapToGrid: false,
   isFocusModeEnabled: true,
@@ -153,16 +196,18 @@ export const useCanvasStore = create<CanvasState>()(
       activeDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
-        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid } = get();
+        const { activeDiagramId, diagrams, tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid } = get();
 
         // 1. Save current active state to map
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled: get().isFocusModeEnabled };
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled: get().isFocusModeEnabled };
         }
 
-        // 2. Load new state from map or default
-        const target = newDiagrams[id] || DEFAULT_DIAGRAM;
+        // 2. Load new state from map or default. Merge over DEFAULT_DIAGRAM so
+        // older persisted diagrams that predate enums/tableGroups/project still
+        // hydrate those fields instead of leaking them from the previous diagram.
+        const target = { ...DEFAULT_DIAGRAM, ...newDiagrams[id] };
 
         set({
           activeDiagramId: id,
@@ -347,6 +392,14 @@ export const useCanvasStore = create<CanvasState>()(
         })),
       setTables: (tables) => set({ tables }),
 
+      // Documentation schema metadata
+      enums: [],
+      tableGroups: [],
+      project: null,
+      setEnums: (enums) => set({ enums }),
+      setTableGroups: (tableGroups) => set({ tableGroups }),
+      setProject: (project) => set({ project }),
+
       // Notes Actions
       notes: [],
       selectedNoteIds: [],
@@ -474,10 +527,10 @@ export const useCanvasStore = create<CanvasState>()(
       // serializing every diagram to localStorage each time causes jank.
       storage: createDebouncedStorage(500),
       partialize: (state) => {
-        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = state;
+        const { activeDiagramId, diagrams, tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled } = state;
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled };
+          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled };
         }
         // savingStatus is intentionally NOT here to avoid persisting it
         return { diagrams: newDiagrams };

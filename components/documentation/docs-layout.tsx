@@ -14,12 +14,19 @@ export const DocsLayout = () => {
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
     const canvasTables = useCanvasStore(s => s.tables);
     const canvasRelationships = useCanvasStore(s => s.relationships);
+    const canvasEnums = useCanvasStore(s => s.enums);
+    const canvasTableGroups = useCanvasStore(s => s.tableGroups);
+    const canvasProject = useCanvasStore(s => s.project);
 
     // Docs is a read-only reflection of the canvas — the DBML is derived, never authored here.
     // The canvas is the single source of truth and persists itself, so there is nothing to save.
     const dslCode = useMemo(
-        () => generateDbmlFromCanvas(canvasTables, canvasRelationships),
-        [canvasTables, canvasRelationships]
+        () => generateDbmlFromCanvas(canvasTables, canvasRelationships, {
+            project: canvasProject,
+            enums: canvasEnums,
+            tableGroups: canvasTableGroups,
+        }),
+        [canvasTables, canvasRelationships, canvasEnums, canvasTableGroups, canvasProject]
     );
 
     useEffect(() => {

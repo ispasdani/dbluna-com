@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
-import { parseDbml, parsedTablesToCanvasTables } from "@/lib/parser/dsl-parser";
+import { parseDbml, parsedTablesToCanvasTables, parsedToCanvasSchemaMeta } from "@/lib/parser/dsl-parser";
 
 // Custom theme extension to use CSS variables
 const themeExtension = EditorView.theme({
@@ -67,7 +67,17 @@ function useDebounce<T>(value: T, delay: number): T {
 export type EditorLanguage = "dbml" | "json" | "mermaid";
 
 export function CodeEditor() {
-  const { tables, relationships, setTables } = useCanvasStore();
+  const {
+    tables,
+    relationships,
+    enums,
+    tableGroups,
+    project,
+    setTables,
+    setEnums,
+    setTableGroups,
+    setProject,
+  } = useCanvasStore();
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState<EditorLanguage>("dbml");
   const [copied, setCopied] = useState(false);
@@ -134,13 +144,14 @@ export function CodeEditor() {
         setCode(tablesToMermaid(tables));
       } else {
         // DBML (Default) — shared generator: preserves schema prefixes,
-        // relationships (Ref:) and table notes.
-        setCode(generateDbmlFromCanvas(tables, relationships));
+        // relationships (Ref:), table notes, and the docs metadata
+        // (project note, enums, table groups).
+        setCode(generateDbmlFromCanvas(tables, relationships, { project, enums, tableGroups }));
       }
     } catch (err) {
       console.error("Failed to generate code", err);
     }
-  }, [tables, relationships, language]);
+  }, [tables, relationships, enums, tableGroups, project, language]);
 
   // 2. Code -> Canvas (Parse and Sync)
   useEffect(() => {
@@ -182,15 +193,22 @@ export function CodeEditor() {
         originY: worldCenterY,
       });
 
-      // Clear the typing flag BEFORE setTables so the Canvas->Code effect
+      // Documentation metadata authored in the editor (enums, table groups,
+      // project note) is stored on the canvas so it persists and re-generates.
+      const meta = parsedToCanvasSchemaMeta(parsed);
+
+      // Clear the typing flag BEFORE the store writes so the Canvas->Code effect
       // doesn't immediately overwrite the editor on the next render.
       isTypingRef.current = false;
       setTables(newTables);
+      setEnums(meta.enums);
+      setTableGroups(meta.tableGroups);
+      setProject(meta.project);
 
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }
-  }, [debouncedCode, setTables, language]);
+  }, [debouncedCode, setTables, setEnums, setTableGroups, setProject, language]);
 
   const handleChange = useCallback((val: string) => {
     isTypingRef.current = true;

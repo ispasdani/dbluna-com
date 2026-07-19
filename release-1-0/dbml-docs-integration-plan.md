@@ -127,22 +127,41 @@ the canvas can supply that data (§3).
 
 ---
 
-### 3. Model Enums, TableGroups & notes on the canvas  *(unlocks rich docs)*
+### 3. Model Enums, TableGroups & notes on the canvas  ✅ DONE
 
-Docs is a reflection, so its richer sections can only show data the canvas holds. Give the canvas a
-model for the things DBML docs already knows how to render.
+Docs is a reflection, so its richer sections can only show data the canvas holds. The canvas now has a
+model for enums, table groups, and a project note; the code editor is the authoring surface for them.
 
-#### [MODIFY] `store/useCanvasStore` + `lib/generator/dbml-generator.ts`
-- Extend the canvas model to represent **enums** and **table groups** (and surface the existing table
-  `comment`/notes and a project-level note/README).
-- Emit `Enum` blocks, `TableGroup` blocks, and `Project { Note }` from `generateDbmlFromCanvas()`.
+#### [DONE] `store/useCanvasStore.tsx`
+- Added `CanvasEnum`, `CanvasTableGroup`, `CanvasProject` types; `enums`/`tableGroups`/`project` state
+  + setters; included them in `DEFAULT_DIAGRAM`, `setDiagramId` save/load, and `partialize`
+  (localStorage persistence — the real working path today). Load now merges over `DEFAULT_DIAGRAM` so
+  older persisted diagrams hydrate the new fields instead of leaking them between diagrams.
 
-#### [MODIFY] `lib/parser/dsl-parser.ts`
-- Extend `parsedTablesToCanvasTables()` (or add sibling mappers) so enums/groups/notes round-trip from
-  edited DBML back onto the canvas model.
+#### [DONE] `lib/generator/dbml-generator.ts`
+- `generateDbmlFromCanvas(tables, relationships, meta?)` now emits `Project { Note }`, `Enum {}`, and
+  `TableGroup {}` blocks. Refactored schema-prefix splitting + note escaping into shared helpers.
 
-**Outcome:** canvas-authored enums/groups/notes flow into docs (folders, enum tooltips, README) and
-persist automatically via canvas autosave.
+#### [DONE] `lib/parser/dsl-parser.ts`
+- Added `parsedToCanvasSchemaMeta()` mapping enums/groups/project back onto the canvas model
+  (schema-qualified group refs, note normalization).
+- **Bug fix:** `parseDbml` read the Project block from a non-existent `db.project`; `@dbml/core`
+  actually flattens it onto `db.name` / `db.databaseType` / `db.note`. The README/overview never
+  populated before — now it does.
+
+#### [DONE] `components/diagram-general/code-editor.tsx` + `components/documentation/docs-layout.tsx`
+- Code editor round-trips the metadata (stores parsed enums/groups/project on the canvas); docs passes
+  the metadata into the generator so the reflection includes them.
+
+#### [DONE] `convex/schema.ts` + `convex/diagrams.ts`
+- Added optional `enums` / `tableGroups` / `project` fields to the diagrams table and the `update`
+  mutation (forward-looking — cloud save has no client callers yet).
+
+**Verified:** `next build` passes; a `@dbml/core` round-trip smoke test confirms Project, Enum
+(with value notes), TableGroup, and Refs all parse from the generated DBML.
+
+**Outcome:** enums/groups/project authored in the code editor persist (localStorage today, Convex when
+wired) and flow into docs — folders, enum tooltips, and the README — with no docs-side changes.
 
 ---
 
@@ -182,10 +201,10 @@ persist automatically via canvas autosave.
 | Order | Step | Status | Why here |
 |-------|------|--------|----------|
 | 1 | **§1 Single source of truth** | ✅ done | Root fix; unifies the engine |
-| 2 | **§2 Docs = live read-only reflection** | next | Removes the island; small, high-value |
-| 3 | **§5 Round-trip tests** | after §2 | Lock the unified engine before enriching it |
-| 4 | **§3 Enums / groups / notes on canvas** | | Makes rich docs possible + persisted |
-| 5 | **§4 One editor library** | | Cleanup once docs is read-only |
+| 2 | **§2 Docs = live read-only reflection** | ✅ done | Removed the island; docs mirrors canvas live |
+| 3 | **§3 Enums / groups / notes on canvas** | ✅ done | Rich docs, persisted; fixed latent project-note bug |
+| 4 | **§5 Round-trip tests** | next | Lock the unified engine with automated coverage |
+| 5 | **§4 One editor library** | | Cleanup: swap docs Monaco → CodeMirror, drop dep |
 | 6 | **§6 Deep-linking + export** | | Product polish |
 
 ---

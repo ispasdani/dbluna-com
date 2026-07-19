@@ -1,5 +1,10 @@
 import { Parser } from "@dbml/core";
-import type { Table } from "@/store/useCanvasStore";
+import type {
+  Table,
+  CanvasEnum,
+  CanvasTableGroup,
+  CanvasProject,
+} from "@/store/useCanvasStore";
 
 // ─────────────────────────────────────────────────────
 //  Typed structures extracted from the DBML AST
@@ -74,13 +79,16 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
 
     // ── Project ──────────────────────────────────────
     let project: ParsedProject | null = null;
-    // @dbml/core's Database type doesn't expose `project` in its TS types but it exists at runtime
+    // @dbml/core flattens the `Project { ... }` block onto the database root as
+    // `name` / `databaseType` / `note` (there is no `db.project`). `note` may be
+    // a bare string or a `{ value }` object depending on version.
     const db = database as any;
-    if (db.project) {
+    if (db.name || db.note || db.databaseType) {
+      const note = typeof db.note === "string" ? db.note : db.note?.value;
       project = {
-        name: db.project.name || "Database Documentation",
-        note: db.project.note?.value || undefined,
-        databaseType: db.project.database_type || undefined,
+        name: db.name || "Database Documentation",
+        note: note || undefined,
+        databaseType: db.databaseType || undefined,
       };
     }
 
@@ -211,4 +219,56 @@ export const parsedTablesToCanvasTables = (
       columns,
     };
   });
+};
+
+export interface CanvasSchemaMeta {
+  enums: CanvasEnum[];
+  tableGroups: CanvasTableGroup[];
+  project: CanvasProject | null;
+}
+
+const qualifiedGroupRef = (ref: { tableName: string; schemaName?: string }): string => {
+  const schema = ref.schemaName;
+  return schema && schema !== DEFAULT_PARSE_SCHEMA ? `${schema}.${ref.tableName}` : ref.tableName;
+};
+
+// @dbml/core is inconsistent: notes arrive as a bare string in some places and
+// as a `{ value }` object in others. Normalize to a plain string | undefined.
+const noteText = (note: unknown): string | undefined => {
+  if (typeof note === "string") return note;
+  if (note && typeof note === "object" && "value" in note) {
+    return (note as { value?: string }).value;
+  }
+  return undefined;
+};
+
+/**
+ * Maps the documentation-oriented parts of a parsed DBML result (enums, table
+ * groups, project note) onto the canvas model shapes so they can be stored and
+ * re-generated. Table/group names use the same schema-qualification rules as
+ * `parsedTablesToCanvasTables`.
+ */
+export const parsedToCanvasSchemaMeta = (parsed: ParsedDbmlResult): CanvasSchemaMeta => {
+  const enums: CanvasEnum[] = parsed.enums.map((en) => ({
+    id: crypto.randomUUID(),
+    name: en.name,
+    note: noteText(en.note),
+    values: en.values.map((val) => ({ name: val.name, note: noteText(val.note) })),
+  }));
+
+  const tableGroups: CanvasTableGroup[] = parsed.tableGroups.map((group) => ({
+    id: crypto.randomUUID(),
+    name: group.name,
+    tableNames: group.tables.map(qualifiedGroupRef),
+  }));
+
+  const project: CanvasProject | null = parsed.project
+    ? {
+        name: parsed.project.name,
+        databaseType: parsed.project.databaseType,
+        note: parsed.project.note,
+      }
+    : null;
+
+  return { enums, tableGroups, project };
 };
