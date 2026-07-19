@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createDebouncedStorage } from "./debounced-storage";
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3.0;
@@ -103,6 +104,9 @@ export const useEditorStore = create<EditorState>()(
     }),
     {
       name: "editor-storage",
+      // Debounced: panBy/zoomAt fire per pointermove; writing localStorage
+      // synchronously on each one causes pan jank.
+      storage: createDebouncedStorage(500),
       partialize: (state) => {
         const { activeDiagramId, cameras, camera } = state;
         const newCameras = { ...cameras };

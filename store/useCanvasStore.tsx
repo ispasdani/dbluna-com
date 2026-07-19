@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useEditorStore } from "./useEditorStore";
+import { createDebouncedStorage } from "./debounced-storage";
 
 export type CanvasBackground = "grid" | "dots";
 
@@ -79,6 +80,7 @@ export interface DiagramData {
   relationships: Relationship[];
   background: CanvasBackground;
   snapToGrid: boolean;
+  isFocusModeEnabled: boolean;
 }
 
 type CanvasState = {
@@ -468,6 +470,9 @@ export const useCanvasStore = create<CanvasState>()(
     }),
     {
       name: "canvas-storage",
+      // Debounced: note/area resize updates the store per pointermove;
+      // serializing every diagram to localStorage each time causes jank.
+      storage: createDebouncedStorage(500),
       partialize: (state) => {
         const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = state;
         const newDiagrams = { ...diagrams };
