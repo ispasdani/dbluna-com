@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Editor from "@monaco-editor/react";
-import { DownloadCloud } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
@@ -12,71 +11,41 @@ import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
 
 export const DocsLayout = () => {
-    const [dslCode, setDslCode] = useState(`// Type your DBML here
-Project "Startup App" {
-  database_type: 'PostgreSQL'
-  Note: 'Welcome to your project documentation. Built using standard DBML.'
-}
-
-Table users {
-  id integer [primary key]
-  username varchar
-  created_at timestamp
-  Note: 'Stores standard user metrics and authentication details'
-}
-
-Table orders {
-  id integer [primary key]
-  user_id integer
-  status varchar [default: 'pending']
-  merchant_id integer [not null]
-  Note: 'E-commerce transactional orders'
-}
-
-Table merchants {
-  id integer [primary key]
-  merchant_name varchar [unique]
-}
-
-Ref: orders.user_id > users.id
-Ref: orders.merchant_id > merchants.id
-`);
-    
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
     const canvasTables = useCanvasStore(s => s.tables);
     const canvasRelationships = useCanvasStore(s => s.relationships);
 
-    useEffect(() => {
-        const parsed = parseDbml(dslCode);
-        if (parsed) {
-            setParsedDbml(parsed);
-        }
-    }, [dslCode, setParsedDbml]);
+    // Docs is a read-only reflection of the canvas — the DBML is derived, never authored here.
+    // The canvas is the single source of truth and persists itself, so there is nothing to save.
+    const dslCode = useMemo(
+        () => generateDbmlFromCanvas(canvasTables, canvasRelationships),
+        [canvasTables, canvasRelationships]
+    );
 
-    const handleSyncCanvas = () => {
-        const generated = generateDbmlFromCanvas(canvasTables, canvasRelationships);
-        setDslCode(generated);
-    };
+    useEffect(() => {
+        setParsedDbml(parseDbml(dslCode));
+    }, [dslCode, setParsedDbml]);
 
     return (
         <div className="flex h-full w-full bg-background border-t border-border overflow-hidden">
-            {/* Editor Pane (Left) */}
+            {/* Editor Pane (Left) — read-only preview of the generated DBML */}
             <div className="w-1/3 border-r border-border flex flex-col bg-[#1e1e1e]">
                 <div className="px-4 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between">
-                    <span>DBML Editor</span>
-                    <Button variant="ghost" size="sm" onClick={handleSyncCanvas} className="h-6 text-xs text-blue-500 hover:text-blue-400 hover:bg-blue-500/10">
-                        <DownloadCloud className="w-3.5 h-3.5 mr-1" />
-                        Sync from Canvas
-                    </Button>
+                    <span>DBML</span>
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                        <Eye className="w-3.5 h-3.5" />
+                        Read-only · reflects canvas
+                    </span>
                 </div>
                 <div className="flex-1 relative">
                     <Editor
                         height="100%"
-                        defaultLanguage="graphql" 
+                        defaultLanguage="graphql"
                         value={dslCode}
                         theme="vs-dark"
-                        onChange={(val) => setDslCode(val || "")}
                         options={{
+                            readOnly: true,
+                            domReadOnly: true,
                             minimap: { enabled: false },
                             fontSize: 13,
                             wordWrap: 'on',
