@@ -125,9 +125,11 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
             tableGroups.push({
               id: tg.id,
               name: tg.name,
+              // @dbml/core resolves group members to Table objects, so the
+              // schema lives on `t.schema.name` (not `t.schemaName`).
               tables: (tg.tables || []).map((t: any) => ({
                 tableName: t.tableName || t.name,
-                schemaName: t.schemaName,
+                schemaName: t.schemaName || t.schema?.name,
               })),
             });
           });
@@ -215,7 +217,8 @@ export const parsedTablesToCanvasTables = (
       y: existingTable?.y ?? defaultY,
       color: existingTable?.color ?? DEFAULT_TABLE_COLOR,
       isLocked: existingTable?.isLocked ?? false,
-      comment: existingTable?.comment,
+      // A `Note:` authored in the DBML wins; otherwise keep any existing comment.
+      comment: noteText(dbTable.note) ?? existingTable?.comment,
       columns,
     };
   });

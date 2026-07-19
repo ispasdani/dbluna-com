@@ -176,12 +176,24 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 
 ---
 
-### 5. Tests & regression coverage
+### 5. Tests & regression coverage  ✅ DONE
 
-#### [NEW] generator/parser round-trip tests
-- `generateDbmlFromCanvas()` → `parseDbml()` → `parsedTablesToCanvasTables()` must preserve tables,
-  columns, constraints, relationships, schema prefixes, notes, enums, and table groups.
-- Snapshot the DBML output for a representative multi-schema fixture to catch generator drift.
+#### [DONE] Test harness
+- Added **vitest** (`test` / `test:watch` scripts) with native tsconfig `@/*` path resolution
+  (`resolve.tsconfigPaths: true` — no extra plugin dependency).
+
+#### [DONE] `lib/__tests__/dbml-roundtrip.test.ts` (10 tests, all green)
+- `generateDbmlFromCanvas()` → `parseDbml()` → `parsedTablesToCanvasTables()` /
+  `parsedToCanvasSchemaMeta()` covering: tables/columns/constraints, id preservation on re-map,
+  schema-qualified names (`dbo.Users` kept, synthetic `public` not folded in), relationships (`Ref:`),
+  table comments (via `Note:`), enums with value notes, table groups with schema-qualified members,
+  the project name/database-type/README note, and the empty-metadata case.
+
+**Bugs the tests caught (now fixed in `dsl-parser.ts`):**
+- Table-group members resolve to Table objects, so the member schema is on `t.schema.name`, not
+  `t.schemaName` — group refs were losing their schema prefix (`dbo.Users` → `Users`).
+- `parsedTablesToCanvasTables` now maps a parsed `Note:` back into the canvas `comment`, so a note
+  authored in the editor round-trips for **new** tables (previously only preserved for existing ones).
 
 ---
 
@@ -203,8 +215,8 @@ wired) and flow into docs — folders, enum tooltips, and the README — with no
 | 1 | **§1 Single source of truth** | ✅ done | Root fix; unifies the engine |
 | 2 | **§2 Docs = live read-only reflection** | ✅ done | Removed the island; docs mirrors canvas live |
 | 3 | **§3 Enums / groups / notes on canvas** | ✅ done | Rich docs, persisted; fixed latent project-note bug |
-| 4 | **§5 Round-trip tests** | next | Lock the unified engine with automated coverage |
-| 5 | **§4 One editor library** | | Cleanup: swap docs Monaco → CodeMirror, drop dep |
+| 4 | **§5 Round-trip tests** | ✅ done | vitest; caught 2 more parser bugs |
+| 5 | **§4 One editor library** | next | Cleanup: swap docs Monaco → CodeMirror, drop dep |
 | 6 | **§6 Deep-linking + export** | | Product polish |
 
 ---
