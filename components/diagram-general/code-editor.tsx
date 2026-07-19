@@ -11,6 +11,8 @@ import { Copy, Download, FileCode, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
+import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
+import { parseDbml, parsedTablesToCanvasTables } from "@/lib/parser/dsl-parser";
 
 // Custom theme extension to use CSS variables
 const themeExtension = EditorView.theme({
@@ -65,7 +67,7 @@ function useDebounce<T>(value: T, delay: number): T {
 export type EditorLanguage = "dbml" | "json" | "mermaid";
 
 export function CodeEditor() {
-  const { tables, setTables } = useCanvasStore();
+  const { tables, relationships, setTables } = useCanvasStore();
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState<EditorLanguage>("dbml");
   const [copied, setCopied] = useState(false);
@@ -131,29 +133,14 @@ export function CodeEditor() {
       } else if (language === "mermaid") {
         setCode(tablesToMermaid(tables));
       } else {
-        // DBML (Default)
-        const parts = tables.map((table) => {
-          const cols = table.columns.map((col) => {
-            const props = [];
-            if (col.isPrimaryKey) props.push("pk");
-            if (col.isUnique) props.push("unique");
-            if (col.isNotNull) props.push("not null");
-            if (col.isAutoIncrement) props.push("increment");
-
-            const propsStr = props.length ? ` [${props.join(", ")}]` : "";
-            return `  ${col.name} ${col.type}${propsStr}`;
-          });
-
-          return `Table ${table.name} {\n${cols.join("\n")}\n}`;
-        });
-
-        const newCode = parts.join("\n\n");
-        setCode(newCode);
+        // DBML (Default) — shared generator: preserves schema prefixes,
+        // relationships (Ref:) and table notes.
+        setCode(generateDbmlFromCanvas(tables, relationships));
       }
     } catch (err) {
       console.error("Failed to generate code", err);
     }
-  }, [tables, language]);
+  }, [tables, relationships, language]);
 
   // 2. Code -> Canvas (Parse and Sync)
   useEffect(() => {
@@ -174,9 +161,10 @@ export function CodeEditor() {
         return;
       }
 
-      // DBML Parsing
-      const database = Parser.parse(debouncedCode, "dbml");
-      const schema = database.schemas[0];
+      // DBML Parsing (shared parser). Returns null on invalid syntax — the
+      // linter surfaces the errors, so we keep the editor authoritative.
+      const parsed = parseDbml(debouncedCode);
+      if (!parsed) return;
 
       // Read tables fresh from the store (not stale closure) to get current positions
       const currentTables = useCanvasStore.getState().tables;
@@ -188,37 +176,10 @@ export function CodeEditor() {
       const worldCenterX = (viewCenterX - camera.x) / camera.zoom;
       const worldCenterY = (viewCenterY - camera.y) / camera.zoom;
 
-      const newTables = schema.tables.map((dbTable: any, index: number) => {
-        const existingTable = currentTables.find(t => t.name === dbTable.name);
-
-        const newColumns = dbTable.fields.map((field: any) => {
-          const existingCol = existingTable?.columns.find(c => c.name === field.name);
-          return {
-            id: existingCol?.id ?? crypto.randomUUID(),
-            name: field.name,
-            type: field.type.type_name.toUpperCase(),
-            isPrimaryKey: field.pk || false,
-            isNotNull: field.not_null || false,
-            isUnique: field.unique || false,
-            isAutoIncrement: field.increment || false,
-          };
-        });
-
-        // Use nullish coalescing (??) so x=0 / y=0 are treated as valid positions.
-        // New tables are staggered from viewport center so they're immediately visible.
-        const defaultX = worldCenterX - 110 + index * 40;
-        const defaultY = worldCenterY - 60 + index * 40;
-
-        return {
-          id: existingTable?.id ?? crypto.randomUUID(),
-          name: dbTable.name,
-          x: existingTable?.x ?? defaultX,
-          y: existingTable?.y ?? defaultY,
-          color: existingTable?.color ?? "#6366f1",
-          isLocked: existingTable?.isLocked ?? false,
-          comment: existingTable?.comment,
-          columns: newColumns,
-        };
+      const newTables = parsedTablesToCanvasTables(parsed.tables, {
+        existingTables: currentTables,
+        originX: worldCenterX,
+        originY: worldCenterY,
       });
 
       // Clear the typing flag BEFORE setTables so the Canvas->Code effect

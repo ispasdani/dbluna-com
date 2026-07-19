@@ -1,4 +1,5 @@
 import { Parser } from "@dbml/core";
+import type { Table } from "@/store/useCanvasStore";
 
 // ─────────────────────────────────────────────────────
 //  Typed structures extracted from the DBML AST
@@ -137,4 +138,77 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
     console.error("Failed to parse DBML:", error);
     return null;
   }
+};
+
+// ─────────────────────────────────────────────────────
+//  Parsed DBML → Canvas mapping
+// ─────────────────────────────────────────────────────
+
+// @dbml/core assigns tables without an explicit schema to the "public" schema.
+// We must not fold that synthetic prefix into canvas table names, otherwise a
+// plain `Table users {}` would become "public.users".
+const DEFAULT_PARSE_SCHEMA = "public";
+
+const DEFAULT_TABLE_COLOR = "#6366f1";
+
+export interface ParsedToCanvasOptions {
+  /** Current canvas tables — used to preserve ids, positions, colors and lock state by name. */
+  existingTables: Table[];
+  /** World-space anchor for laying out brand-new tables (typically the viewport center). */
+  originX: number;
+  originY: number;
+}
+
+/**
+ * Reconstructs the canvas table name from a parsed table, re-attaching the
+ * schema prefix (e.g. "dbo.Users") that `generateDbmlFromCanvas` emits as
+ * `Table "dbo"."Users"`. Tables in the synthetic "public" schema stay unqualified.
+ */
+const qualifiedTableName = (table: ParsedTable): string => {
+  const schema = table.schema?.name;
+  return schema && schema !== DEFAULT_PARSE_SCHEMA ? `${schema}.${table.name}` : table.name;
+};
+
+/**
+ * Maps parsed DBML tables onto canvas `Table[]`. Existing tables (matched by
+ * name) keep their id, position, color and lock state so the diagram doesn't
+ * jump; new tables are staggered outward from the supplied origin so they're
+ * immediately visible. Columns likewise preserve ids when matched by name.
+ */
+export const parsedTablesToCanvasTables = (
+  parsedTables: ParsedTable[],
+  { existingTables, originX, originY }: ParsedToCanvasOptions
+): Table[] => {
+  return parsedTables.map((dbTable, index) => {
+    const name = qualifiedTableName(dbTable);
+    const existingTable = existingTables.find((t) => t.name === name);
+
+    const columns = dbTable.fields.map((field) => {
+      const existingCol = existingTable?.columns.find((c) => c.name === field.name);
+      return {
+        id: existingCol?.id ?? crypto.randomUUID(),
+        name: field.name,
+        type: field.type.type_name.toUpperCase(),
+        isPrimaryKey: field.pk || false,
+        isNotNull: field.not_null || false,
+        isUnique: field.unique || false,
+        isAutoIncrement: field.increment || false,
+      };
+    });
+
+    // Use nullish coalescing (??) so x=0 / y=0 are treated as valid positions.
+    const defaultX = originX - 110 + index * 40;
+    const defaultY = originY - 60 + index * 40;
+
+    return {
+      id: existingTable?.id ?? crypto.randomUUID(),
+      name,
+      x: existingTable?.x ?? defaultX,
+      y: existingTable?.y ?? defaultY,
+      color: existingTable?.color ?? DEFAULT_TABLE_COLOR,
+      isLocked: existingTable?.isLocked ?? false,
+      comment: existingTable?.comment,
+      columns,
+    };
+  });
 };
