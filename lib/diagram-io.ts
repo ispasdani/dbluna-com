@@ -58,6 +58,11 @@ export function parseImportedDiagramJson(text: string): DiagramData | null {
         notes: obj.notes as DiagramData["notes"],
         areas: obj.areas as DiagramData["areas"],
         relationships: obj.relationships as DiagramData["relationships"],
+        // Older exports (from before enums/tableGroups/project existed) won't
+        // have these — default them in rather than rejecting the import.
+        enums: Array.isArray(obj.enums) ? (obj.enums as DiagramData["enums"]) : [],
+        tableGroups: Array.isArray(obj.tableGroups) ? (obj.tableGroups as DiagramData["tableGroups"]) : [],
+        project: (obj.project as DiagramData["project"]) ?? null,
         background: obj.background === "dots" ? "dots" : "grid",
         snapToGrid: Boolean(obj.snapToGrid),
         isFocusModeEnabled: obj.isFocusModeEnabled !== false,

@@ -211,6 +211,25 @@ export const update = mutation({
             y: v.number(),
             zoom: v.number(),
         })),
+        enums: v.optional(v.array(v.object({
+            id: v.string(),
+            name: v.string(),
+            note: v.optional(v.string()),
+            values: v.array(v.object({
+                name: v.string(),
+                note: v.optional(v.string()),
+            })),
+        }))),
+        tableGroups: v.optional(v.array(v.object({
+            id: v.string(),
+            name: v.string(),
+            tableNames: v.array(v.string()),
+        }))),
+        project: v.optional(v.object({
+            name: v.optional(v.string()),
+            databaseType: v.optional(v.string()),
+            note: v.optional(v.string()),
+        })),
         name: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
@@ -241,6 +260,9 @@ export const update = mutation({
         if (args.areas) patch.areas = args.areas;
         if (args.notes) patch.notes = args.notes;
         if (args.camera) patch.camera = args.camera;
+        if (args.enums) patch.enums = args.enums;
+        if (args.tableGroups) patch.tableGroups = args.tableGroups;
+        if (args.project) patch.project = args.project;
 
         await ctx.db.patch(args.diagramId, patch);
     },

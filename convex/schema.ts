@@ -108,6 +108,39 @@ export default defineSchema({
       zoom: v.number(),
     }),
 
+    // 5) Documentation schema metadata (authored via the DBML code editor)
+    enums: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          note: v.optional(v.string()),
+          values: v.array(
+            v.object({
+              name: v.string(),
+              note: v.optional(v.string()),
+            })
+          ),
+        })
+      )
+    ),
+    tableGroups: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          tableNames: v.array(v.string()),
+        })
+      )
+    ),
+    project: v.optional(
+      v.object({
+        name: v.optional(v.string()),
+        databaseType: v.optional(v.string()),
+        note: v.optional(v.string()),
+      })
+    ),
+
     isDeleted: v.optional(v.boolean()),
   })
     .index("by_owner", ["ownerId"])

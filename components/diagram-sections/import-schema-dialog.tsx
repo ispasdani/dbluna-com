@@ -34,7 +34,7 @@ interface ImportSchemaDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type DbEngine = "postgresql" | "oracle" | "sqlserver";
+type DbEngine = "postgresql" | "sqlserver";
 
 interface DbConnectionForm {
   host: string;
@@ -51,13 +51,11 @@ type Status = "idle" | "loading" | "success" | "error";
 ───────────────────────────────────────────────────────────────────────────── */
 const DEFAULT_PORTS: Record<DbEngine, string> = {
   postgresql: "5432",
-  oracle: "1521",
   sqlserver: "1433",
 };
 
 const ENGINE_LABELS: Record<DbEngine, string> = {
   postgresql: "PostgreSQL",
-  oracle: "Oracle SQL",
   sqlserver: "SQL Server",
 };
 
@@ -791,7 +789,6 @@ function BacpacImportTab() {
 function EngineBadge({ engine }: { engine: DbEngine }) {
   const colors: Record<DbEngine, string> = {
     postgresql: "text-sky-400",
-    oracle: "text-red-500",
     sqlserver: "text-indigo-400",
   };
   return (

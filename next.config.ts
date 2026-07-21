@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // They are resolved by Node at runtime only when actually used,
   // so an uninstalled optional driver (e.g. oracledb) won't cause
   // a build-time "Module not found" error.
-  serverExternalPackages: ["mysql2", "pg", "mssql"],
+  serverExternalPackages: ["pg", "mssql"],
   turbopack: {},
   webpack: (config, { isServer }) => {
     if (!isServer) {

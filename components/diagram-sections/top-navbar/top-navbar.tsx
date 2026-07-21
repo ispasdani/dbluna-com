@@ -53,6 +53,9 @@ export function TopNavbar() {
   const notes = useCanvasStore((s) => s.notes);
   const areas = useCanvasStore((s) => s.areas);
   const relationships = useCanvasStore((s) => s.relationships);
+  const enums = useCanvasStore((s) => s.enums);
+  const tableGroups = useCanvasStore((s) => s.tableGroups);
+  const project = useCanvasStore((s) => s.project);
   const background = useCanvasStore((s) => s.background);
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
@@ -72,6 +75,9 @@ export function TopNavbar() {
         notes,
         areas,
         relationships,
+        enums,
+        tableGroups,
+        project,
         background,
         snapToGrid,
         isFocusModeEnabled,

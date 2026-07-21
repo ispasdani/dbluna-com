@@ -38,6 +38,35 @@ export interface Relationship {
   onDelete: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
 }
 
+// ─── Documentation-oriented schema metadata ──────────────────────────────────
+// These have no visual representation on the canvas yet; they are authored via
+// the DBML code editor and surfaced in the read-only Docs reflection.
+
+export interface EnumValue {
+  name: string;
+  note?: string;
+}
+
+export interface CanvasEnum {
+  id: string;
+  name: string;
+  values: EnumValue[];
+  note?: string;
+}
+
+export interface CanvasTableGroup {
+  id: string;
+  name: string;
+  // Canvas table names (may be schema-qualified, e.g. "dbo.Users").
+  tableNames: string[];
+}
+
+export interface CanvasProject {
+  name?: string;
+  databaseType?: string;
+  note?: string;
+}
+
 export const TABLE_COLORS = [
   "#e11d48", // rose
   "#ea580c", // orange
@@ -80,6 +109,9 @@ export interface DiagramData {
   notes: Note[];
   areas: Area[];
   relationships: Relationship[];
+  enums: CanvasEnum[];
+  tableGroups: CanvasTableGroup[];
+  project: CanvasProject | null;
   background: CanvasBackground;
   snapToGrid: boolean;
   isFocusModeEnabled: boolean;
@@ -87,14 +119,16 @@ export interface DiagramData {
 
 // The subset of DiagramData that lives at the top level of CanvasState while
 // a diagram is active. `name`/`updatedAt` only ever live inside `diagrams[id]`.
+// NOTE: keep this list in sync with DiagramData's data fields — a field added
+// to DiagramData but not here would silently fail to persist per-diagram.
 type CanvasFields = Pick<
   DiagramData,
-  "tables" | "notes" | "areas" | "relationships" | "background" | "snapToGrid" | "isFocusModeEnabled"
+  "tables" | "notes" | "areas" | "relationships" | "enums" | "tableGroups" | "project" | "background" | "snapToGrid" | "isFocusModeEnabled"
 >;
 
 function toCanvasFields(data: CanvasFields): CanvasFields {
-  const { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = data;
-  return { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled };
+  const { tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled } = data;
+  return { tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled };
 }
 
 function createDefaultDiagram(): DiagramData {
@@ -105,6 +139,9 @@ function createDefaultDiagram(): DiagramData {
     notes: [],
     areas: [],
     relationships: [],
+    enums: [],
+    tableGroups: [],
+    project: null,
     background: "grid",
     snapToGrid: false,
     isFocusModeEnabled: true,
@@ -148,6 +185,14 @@ type CanvasState = {
   updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
+
+  // Documentation schema metadata (authored via the DBML code editor)
+  enums: CanvasEnum[];
+  tableGroups: CanvasTableGroup[];
+  project: CanvasProject | null;
+  setEnums: (enums: CanvasEnum[]) => void;
+  setTableGroups: (groups: CanvasTableGroup[]) => void;
+  setProject: (project: CanvasProject | null) => void;
 
   // Notes
   notes: Note[];
@@ -217,11 +262,14 @@ export const useCanvasStore = create<CanvasState>()(
           };
         }
 
-        // 2. Load new state from map or create a fresh default, and make sure
+        // 2. Load new state from map or create a fresh default. Merge over the
+        // default so a brand-new id gets sane values AND an older persisted
+        // diagram that predates a field (e.g. enums/tableGroups/project) still
+        // hydrates that field instead of leaving it undefined. Also make sure
         // the record actually has an entry for it (previously this only read,
         // never wrote, so a brand-new diagram id never appeared in `diagrams`
         // until you switched away from it once).
-        const target = newDiagrams[id] ?? createDefaultDiagram();
+        const target = { ...createDefaultDiagram(), ...newDiagrams[id] };
         newDiagrams[id] = target;
 
         set({
@@ -463,6 +511,14 @@ export const useCanvasStore = create<CanvasState>()(
           selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
         })),
       setTables: (tables) => set({ tables }),
+
+      // Documentation schema metadata
+      enums: [],
+      tableGroups: [],
+      project: null,
+      setEnums: (enums) => set({ enums }),
+      setTableGroups: (tableGroups) => set({ tableGroups }),
+      setProject: (project) => set({ project }),
 
       // Notes Actions
       notes: [],

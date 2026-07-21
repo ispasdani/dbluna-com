@@ -6,6 +6,7 @@ import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
+import { CanvasShortcutsHelp } from "./canvas-shortcuts-help";
 import { TableNode } from "./table-node";
 import { NoteNode } from "./note-node";
 import { AreaNode } from "./area-node";
@@ -1390,6 +1391,9 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
           </svg>
         </div>
       </div>
+
+      {/* Keyboard shortcuts / controls help */}
+      <CanvasShortcutsHelp className="absolute bottom-4 left-4 z-20" />
 
       {/* Minimap overlay */}
       <Minimap
