@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload } from "lucide-react";
+import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import { useDockStore } from "@/store/useDockStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
+import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
 import { exportDiagramAsJson, exportDiagramAsDbml, parseImportedDiagramJson } from "@/lib/diagram-io";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
@@ -41,6 +42,7 @@ export function TopNavbar() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
   const [diagramToRename, setDiagramToRename] = useState("");
   const [renamedName, setRenamedName] = useState("");
@@ -66,24 +68,31 @@ export function TopNavbar() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Single source of truth for "the currently open diagram" — used by both
+  // JSON export and the share dialog so they can never drift out of sync.
+  // updatedAt is decorative here (export/share both ignore or drop it) — read
+  // the last known value from the store rather than calling Date.now() during
+  // render, which React's purity rule flags.
+  const currentDiagramData = useMemo(
+    () => ({
+      name: currentDiagramName,
+      updatedAt: (activeDiagramId && canvasDiagrams[activeDiagramId]?.updatedAt) || 0,
+      tables,
+      notes,
+      areas,
+      relationships,
+      enums,
+      tableGroups,
+      project,
+      background,
+      snapToGrid,
+      isFocusModeEnabled,
+    }),
+    [activeDiagramId, canvasDiagrams, currentDiagramName, tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled]
+  );
+
   const handleExportJson = () => {
-    exportDiagramAsJson(
-      {
-        name: currentDiagramName,
-        updatedAt: Date.now(),
-        tables,
-        notes,
-        areas,
-        relationships,
-        enums,
-        tableGroups,
-        project,
-        background,
-        snapToGrid,
-        isFocusModeEnabled,
-      },
-      currentDiagramName
-    );
+    exportDiagramAsJson(currentDiagramData, currentDiagramName);
   };
 
   const handleExportDbml = () => {
@@ -205,6 +214,16 @@ export function TopNavbar() {
             <span className="hidden sm:inline">My Diagrams</span>
           </Button>
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            onClick={() => setIsShareOpen(true)}
+          >
+            <Share2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Share</span>
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2">
@@ -309,6 +328,7 @@ export function TopNavbar() {
       </Dialog>
 
       <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} />
+      <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
     </>
   );
 }
