@@ -21,6 +21,10 @@ const isPublicRoute = createRouteMatcher([
   // ✅ webhooks / endpoints that must remain public
   "/clerk(.*)",
 
+  // ✅ read-only share-link viewer — must never require sign-in, that's the
+  // whole point of an anonymous share link (see release-1-0/share-via-url-plan.md)
+  "/d/view(.*)",
+
   // If you want *some* API public, keep it narrow:
   // "/api/public(.*)",
   // Otherwise remove this and protect APIs by default.
@@ -30,7 +34,8 @@ const isPublicRoute = createRouteMatcher([
 export default clerkMiddleware(
   async (auth: ClerkMiddlewareAuth, req: NextRequest) => {
     // Require sign-in for protected routes
-    // ✅ This includes /d/* because it is NOT in isPublicRoute
+    // ✅ This includes /d/[id] because it is NOT in isPublicRoute — /d/view is
+    // the one exception, listed above.
     if (!isPublicRoute(req)) {
       await auth.protect();
     }
