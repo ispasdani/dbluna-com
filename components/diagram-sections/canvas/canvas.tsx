@@ -9,6 +9,7 @@ import { Minimap } from "./minimap";
 import { TableNode } from "./table-node";
 import { NoteNode } from "./note-node";
 import { AreaNode } from "./area-node";
+import { useStoreHydration } from "@/hooks/use-store-hydration";
 import styles from "./canvas.module.scss";
 
 
@@ -63,11 +64,15 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   // Inform stores which diagram we are working on
   const setDiagramId = useCanvasStore((s) => s.setDiagramId);
   const setEditorDiagramId = useEditorStore((s) => s.setEditorDiagramId);
+  const hasHydrated = useStoreHydration();
 
   useEffect(() => {
+    // Wait for IndexedDB rehydration — switching diagrams against pre-hydration
+    // empty state would read/write the wrong (stale default) data.
+    if (!hasHydrated) return;
     setDiagramId(diagramId);
     setEditorDiagramId(diagramId);
-  }, [diagramId, setDiagramId, setEditorDiagramId]);
+  }, [diagramId, hasHydrated, setDiagramId, setEditorDiagramId]);
 
 
 

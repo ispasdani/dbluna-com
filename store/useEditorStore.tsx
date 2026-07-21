@@ -12,6 +12,8 @@ const clamp = (n: number, min: number, max: number) =>
 export type Camera = { x: number; y: number; zoom: number };
 
 type EditorState = {
+  hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   activeDiagramId: string | null;
   cameras: Record<string, Camera>;
   setEditorDiagramId: (id: string) => void;
@@ -34,6 +36,8 @@ type EditorState = {
 export const useEditorStore = create<EditorState>()(
   persist(
     (set, get) => ({
+      hasHydrated: false,
+      setHasHydrated: (v) => set({ hasHydrated: v }),
       activeDiagramId: null,
       cameras: {},
       setEditorDiagramId: (id) => {
@@ -104,15 +108,20 @@ export const useEditorStore = create<EditorState>()(
     }),
     {
       name: "editor-storage",
-      // Debounced: panBy/zoomAt fire per pointermove; writing localStorage
+      // Debounced: panBy/zoomAt fire per pointermove; writing to storage
       // synchronously on each one causes pan jank.
       storage: createDebouncedStorage(500),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) console.error("Failed to rehydrate editor-storage:", error);
+        useEditorStore.setState({ hasHydrated: true });
+      },
       partialize: (state) => {
         const { activeDiagramId, cameras, camera } = state;
         const newCameras = { ...cameras };
         if (activeDiagramId) {
           newCameras[activeDiagramId] = camera;
         }
+        // hasHydrated is intentionally NOT here — runtime-only.
         return { cameras: newCameras };
       },
     }

@@ -74,6 +74,8 @@ export interface Area {
 }
 
 export interface DiagramData {
+  name: string;
+  updatedAt: number;
   tables: Table[];
   notes: Note[];
   areas: Area[];
@@ -83,10 +85,42 @@ export interface DiagramData {
   isFocusModeEnabled: boolean;
 }
 
+// The subset of DiagramData that lives at the top level of CanvasState while
+// a diagram is active. `name`/`updatedAt` only ever live inside `diagrams[id]`.
+type CanvasFields = Pick<
+  DiagramData,
+  "tables" | "notes" | "areas" | "relationships" | "background" | "snapToGrid" | "isFocusModeEnabled"
+>;
+
+function toCanvasFields(data: CanvasFields): CanvasFields {
+  const { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = data;
+  return { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled };
+}
+
+function createDefaultDiagram(): DiagramData {
+  return {
+    name: "Untitled diagram",
+    updatedAt: Date.now(),
+    tables: [],
+    notes: [],
+    areas: [],
+    relationships: [],
+    background: "grid",
+    snapToGrid: false,
+    isFocusModeEnabled: true,
+  };
+}
+
 type CanvasState = {
+  hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   activeDiagramId: string | null;
   diagrams: Record<string, DiagramData>;
   setDiagramId: (id: string) => void;
+  renameDiagram: (id: string, name: string) => void;
+  duplicateDiagram: (id: string) => string | null;
+  deleteDiagram: (id: string) => void;
+  importDiagram: (id: string, data: DiagramData) => void;
   background: CanvasBackground;
   tables: Table[];
   selectedTableIds: string[];
@@ -136,43 +170,126 @@ type CanvasState = {
   setSavingStatus: (status: "idle" | "saving" | "saved") => void;
 };
 
-const DEFAULT_DIAGRAM: DiagramData = {
-  tables: [],
-  notes: [],
-  areas: [],
-  relationships: [],
-  background: "grid",
-  snapToGrid: false,
-  isFocusModeEnabled: true,
-};
+// Effective snapshot for `id`: if it's the currently-active diagram, its live
+// top-level fields are the source of truth (the `diagrams` record entry for
+// the active id is only written back on a diagram switch or persist write, so
+// it can be stale or even absent while that diagram is the one on screen).
+function snapshotFor(state: CanvasState, id: string): DiagramData | undefined {
+  if (id === state.activeDiagramId) {
+    const existing = state.diagrams[id];
+    return {
+      ...toCanvasFields(state),
+      name: existing?.name ?? "Untitled diagram",
+      updatedAt: existing?.updatedAt ?? Date.now(),
+    };
+  }
+  return state.diagrams[id];
+}
 
+// For UI that lists all diagrams (e.g. the My Diagrams dialog) — overlays the
+// active diagram's live state onto the persisted record so the diagram
+// currently open always shows up with accurate data.
+export function getEffectiveDiagrams(state: CanvasState): Record<string, DiagramData> {
+  if (!state.activeDiagramId) return state.diagrams;
+  const snap = snapshotFor(state, state.activeDiagramId);
+  if (!snap) return state.diagrams;
+  return { ...state.diagrams, [state.activeDiagramId]: snap };
+}
 
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({
+      hasHydrated: false,
+      setHasHydrated: (v) => set({ hasHydrated: v }),
       activeDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
-        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid } = get();
+        const { activeDiagramId, diagrams } = get();
 
         // 1. Save current active state to map
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled: get().isFocusModeEnabled };
+          const prevExisting = newDiagrams[activeDiagramId];
+          newDiagrams[activeDiagramId] = {
+            ...toCanvasFields(get()),
+            name: prevExisting?.name ?? "Untitled diagram",
+            updatedAt: Date.now(),
+          };
         }
 
-        // 2. Load new state from map or default
-        const target = newDiagrams[id] || DEFAULT_DIAGRAM;
+        // 2. Load new state from map or create a fresh default, and make sure
+        // the record actually has an entry for it (previously this only read,
+        // never wrote, so a brand-new diagram id never appeared in `diagrams`
+        // until you switched away from it once).
+        const target = newDiagrams[id] ?? createDefaultDiagram();
+        newDiagrams[id] = target;
 
         set({
           activeDiagramId: id,
           diagrams: newDiagrams,
-          ...target,
+          ...toCanvasFields(target),
           selectedTableIds: [],
           selectedRelationshipId: null,
           selectedNoteIds: [],
           selectedAreaIds: [],
         });
+      },
+      renameDiagram: (id, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((s) => {
+          const existing = snapshotFor(s, id);
+          if (!existing) return {};
+          return { diagrams: { ...s.diagrams, [id]: { ...existing, name: trimmed } } };
+        });
+      },
+      duplicateDiagram: (id) => {
+        const s = get();
+        const source = snapshotFor(s, id);
+        if (!source) return null;
+        const newId = crypto.randomUUID();
+        set({
+          diagrams: {
+            ...s.diagrams,
+            [newId]: {
+              ...structuredClone(source),
+              name: `${source.name} (copy)`,
+              updatedAt: Date.now(),
+            },
+          },
+        });
+        return newId;
+      },
+      deleteDiagram: (id) => {
+        set((s) => {
+          const newDiagrams = { ...s.diagrams };
+          delete newDiagrams[id];
+          if (id === s.activeDiagramId) {
+            const fresh = createDefaultDiagram();
+            return {
+              diagrams: newDiagrams,
+              activeDiagramId: null,
+              ...toCanvasFields(fresh),
+              selectedTableIds: [],
+              selectedRelationshipId: null,
+              selectedNoteIds: [],
+              selectedAreaIds: [],
+            };
+          }
+          return { diagrams: newDiagrams };
+        });
+      },
+      importDiagram: (id, data) => {
+        set((s) => ({
+          diagrams: {
+            ...s.diagrams,
+            [id]: {
+              ...data,
+              name: data.name?.trim() || "Imported diagram",
+              updatedAt: Date.now(),
+            },
+          },
+        }));
       },
       background: "grid",
       tables: [],
@@ -471,15 +588,29 @@ export const useCanvasStore = create<CanvasState>()(
     {
       name: "canvas-storage",
       // Debounced: note/area resize updates the store per pointermove;
-      // serializing every diagram to localStorage each time causes jank.
-      storage: createDebouncedStorage(500),
+      // serializing every diagram to IndexedDB each time causes jank.
+      // onWriteComplete fires after a real flush lands, driving the honest
+      // "Saved locally" indicator instead of a fake timer.
+      storage: createDebouncedStorage(500, (name) => {
+        if (name === "canvas-storage") {
+          useCanvasStore.getState().setSavingStatus("saved");
+        }
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) console.error("Failed to rehydrate canvas-storage:", error);
+        useCanvasStore.setState({ hasHydrated: true });
+      },
       partialize: (state) => {
-        const { activeDiagramId, diagrams, tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled } = state;
+        const { activeDiagramId, diagrams } = state;
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
-          newDiagrams[activeDiagramId] = { tables, notes, areas, relationships, background, snapToGrid, isFocusModeEnabled };
+          newDiagrams[activeDiagramId] = {
+            ...toCanvasFields(state),
+            name: diagrams[activeDiagramId]?.name ?? "Untitled diagram",
+            updatedAt: Date.now(),
+          };
         }
-        // savingStatus is intentionally NOT here to avoid persisting it
+        // savingStatus/hasHydrated are intentionally NOT here — runtime-only.
         return { diagrams: newDiagrams };
       },
     }

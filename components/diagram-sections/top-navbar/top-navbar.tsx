@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Plus, Pencil, Database, Download, FileText } from "lucide-react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,11 +22,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useViewStore } from "@/store/useViewStore";
 import { useDockStore } from "@/store/useDockStore";
-import { PlatformPaletteToggle } from "@/components/diagram-general/platform-palette-toggle";
+import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
+import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
+import { exportDiagramAsJson, exportDiagramAsDbml, parseImportedDiagramJson } from "@/lib/diagram-io";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 export function TopNavbar() {
+  const router = useRouter();
   const {
     selectedDiagram,
     diagrams,
@@ -36,11 +40,69 @@ export function TopNavbar() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
   const [diagramToRename, setDiagramToRename] = useState("");
   const [renamedName, setRenamedName] = useState("");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
+
+  const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
+  const canvasDiagrams = useCanvasStore((s) => s.diagrams);
+  const tables = useCanvasStore((s) => s.tables);
+  const notes = useCanvasStore((s) => s.notes);
+  const areas = useCanvasStore((s) => s.areas);
+  const relationships = useCanvasStore((s) => s.relationships);
+  const background = useCanvasStore((s) => s.background);
+  const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+  const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
+  const importDiagram = useCanvasStore((s) => s.importDiagram);
+
+  const currentDiagramName =
+    (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) || "Untitled diagram";
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportJson = () => {
+    exportDiagramAsJson(
+      {
+        name: currentDiagramName,
+        updatedAt: Date.now(),
+        tables,
+        notes,
+        areas,
+        relationships,
+        background,
+        snapToGrid,
+        isFocusModeEnabled,
+      },
+      currentDiagramName
+    );
+  };
+
+  const handleExportDbml = () => {
+    exportDiagramAsDbml(tables, relationships, currentDiagramName);
+  };
+
+  const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const text = await file.text();
+    const data = parseImportedDiagramJson(text);
+    if (!data) {
+      alert("That file doesn't look like a valid diagram export.");
+      return;
+    }
+
+    // Import always creates a new diagram — never overwrite the one open now.
+    const newId = crypto.randomUUID();
+    importDiagram(newId, data);
+    router.push(`/d/${newId}`);
+  };
 
   const handleCreateNew = () => {
     setNewDiagramName("");
@@ -117,7 +179,7 @@ export function TopNavbar() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button 
+          <Button
             variant={workspaceMode === "docs" ? "secondary" : "ghost"}
             size="sm"
             className="gap-2"
@@ -126,6 +188,47 @@ export function TopNavbar() {
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">DBML Docs</span>
           </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2"
+            onClick={() => setIsMyDiagramsOpen(true)}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span className="hidden sm:inline">My Diagrams</span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={handleExportJson} className="gap-2">
+                <FileText className="w-4 h-4" />
+                Export as JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
+                <Database className="w-4 h-4" />
+                Export as DBML
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="ghost" size="sm" className="gap-2" onClick={handleImportClick}>
+            <Upload className="w-4 h-4" />
+            <span className="hidden sm:inline">Import</span>
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
 
           <SavingIndicator />
         </div>
@@ -198,6 +301,8 @@ export function TopNavbar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} />
     </>
   );
 }

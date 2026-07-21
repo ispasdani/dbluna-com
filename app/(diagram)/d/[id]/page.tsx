@@ -2,6 +2,7 @@
 "use client";
 
 import { useRef, use } from "react";
+import { Loader2 } from "lucide-react";
 import { useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
@@ -9,6 +10,7 @@ import { DockPanel } from "@/components/diagram-general/dock-panel";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
+import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 
 function clamp(n: number, min: number, max: number) {
@@ -21,6 +23,7 @@ interface PageProps {
 
 export default function DiagramPage({ params }: PageProps) {
   const { id } = use(params);
+  const hasHydrated = useStoreHydration();
   useDiagramAutoSave();
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
@@ -56,6 +59,14 @@ export default function DiagramPage({ params }: PageProps) {
   const onHandlePointerUp = () => {
     dragRef.current.active = false;
   };
+
+  if (!hasHydrated) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
