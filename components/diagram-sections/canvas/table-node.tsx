@@ -19,10 +19,11 @@ interface TableNodeProps {
   table: Table;
   selected?: boolean;
   isDimmed?: boolean;
+  readOnly?: boolean;
   onColumnPointerDown?: (e: React.PointerEvent, columnId: string, isSource: boolean) => void;
 }
 
-export const TableNode = memo(function TableNode({ table, selected, isDimmed, onColumnPointerDown }: TableNodeProps) {
+export const TableNode = memo(function TableNode({ table, selected, isDimmed, readOnly, onColumnPointerDown }: TableNodeProps) {
   const HEADER_HEIGHT = 36;
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
@@ -90,76 +91,78 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, on
         {table.name}
       </text>
 
-      {/* Header Actions using foreignObject for Shadcn UI */}
-      <foreignObject 
-        x={WIDTH - 76} 
-        y={STRIP_HEIGHT + 4} 
-        width={72} 
-        height={28}
-        className="overflow-visible"
-      >
-        <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
-            onClick={() => updateTable(table.id, { isLocked: !table.isLocked })}
-          >
-            {table.isLocked ? (
-              <Lock className="h-4 w-4 text-primary" />
-            ) : (
-              <Unlock className="h-4 w-4" />
-            )}
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {table.comment && (
-                <>
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
-                    {table.comment}
-                  </div>
-                  <DropdownMenuSeparator />
-                </>
+      {/* Header Actions using foreignObject for Shadcn UI — hidden in read-only mode */}
+      {!readOnly && (
+        <foreignObject
+          x={WIDTH - 76}
+          y={STRIP_HEIGHT + 4}
+          width={72}
+          height={28}
+          className="overflow-visible"
+        >
+          <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+              onClick={() => updateTable(table.id, { isLocked: !table.isLocked })}
+            >
+              {table.isLocked ? (
+                <Lock className="h-4 w-4 text-primary" />
+              ) : (
+                <Unlock className="h-4 w-4" />
               )}
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
-              <div className="grid grid-cols-4 gap-1 p-2">
-                {TABLE_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    className={cn(
-                      "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
-                      table.color === color && "ring-2 ring-primary ring-offset-1"
-                    )}
-                    style={{ backgroundColor: color }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateTable(table.id, { color });
-                    }}
-                  />
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                className="text-destructive focus:text-destructive gap-2"
-                onSelect={() => deleteTable(table.id)}
-              >
-                <Trash className="h-4 w-4" />
-                <span>Delete</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </foreignObject>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {table.comment && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
+                      {table.comment}
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
+                <div className="grid grid-cols-4 gap-1 p-2">
+                  {TABLE_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      className={cn(
+                        "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                        table.color === color && "ring-2 ring-primary ring-offset-1"
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateTable(table.id, { color });
+                      }}
+                    />
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive gap-2"
+                  onSelect={() => deleteTable(table.id)}
+                >
+                  <Trash className="h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </foreignObject>
+      )}
 
       {/* Divider between Header and Body */}
       <line
@@ -219,43 +222,47 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, on
               {col.type}
             </text>
 
-            {/* Connection Grips */}
-            {/* Left Grip (Target) */}
-            <circle
-               cx={0} 
-               cy={ROW_HEIGHT / 2} 
-               r={4} 
-               fill="var(--primary)" 
-               stroke="var(--background)"
-               strokeWidth={1.5}
-               className="cursor-crosshair transition-all hover:r-5"
-               data-table-id={table.id}
-               data-col-id={col.id}
-               data-is-source="false"
-               onPointerDown={(e) => {
-                 if (onColumnPointerDown) {
-                   onColumnPointerDown(e, col.id, false);
-                 }
-               }}
-            />
-            {/* Right Grip (Source) */}
-            <circle
-               cx={WIDTH} 
-               cy={ROW_HEIGHT / 2} 
-               r={4} 
-               fill="var(--primary)" 
-               stroke="var(--background)"
-               strokeWidth={1.5}
-               className="cursor-crosshair transition-all hover:r-5"
-               data-table-id={table.id}
-               data-col-id={col.id}
-               data-is-source="true"
-               onPointerDown={(e) => {
-                 if (onColumnPointerDown) {
-                   onColumnPointerDown(e, col.id, true);
-                 }
-               }}
-            />
+            {/* Connection Grips — hidden in read-only mode (no relationship creation) */}
+            {!readOnly && (
+              <>
+                {/* Left Grip (Target) */}
+                <circle
+                   cx={0}
+                   cy={ROW_HEIGHT / 2}
+                   r={4}
+                   fill="var(--primary)"
+                   stroke="var(--background)"
+                   strokeWidth={1.5}
+                   className="cursor-crosshair transition-all hover:r-5"
+                   data-table-id={table.id}
+                   data-col-id={col.id}
+                   data-is-source="false"
+                   onPointerDown={(e) => {
+                     if (onColumnPointerDown) {
+                       onColumnPointerDown(e, col.id, false);
+                     }
+                   }}
+                />
+                {/* Right Grip (Source) */}
+                <circle
+                   cx={WIDTH}
+                   cy={ROW_HEIGHT / 2}
+                   r={4}
+                   fill="var(--primary)"
+                   stroke="var(--background)"
+                   strokeWidth={1.5}
+                   className="cursor-crosshair transition-all hover:r-5"
+                   data-table-id={table.id}
+                   data-col-id={col.id}
+                   data-is-source="true"
+                   onPointerDown={(e) => {
+                     if (onColumnPointerDown) {
+                       onColumnPointerDown(e, col.id, true);
+                     }
+                   }}
+                />
+              </>
+            )}
           </g>
         );
       })}
@@ -266,6 +273,7 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, on
   return (
     prevProps.table === nextProps.table &&
     prevProps.selected === nextProps.selected &&
-    prevProps.isDimmed === nextProps.isDimmed
+    prevProps.isDimmed === nextProps.isDimmed &&
+    prevProps.readOnly === nextProps.readOnly
   );
 });

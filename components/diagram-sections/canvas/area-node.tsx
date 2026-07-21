@@ -18,10 +18,11 @@ import React, { memo } from "react";
 interface AreaNodeProps {
   area: Area;
   selected?: boolean;
+  readOnly?: boolean;
 }
 
 // DrawDB areas are usually dashed borders with a label
-export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps) {
+export const AreaNode = memo(function AreaNode({ area, selected, readOnly }: AreaNodeProps) {
   const updateArea = useCanvasStore((s) => s.updateArea);
   const deleteArea = useCanvasStore((s) => s.deleteArea);
 
@@ -54,7 +55,7 @@ export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps
              {area.title}
            </span>
            
-           {selected && (
+           {selected && !readOnly && (
              <div className="flex items-center bg-background border rounded shadow-sm">
                 <Button
                    variant="ghost" 
@@ -83,7 +84,7 @@ export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps
       </foreignObject>
       
       {/* Resize Handles - All corners + edges */}
-      {selected && !area.isLocked && (
+      {selected && !area.isLocked && !readOnly && (
          <>
             {/* Top-Left */}
             <rect x={-4} y={-4} width={8} height={8} fill="var(--background)" stroke="var(--primary)" rx={1} style={{cursor:"nwse-resize"}} data-area-resize="tl" data-area-id={area.id} />
@@ -101,6 +102,7 @@ export const AreaNode = memo(function AreaNode({ area, selected }: AreaNodeProps
 , (prevProps, nextProps) => {
   return (
     prevProps.area === nextProps.area &&
-    prevProps.selected === nextProps.selected
+    prevProps.selected === nextProps.selected &&
+    prevProps.readOnly === nextProps.readOnly
   );
 });

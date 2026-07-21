@@ -21,9 +21,13 @@ function clamp(n: number, min: number, max: number) {
 
 interface CanvasStageProps {
   diagramId: string;
+  // When true, drag/resize/delete/connection-creation are disabled. Pan,
+  // zoom, and selection stay fully functional. Used by the anonymous
+  // share-link viewer (/d/view) — see release-1-0/share-via-url-plan.md.
+  readOnly?: boolean;
 }
 
-export function CanvasStage({ diagramId }: CanvasStageProps) {
+export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   const background = useCanvasStore((s) => s.background);
@@ -118,10 +122,10 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       if (e.code === "Space") {
         setSpaceDown(false);
       }
-      if ((e.code === "Delete" || e.code === "Backspace") && selectedTableIds.length > 0) {
-        // Prevent deleting if typing in input !! 
+      if (!readOnly && (e.code === "Delete" || e.code === "Backspace") && selectedTableIds.length > 0) {
+        // Prevent deleting if typing in input !!
         // We already check "isTyping" in onKeyDown but not here.
-        // We should check here too or move logic. 
+        // We should check here too or move logic.
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
         if (!isTyping) {
@@ -137,7 +141,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedTableIds, deleteTables]);
+  }, [selectedTableIds, deleteTables, readOnly]);
 
   // Pointer panning
   const drag = useRef<{
@@ -411,6 +415,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
   };
 
   const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, isSource: boolean) => {
+    if (readOnly) return; // no creating relationships in a read-only viewer
+
     e.stopPropagation();
     e.preventDefault();
 
@@ -491,12 +497,12 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     // If table is locked, just select it (single) and return
     if (table.isLocked) {
       setSelectedTableIds([tableId]);
-      openTab("tables", "left");
+      if (!readOnly) openTab("tables", "left");
       return;
     }
 
     const target = e.currentTarget as Element;
-    target.setPointerCapture(e.pointerId);
+    if (!readOnly) target.setPointerCapture(e.pointerId);
 
     // Selection Logic:
     // If clicking an unselected table, select it (exclusive) unless Shift
@@ -521,6 +527,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       setSelectedTableIds(newSelectedIds);
       return; // Don't drag if we just deselected it
     }
+
+    if (readOnly) return; // selection only — no drag in a read-only viewer
 
     // Prepare group drag
     const initialPositions = new Map<string, { x: number, y: number }>();
@@ -550,7 +558,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     const resizeDir = target.getAttribute("data-note-resize");
 
     // Handle Resizing
-    if (resizeDir && (resizeDir === "left" || resizeDir === "right") && !note.isLocked) {
+    if (!readOnly && resizeDir && (resizeDir === "left" || resizeDir === "right") && !note.isLocked) {
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       resizeNote.current = {
         active: true,
@@ -567,11 +575,11 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     // If locked, just select
     if (note.isLocked) {
       setSelectedNoteIds([noteId]);
-      openTab("notes", "left");
+      if (!readOnly) openTab("notes", "left");
       return;
     }
 
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    if (!readOnly) (e.currentTarget as Element).setPointerCapture(e.pointerId);
 
     // Selection Logic (similar to tables)
     let newSelectedIds = [...selectedNoteIds];
@@ -588,6 +596,8 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
       setSelectedNoteIds(newSelectedIds);
       return;
     }
+
+    if (readOnly) return; // selection only — no drag in a read-only viewer
 
     // Group Drag Init
     const initialPositions = new Map<string, { x: number, y: number }>();
@@ -617,7 +627,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     const resizeDir = target.getAttribute("data-area-resize") as "tl" | "tr" | "bl" | "br" | null;
 
     // Handle Resizing
-    if (resizeDir && !area.isLocked) {
+    if (!readOnly && resizeDir && !area.isLocked) {
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       resizeArea.current = {
         active: true,
@@ -637,11 +647,11 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
     // If locked, select only
     if (area.isLocked) {
       setSelectedAreaIds([areaId]);
-      openTab("areas", "left");
+      if (!readOnly) openTab("areas", "left");
       return;
     }
 
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    if (!readOnly) (e.currentTarget as Element).setPointerCapture(e.pointerId);
 
     // Selection Logic
     let newSelectedIds = [...selectedAreaIds];
@@ -652,13 +662,14 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
         newSelectedIds = [areaId];
       }
       setSelectedAreaIds(newSelectedIds);
-      openTab("areas", "left");
+      if (!readOnly) openTab("areas", "left");
     } else if (e.shiftKey) {
       newSelectedIds = newSelectedIds.filter(id => id !== areaId);
       setSelectedAreaIds(newSelectedIds);
       return;
     }
 
+    if (readOnly) return; // selection only — no drag in a read-only viewer
 
     // DRAG LOGIC FOR AREA + CHILDREN
     const initialPositions = new Map();
@@ -1298,6 +1309,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                 <AreaNode
                   area={area}
                   selected={selectedAreaIds.includes(area.id)}
+                  readOnly={readOnly}
                 />
               </g>
             )})}
@@ -1332,6 +1344,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                 <NoteNode
                   note={note}
                   selected={selectedNoteIds.includes(note.id)}
+                  readOnly={readOnly}
                 />
               </g>
             )})}
@@ -1370,6 +1383,7 @@ export function CanvasStage({ diagramId }: CanvasStageProps) {
                   table={table}
                   selected={selectedTableIds.includes(table.id)}
                   isDimmed={focusedTables !== null && !focusedTables.has(table.id)}
+                  readOnly={readOnly}
                   onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
                 />
               </g>

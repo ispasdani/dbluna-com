@@ -18,9 +18,10 @@ import React, { memo } from "react";
 interface NoteNodeProps {
   note: Note;
   selected?: boolean;
+  readOnly?: boolean;
 }
 
-export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps) {
+export const NoteNode = memo(function NoteNode({ note, selected, readOnly }: NoteNodeProps) {
   const updateNote = useCanvasStore((s) => s.updateNote);
   const deleteNote = useCanvasStore((s) => s.deleteNote);
 
@@ -74,56 +75,58 @@ export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps
                {note.title || "Untitled Note"}
             </div>
             
-            {/* Action Buttons - Re-enable pointer events */}
-            <div className="flex items-center pointer-events-auto" onPointerDown={(e) => e.stopPropagation()}>
-               <Button
-                 variant="ghost"
-                 size="icon"
-                 className="h-6 w-6 hover:bg-black/10 text-foreground/60"
-                 onClick={() => updateNote(note.id, { isLocked: !note.isLocked })}
-               >
-                 {note.isLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
-               </Button>
-               
-               <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 hover:bg-black/10 text-foreground/60"
-                    >
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Color</DropdownMenuLabel>
-                    <div className="grid grid-cols-4 gap-1 p-2">
-                      {TABLE_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          className={cn(
-                            "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
-                            note.color === color && "ring-2 ring-primary ring-offset-1"
-                          )}
-                          style={{ backgroundColor: color }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateNote(note.id, { color });
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="text-destructive focus:text-destructive gap-2"
-                      onSelect={() => deleteNote(note.id)}
-                    >
-                      <Trash className="h-4 w-4" />
-                      <span>Delete Note</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-               </DropdownMenu>
-            </div>
+            {/* Action Buttons - Re-enable pointer events. Hidden in read-only mode. */}
+            {!readOnly && (
+              <div className="flex items-center pointer-events-auto" onPointerDown={(e) => e.stopPropagation()}>
+                 <Button
+                   variant="ghost"
+                   size="icon"
+                   className="h-6 w-6 hover:bg-black/10 text-foreground/60"
+                   onClick={() => updateNote(note.id, { isLocked: !note.isLocked })}
+                 >
+                   {note.isLocked ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />}
+                 </Button>
+
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 hover:bg-black/10 text-foreground/60"
+                      >
+                        <MoreVertical className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Color</DropdownMenuLabel>
+                      <div className="grid grid-cols-4 gap-1 p-2">
+                        {TABLE_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            className={cn(
+                              "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                              note.color === color && "ring-2 ring-primary ring-offset-1"
+                            )}
+                            style={{ backgroundColor: color }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateNote(note.id, { color });
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive gap-2"
+                        onSelect={() => deleteNote(note.id)}
+                      >
+                        <Trash className="h-4 w-4" />
+                        <span>Delete Note</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                 </DropdownMenu>
+              </div>
+            )}
         </div>
       </foreignObject>
 
@@ -138,14 +141,15 @@ export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps
            className="w-full h-full p-3 bg-transparent border-none outline-none resize-none text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/50"
            value={note.content}
            placeholder="Type something..."
-           onChange={(e) => updateNote(note.id, { content: e.target.value })}
+           readOnly={readOnly}
+           onChange={readOnly ? undefined : (e) => updateNote(note.id, { content: e.target.value })}
            onPointerDown={(e) => e.stopPropagation()} // Stop propagation so we can type without dragging
-           style={{ pointerEvents: note.isLocked ? "none" : "auto" }} 
+           style={{ pointerEvents: note.isLocked && !readOnly ? "none" : "auto" }}
         />
       </foreignObject>
 
-      {/* Resize Handles (Horizontal Only) - Only when selected and not locked */}
-      {selected && !note.isLocked && (
+      {/* Resize Handles (Horizontal Only) - Only when selected, not locked, and editable */}
+      {selected && !note.isLocked && !readOnly && (
         <>
             {/* Left Handle */}
             <rect
@@ -179,6 +183,7 @@ export const NoteNode = memo(function NoteNode({ note, selected }: NoteNodeProps
 , (prevProps, nextProps) => {
   return (
     prevProps.note === nextProps.note &&
-    prevProps.selected === nextProps.selected
+    prevProps.selected === nextProps.selected &&
+    prevProps.readOnly === nextProps.readOnly
   );
 });
