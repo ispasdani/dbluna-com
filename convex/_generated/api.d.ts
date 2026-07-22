@@ -11,6 +11,8 @@
 import type * as diagrams from "../diagrams.js";
 import type * as guards from "../guards.js";
 import type * as http from "../http.js";
+import type * as migrations from "../migrations.js";
+import type * as plans from "../plans.js";
 import type * as users from "../users.js";
 
 import type {
@@ -23,6 +25,8 @@ declare const fullApi: ApiFromModules<{
   diagrams: typeof diagrams;
   guards: typeof guards;
   http: typeof http;
+  migrations: typeof migrations;
+  plans: typeof plans;
   users: typeof users;
 }>;
 

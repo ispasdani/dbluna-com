@@ -173,7 +173,8 @@ export default defineSchema({
 
   plans: defineTable({
     name: v.string(), // 'FREE' | 'PRO'
+    slug: v.string(), // Clerk Billing plan slug (e.g. "free" / "pro") — links this row to the Clerk-side Plan
     features: v.optional(v.any()),
     createdAt: v.number(),
-  }),
+  }).index("by_slug", ["slug"]),
 });

@@ -32,7 +32,7 @@ export const tiers = [
     monthly: 10,
     yearly: 100,
     ctaText: "Get started",
-    ctaLink: "/sign-up",
+    ctaLink: "/pricing",
     features: [
       "Unlimited diagrams & tables",
       "Unlimited workspaces",

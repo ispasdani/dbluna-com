@@ -1,8 +1,9 @@
 import type { WebhookEvent } from "@clerk/nextjs/server";
+import { ConvexError } from "convex/values";
 import { httpRouter } from "convex/server";
 import { Webhook } from "svix";
 import { internal } from "./_generated/api";
-import { httpAction } from "./_generated/server";
+import { httpAction, type ActionCtx } from "./_generated/server";
 
 const http = httpRouter();
 
@@ -37,6 +38,14 @@ http.route({
         const lastName = (data.last_name ?? "").trim() || undefined;
         const imageUrl = data.image_url ?? undefined;
 
+        // New users default to the FREE plan explicitly. If FREE hasn't been
+        // seeded yet (see convex/plans.ts), this is a no-op — planId stays
+        // unset, which is equivalent to free/unauthorized as far as isPro()
+        // is concerned.
+        const freePlan = await ctx.runQuery(internal.plans.getBySlug, {
+          slug: "free",
+        });
+
         // Idempotent: will insert if missing, patch if exists
         await ctx.runMutation(internal.users.createUser, {
           clerkId: data.id,
@@ -45,6 +54,54 @@ http.route({
           lastName,
           imageUrl,
           credits: 0,
+          planId: freePlan?._id,
+        });
+
+        return new Response(null, { status: 200 });
+      }
+
+      case "subscription.created":
+      case "subscription.updated":
+      case "subscription.active":
+      case "subscription.pastDue": {
+        const data = event.data;
+        const clerkId = data.payer?.user_id;
+        // Org-payer subscriptions don't apply — this app has no org billing.
+        if (!clerkId) return new Response(null, { status: 200 });
+
+        const items = data.items ?? [];
+        const current = items.find((item) => item.status === "active") ?? items[0];
+        if (!current) return new Response(null, { status: 200 });
+
+        await applyPlanUpdate(ctx, {
+          clerkId,
+          status: current.status,
+          planSlug: current.plan?.slug,
+          subscriptionId: data.id,
+          periodStart: current.period_start,
+          periodEnd: current.period_end,
+        });
+
+        return new Response(null, { status: 200 });
+      }
+
+      case "subscriptionItem.active":
+      case "subscriptionItem.updated":
+      case "subscriptionItem.canceled":
+      case "subscriptionItem.ended":
+      case "subscriptionItem.abandoned":
+      case "subscriptionItem.pastDue": {
+        const data = event.data;
+        const clerkId = data.payer?.user_id;
+        if (!clerkId) return new Response(null, { status: 200 });
+
+        await applyPlanUpdate(ctx, {
+          clerkId,
+          status: data.status,
+          planSlug: data.plan?.slug,
+          periodStart: data.period_start,
+          periodEnd: data.period_end,
+          cancelAtPeriodEnd: data.status === "canceled",
         });
 
         return new Response(null, { status: 200 });
@@ -70,6 +127,49 @@ http.route({
 });
 
 export default http;
+
+/**
+ * Shared by the subscription.* and subscriptionItem.* webhook cases: resolves
+ * the Convex plan row for a Clerk plan slug (if any) and patches the user's
+ * subscription fields. Swallows "user not found" — Clerk billing events can
+ * arrive before the corresponding user.created webhook has been processed,
+ * and retrying indefinitely wouldn't help since there's nothing to patch yet.
+ */
+async function applyPlanUpdate(
+  ctx: ActionCtx,
+  args: {
+    clerkId: string;
+    status: string;
+    planSlug?: string | null;
+    subscriptionId?: string;
+    periodStart?: number;
+    periodEnd?: number | null;
+    cancelAtPeriodEnd?: boolean;
+  }
+) {
+  const plan = args.planSlug
+    ? await ctx.runQuery(internal.plans.getBySlug, { slug: args.planSlug })
+    : null;
+
+  try {
+    await ctx.runMutation(internal.users.updateUser, {
+      clerkId: args.clerkId,
+      subscriptionId: args.subscriptionId,
+      subscriptionStatus: args.status,
+      currentPeriodStart: args.periodStart
+        ? new Date(args.periodStart).toISOString()
+        : undefined,
+      currentPeriodEnd: args.periodEnd
+        ? new Date(args.periodEnd).toISOString()
+        : undefined,
+      cancelAtPeriodEnd: args.cancelAtPeriodEnd,
+      planId: plan?._id,
+    });
+  } catch (err) {
+    if (err instanceof ConvexError) return;
+    throw err;
+  }
+}
 
 async function validateRequest(req: Request): Promise<WebhookEvent> {
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
