@@ -91,7 +91,7 @@ subscriptionId: data.id, subscriptionStatus: item.status, currentPeriodStart, cu
 - No `users.getCurrentUserPlan` query yet — it's only needed by the §2 gate.
 - No enforcement of the 5-diagram free cap (§4, explicitly flagged as separate follow-on work).
 
-## Verification
+## Verificationn
 
 1. `npx convex dev` (or deploy) picks up the schema change and new functions without errors.
 2. `npx convex run plans:seed` inserts two `plans` rows (`free`/FREE, `pro`/PRO); running it again is a
