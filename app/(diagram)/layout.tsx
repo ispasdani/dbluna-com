@@ -1,4 +1,6 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import { PlatformPaletteProvider } from "@/themeProviders/platformPaletteProvider";
+import { ConvexClientProvider } from "@/app/providers/ConvexClientProvider";
 
 export default function DiagramLayout({
   children,
@@ -6,8 +8,12 @@ export default function DiagramLayout({
   children: React.ReactNode;
 }) {
   return (
-    <PlatformPaletteProvider>
-      <div className="">{children}</div>
-    </PlatformPaletteProvider>
+    <ClerkProvider>
+      <ConvexClientProvider>
+        <PlatformPaletteProvider>
+          <div className="">{children}</div>
+        </PlatformPaletteProvider>
+      </ConvexClientProvider>
+    </ClerkProvider>
   );
 }

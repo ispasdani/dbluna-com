@@ -26,7 +26,11 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export type EditorLanguage = "dbml" | "json" | "mermaid";
 
-export function CodeEditor() {
+interface CodeEditorProps {
+  readOnly?: boolean;
+}
+
+export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   const {
     tables,
     relationships,
@@ -171,9 +175,10 @@ export function CodeEditor() {
   }, [debouncedCode, setTables, setEnums, setTableGroups, setProject, language]);
 
   const handleChange = useCallback((val: string) => {
+    if (readOnly) return;
     isTypingRef.current = true;
     setCode(val);
-  }, []);
+  }, [readOnly]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code);
@@ -255,6 +260,7 @@ export function CodeEditor() {
           theme={dbmlCodeMirrorTheme}
           extensions={extensions}
           onChange={handleChange}
+          editable={!readOnly}
           className="h-full text-[13px]"
           basicSetup={{
             drawSelection: false,

@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload, Share2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,7 +30,11 @@ import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dial
 import { exportDiagramAsJson, exportDiagramAsDbml, parseImportedDiagramJson } from "@/lib/diagram-io";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
-export function TopNavbar() {
+interface TopNavbarProps {
+  readOnly?: boolean;
+}
+
+export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const router = useRouter();
   const {
     selectedDiagram,
@@ -243,10 +248,12 @@ export function TopNavbar() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="sm" className="gap-2" onClick={handleImportClick}>
-            <Upload className="w-4 h-4" />
-            <span className="hidden sm:inline">Import</span>
-          </Button>
+          {!readOnly && (
+            <Button variant="ghost" size="sm" className="gap-2" onClick={handleImportClick}>
+              <Upload className="w-4 h-4" />
+              <span className="hidden sm:inline">Import</span>
+            </Button>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -254,6 +261,15 @@ export function TopNavbar() {
             className="hidden"
             onChange={handleImportFile}
           />
+
+          {readOnly && (
+            <Button asChild size="sm" variant="outline" className="gap-2">
+              <Link href="/pricing">
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Upgrade to edit</span>
+              </Link>
+            </Button>
+          )}
 
           <SavingIndicator />
         </div>

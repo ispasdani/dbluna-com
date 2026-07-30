@@ -79,6 +79,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     setEditorDiagramId(diagramId);
   }, [diagramId, hasHydrated, setDiagramId, setEditorDiagramId]);
 
+  // Mirror the readOnly prop into the store itself so every mutating action
+  // (not just this component's pointer handlers) is blocked centrally —
+  // covers the toolbar, dock panels, and code editor too. Reset on unmount so
+  // leaving a read-only view never leaves a later normal session locked.
+  const setStoreReadOnly = useCanvasStore((s) => s.setReadOnly);
+  useEffect(() => {
+    setStoreReadOnly(readOnly);
+    return () => setStoreReadOnly(false);
+  }, [readOnly, setStoreReadOnly]);
+
 
 
   // Measure viewport (so minimap + zoomAt math is correct) + inform store (for clamping)

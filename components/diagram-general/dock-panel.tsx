@@ -24,10 +24,11 @@ interface DockPanelProps {
   side: DockSide;
   tabs: TabId[];
   activeTab: TabId | null;
+  readOnly?: boolean;
 }
 
 export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
-  ({ side, tabs, activeTab }, ref) => {
+  ({ side, tabs, activeTab, readOnly = false }, ref) => {
     const { setNodeRef, isOver } = useDroppable({
       id: side,
       data: { side },
@@ -77,7 +78,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
           ) : activeTab === "areas" ? (
             <AreasPanel />
           ) : activeTab === "code" ? (
-            <CodeEditor />
+            <CodeEditor readOnly={readOnly} />
           ) : activeTab === "issues" ? (
             <IssuesPanel />
           ) : activeTab === "templates" ? (

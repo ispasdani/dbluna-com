@@ -2,7 +2,9 @@
 "use client";
 
 import { useRef, use } from "react";
+import { useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
 import { useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
@@ -12,6 +14,7 @@ import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
+import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -25,6 +28,14 @@ export default function DiagramPage({ params }: PageProps) {
   const { id } = use(params);
   const hasHydrated = useStoreHydration();
   useDiagramAutoSave();
+
+  // Off while EDITING_GATE_ENABLED is false (default) — see lib/feature-flags.ts.
+  // While loading (or if the flag is off), default to "not pro" so a
+  // free-tier user is never briefly shown edit affordances before the real
+  // plan resolves.
+  const planQuery = useQuery(api.users.getCurrentUserPlan);
+  const isPro = planQuery?.isPro ?? false;
+  const editingReadOnly = EDITING_GATE_ENABLED && !isPro;
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
     isTopNavbarVisible,
@@ -70,8 +81,8 @@ export default function DiagramPage({ params }: PageProps) {
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {isTopNavbarVisible && <TopNavbar />}
-      <TabLauncherBar />
+      {isTopNavbarVisible && <TopNavbar readOnly={editingReadOnly} />}
+      <TabLauncherBar readOnly={editingReadOnly} />
 
       {/* Work area */}
       <div className="relative flex-1 overflow-hidden w-full flex">
@@ -79,7 +90,7 @@ export default function DiagramPage({ params }: PageProps) {
           <>
             {/* Canvas is ALWAYS full size (fixed) */}
             <div className="absolute inset-0">
-              <CanvasStage diagramId={id} />
+              <CanvasStage diagramId={id} readOnly={editingReadOnly} />
             </div>
 
             {/* Left dock overlays the canvas */}
@@ -93,6 +104,7 @@ export default function DiagramPage({ params }: PageProps) {
                     side="left"
                     tabs={leftTabs}
                     activeTab={activeLeftTab}
+                    readOnly={editingReadOnly}
                   />
                 </div>
 

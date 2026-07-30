@@ -151,6 +151,17 @@ function createDefaultDiagram(): DiagramData {
 type CanvasState = {
   hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
+  // Central kill-switch for every canvas-content mutation below (tables,
+  // notes, areas, relationships, enums/tableGroups/project, background,
+  // snapToGrid, focus mode). Diagram-management actions (rename/duplicate/
+  // delete/import a whole diagram) and selection setters are NOT gated here —
+  // those are handled at the UI layer (TopNavbar/My Diagrams) since they're a
+  // different kind of "edit" than canvas content. Set from
+  // app/(diagram)/d/[id]/page.tsx based on EDITING_GATE_ENABLED + plan status;
+  // see release-1-0/paid-editing-access-plan.md §2. This is a UX guard, not a
+  // security boundary — see that plan's "Hardening note".
+  readOnly: boolean;
+  setReadOnly: (v: boolean) => void;
   activeDiagramId: string | null;
   diagrams: Record<string, DiagramData>;
   setDiagramId: (id: string) => void;
@@ -246,6 +257,8 @@ export const useCanvasStore = create<CanvasState>()(
     (set, get) => ({
       hasHydrated: false,
       setHasHydrated: (v) => set({ hasHydrated: v }),
+      readOnly: false,
+      setReadOnly: (v) => set({ readOnly: v }),
       activeDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
@@ -343,16 +356,28 @@ export const useCanvasStore = create<CanvasState>()(
       tables: [],
       selectedTableIds: [],
       selectedRelationshipId: null,
-      setBackground: (bg) => set({ background: bg }),
-      toggleBackground: () =>
-        set((s) => ({ background: s.background === "grid" ? "dots" : "grid" })),
+      setBackground: (bg) => {
+        if (get().readOnly) return;
+        set({ background: bg });
+      },
+      toggleBackground: () => {
+        if (get().readOnly) return;
+        set((s) => ({ background: s.background === "grid" ? "dots" : "grid" }));
+      },
       snapToGrid: false,
-      toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
+      toggleSnapToGrid: () => {
+        if (get().readOnly) return;
+        set((s) => ({ snapToGrid: !s.snapToGrid }));
+      },
       isFocusModeEnabled: true,
-      toggleFocusMode: () => set((s) => ({ isFocusModeEnabled: !s.isFocusModeEnabled })),
+      toggleFocusMode: () => {
+        if (get().readOnly) return;
+        set((s) => ({ isFocusModeEnabled: !s.isFocusModeEnabled }));
+      },
       setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
       setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
-      addTable: () =>
+      addTable: () => {
+        if (get().readOnly) return;
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
 
@@ -406,16 +431,22 @@ export const useCanvasStore = create<CanvasState>()(
             tables: [...s.tables, newTable],
             selectedTableIds: [newId]
           };
-        }),
-      updateTable: (id, updates) =>
+        });
+      },
+      updateTable: (id, updates) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-        })),
-      updateTablePos: (id, x, y) =>
+        }));
+      },
+      updateTablePos: (id, x, y) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
-        })),
-      moveTables: (moves) =>
+        }));
+      },
+      moveTables: (moves) => {
+        if (get().readOnly) return;
         set((s) => {
           const map = new Map(moves.map(m => [m.id, m]));
           return {
@@ -425,18 +456,24 @@ export const useCanvasStore = create<CanvasState>()(
               return t;
             })
           };
-        }),
-      deleteTable: (id) =>
+        });
+      },
+      deleteTable: (id) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.filter((t) => t.id !== id),
           selectedTableIds: s.selectedTableIds.filter(tid => tid !== id),
-        })),
-      deleteTables: (ids) =>
+        }));
+      },
+      deleteTables: (ids) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.filter(t => !ids.includes(t.id)),
           selectedTableIds: s.selectedTableIds.filter(tid => !ids.includes(tid)),
-        })),
-      addField: (tableId) =>
+        }));
+      },
+      addField: (tableId) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -457,8 +494,10 @@ export const useCanvasStore = create<CanvasState>()(
               }
               : t
           ),
-        })),
-      updateField: (tableId, fieldId, updates) =>
+        }));
+      },
+      updateField: (tableId, fieldId, updates) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -470,8 +509,10 @@ export const useCanvasStore = create<CanvasState>()(
               }
               : t
           ),
-        })),
-      deleteField: (tableId, fieldId) =>
+        }));
+      },
+      deleteField: (tableId, fieldId) => {
+        if (get().readOnly) return;
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -481,9 +522,11 @@ export const useCanvasStore = create<CanvasState>()(
               }
               : t
           ),
-        })),
+        }));
+      },
       relationships: [],
-      addRelationship: (rel) =>
+      addRelationship: (rel) => {
+        if (get().readOnly) return;
         set((s) => {
           const newRel: Relationship = {
             id: crypto.randomUUID(),
@@ -498,32 +541,50 @@ export const useCanvasStore = create<CanvasState>()(
             selectedRelationshipId: newRel.id,
             selectedTableIds: []
           };
-        }),
-      updateRelationship: (id, updates) =>
+        });
+      },
+      updateRelationship: (id, updates) => {
+        if (get().readOnly) return;
         set((s) => ({
           relationships: s.relationships.map((r) =>
             r.id === id ? { ...r, ...updates } : r
           ),
-        })),
-      deleteRelationship: (id) =>
+        }));
+      },
+      deleteRelationship: (id) => {
+        if (get().readOnly) return;
         set((s) => ({
           relationships: s.relationships.filter((r) => r.id !== id),
           selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
-        })),
-      setTables: (tables) => set({ tables }),
+        }));
+      },
+      setTables: (tables) => {
+        if (get().readOnly) return;
+        set({ tables });
+      },
 
       // Documentation schema metadata
       enums: [],
       tableGroups: [],
       project: null,
-      setEnums: (enums) => set({ enums }),
-      setTableGroups: (tableGroups) => set({ tableGroups }),
-      setProject: (project) => set({ project }),
+      setEnums: (enums) => {
+        if (get().readOnly) return;
+        set({ enums });
+      },
+      setTableGroups: (tableGroups) => {
+        if (get().readOnly) return;
+        set({ tableGroups });
+      },
+      setProject: (project) => {
+        if (get().readOnly) return;
+        set({ project });
+      },
 
       // Notes Actions
       notes: [],
       selectedNoteIds: [],
-      addNote: () =>
+      addNote: () => {
+        if (get().readOnly) return;
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
           const viewCenterX = viewport.w / 2;
@@ -550,16 +611,21 @@ export const useCanvasStore = create<CanvasState>()(
             selectedTableIds: [],
             selectedRelationshipId: null,
           };
-        }),
-      updateNote: (id, updates) =>
+        });
+      },
+      updateNote: (id, updates) => {
+        if (get().readOnly) return;
         set((s) => ({
           notes: s.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
-        })),
-      deleteNote: (id) =>
+        }));
+      },
+      deleteNote: (id) => {
+        if (get().readOnly) return;
         set((s) => ({
           notes: s.notes.filter((n) => n.id !== id),
           selectedNoteIds: s.selectedNoteIds.filter((nid) => nid !== id),
-        })),
+        }));
+      },
       setSelectedNoteIds: (ids) =>
         set({
           selectedNoteIds: ids,
@@ -567,7 +633,8 @@ export const useCanvasStore = create<CanvasState>()(
           selectedRelationshipId: null,
           selectedAreaIds: [],
         }),
-      moveNotes: (moves) =>
+      moveNotes: (moves) => {
+        if (get().readOnly) return;
         set((s) => {
           const map = new Map(moves.map((m) => [m.id, m]));
           return {
@@ -577,12 +644,14 @@ export const useCanvasStore = create<CanvasState>()(
               return n;
             }),
           };
-        }),
+        });
+      },
 
       // Areas Actions
       areas: [],
       selectedAreaIds: [],
-      addArea: () =>
+      addArea: () => {
+        if (get().readOnly) return;
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
           const viewCenterX = viewport.w / 2;
@@ -610,16 +679,21 @@ export const useCanvasStore = create<CanvasState>()(
             selectedRelationshipId: null,
             selectedNoteIds: [],
           };
-        }),
-      updateArea: (id, updates) =>
+        });
+      },
+      updateArea: (id, updates) => {
+        if (get().readOnly) return;
         set((s) => ({
           areas: s.areas.map((a) => (a.id === id ? { ...a, ...updates } : a)),
-        })),
-      deleteArea: (id) =>
+        }));
+      },
+      deleteArea: (id) => {
+        if (get().readOnly) return;
         set((s) => ({
           areas: s.areas.filter((a) => a.id !== id),
           selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
-        })),
+        }));
+      },
       setSelectedAreaIds: (ids) =>
         set({
           selectedAreaIds: ids,
@@ -627,7 +701,8 @@ export const useCanvasStore = create<CanvasState>()(
           selectedRelationshipId: null,
           selectedNoteIds: [],
         }),
-      moveAreas: (moves) =>
+      moveAreas: (moves) => {
+        if (get().readOnly) return;
         set((s) => {
           const map = new Map(moves.map((m) => [m.id, m]));
           return {
@@ -637,7 +712,8 @@ export const useCanvasStore = create<CanvasState>()(
               return a;
             }),
           };
-        }),
+        });
+      },
       savingStatus: "idle",
       setSavingStatus: (status) => set({ savingStatus: status }),
     }),
@@ -666,7 +742,7 @@ export const useCanvasStore = create<CanvasState>()(
             updatedAt: Date.now(),
           };
         }
-        // savingStatus/hasHydrated are intentionally NOT here — runtime-only.
+        // savingStatus/hasHydrated/readOnly are intentionally NOT here — runtime-only.
         return { diagrams: newDiagrams };
       },
     }

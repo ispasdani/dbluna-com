@@ -20,7 +20,11 @@ import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
 import { ImportSchemaDialog } from "./import-schema-dialog";
 
-export function TabLauncherBar() {
+interface TabLauncherBarProps {
+  readOnly?: boolean;
+}
+
+export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
   const {
     isLeftDockVisible,
     isTopNavbarVisible,
@@ -120,48 +124,52 @@ export function TabLauncherBar() {
 
         <div className="h-4 w-px bg-border mx-1" />
 
-        {/* Add Table Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:bg-panel-hover gap-2"
-          onClick={addTable}
-        >
-          <Table className="h-4 w-4" />
-          Add Table
-        </Button>
+        {!readOnly && (
+          <>
+            {/* Add Table Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-foreground hover:bg-panel-hover gap-2"
+              onClick={addTable}
+            >
+              <Table className="h-4 w-4" />
+              Add Table
+            </Button>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:bg-panel-hover gap-2"
-          onClick={addNote}
-        >
-          <StickyNote className="h-4 w-4" />
-          Add Note
-        </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-foreground hover:bg-panel-hover gap-2"
+              onClick={addNote}
+            >
+              <StickyNote className="h-4 w-4" />
+              Add Note
+            </Button>
 
-        {/* Add Area Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-foreground hover:bg-panel-hover gap-2"
-          onClick={addArea}
-        >
-          <Square className="h-4 w-4" />
-          Add Area
-        </Button>
+            {/* Add Area Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-foreground hover:bg-panel-hover gap-2"
+              onClick={addArea}
+            >
+              <Square className="h-4 w-4" />
+              Add Area
+            </Button>
 
-        {/* Import Schema Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-white hover:text-white border-teal-500/50 bg-teal-500/10 hover:bg-teal-500/20 gap-2 ml-1 transition-colors"
-          onClick={() => setShowImportDialog(true)}
-        >
-          <FolderInput className="h-4 w-4 text-teal-400" />
-          Import
-        </Button>
+            {/* Import Schema Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-white hover:text-white border-teal-500/50 bg-teal-500/10 hover:bg-teal-500/20 gap-2 ml-1 transition-colors"
+              onClick={() => setShowImportDialog(true)}
+            >
+              <FolderInput className="h-4 w-4 text-teal-400" />
+              Import
+            </Button>
+          </>
+        )}
       </div>
 
       <ZoomMenu />

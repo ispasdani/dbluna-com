@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
+import { getCurrentUserDoc, isPro } from "./guards";
 
 // Helpers
 const now = () => Date.now();
@@ -38,6 +39,21 @@ export const getMe = query({
 
     if (!user) throw new ConvexError("User not found");
     return user;
+  },
+});
+
+/**
+ * Non-throwing plan check for UI gating (release-1-0/paid-editing-access-plan.md
+ * §2) — signed-out or not-yet-synced users just resolve to `{ isPro: false }`
+ * instead of an error state, since "not pro" is the correct read-only default
+ * for both cases.
+ */
+export const getCurrentUserPlan = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserDoc(ctx);
+    if (!user) return { isPro: false };
+    return { isPro: isPro(user) };
   },
 });
 
