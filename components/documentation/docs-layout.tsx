@@ -111,16 +111,18 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                             Read-only
                         </span>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleExport}
-                        disabled={!parsedDbml || docTables.length === 0}
-                        className="h-6 text-xs text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 shrink-0"
-                    >
-                        <Download className="w-3.5 h-3.5 mr-1" />
-                        Export .md
-                    </Button>
+                    {!readOnly && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleExport}
+                            disabled={!parsedDbml || docTables.length === 0}
+                            className="h-6 text-xs text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 shrink-0"
+                        >
+                            <Download className="w-3.5 h-3.5 mr-1" />
+                            Export .md
+                        </Button>
+                    )}
                 </div>
                 <div className="flex-1 overflow-auto relative">
                     <CodeMirror

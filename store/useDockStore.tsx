@@ -25,9 +25,6 @@ interface DockState {
   rightTabs: TabId[];
   activeLeftTab: TabId | null;
   activeRightTab: TabId | null;
-
-  selectedDiagram: string;
-  diagrams: string[];
 }
 
 interface DockActions {
@@ -35,10 +32,6 @@ interface DockActions {
   moveTab: (tabId: TabId, toSide: DockSide) => void;
   setActiveTab: (side: DockSide, tabId: TabId) => void;
   closeTab: (tabId: TabId, fromSide: "left" | "right") => void;
-
-  setSelectedDiagram: (diagram: string) => void;
-  createDiagram: (name: string) => void;
-  renameDiagram: (oldName: string, newName: string) => void;
 }
 
 type DockStore = DockState & DockActions;
@@ -54,9 +47,6 @@ export const useDockStore = create<DockStore>((set, get) => ({
   rightTabs: [],
   activeLeftTab: null,
   activeRightTab: null,
-
-  selectedDiagram: "Diagram A",
-  diagrams: ["Diagram A", "Diagram B", "Diagram C"],
 
   openTab: (tabId: TabId, preferredSide: "left" | "right" = "left") => {
     set((state) => {
@@ -160,37 +150,4 @@ export const useDockStore = create<DockStore>((set, get) => ({
             : state.activeLeftTab,
       };
     }),
-
-  setSelectedDiagram: (diagram) => set({ selectedDiagram: diagram }),
-
-  createDiagram: (name) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
-    const { diagrams } = get();
-    if (diagrams.includes(trimmed)) {
-      set({ selectedDiagram: trimmed });
-      return;
-    }
-
-    set({
-      diagrams: [...diagrams, trimmed],
-      selectedDiagram: trimmed,
-    });
-  },
-
-  renameDiagram: (oldName, newName) => {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-
-    const { diagrams, selectedDiagram } = get();
-    if (diagrams.includes(trimmed)) return;
-
-    const newDiagrams = diagrams.map((d) => (d === oldName ? trimmed : d));
-
-    set({
-      diagrams: newDiagrams,
-      selectedDiagram: selectedDiagram === oldName ? trimmed : selectedDiagram,
-    });
-  },
 }));

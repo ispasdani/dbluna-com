@@ -166,6 +166,7 @@ type CanvasState = {
   activeDiagramId: string | null;
   diagrams: Record<string, DiagramData>;
   setDiagramId: (id: string) => void;
+  createDiagram: (name: string) => string;
   renameDiagram: (id: string, name: string) => void;
   duplicateDiagram: (id: string) => string | null;
   deleteDiagram: (id: string) => void;
@@ -285,6 +286,21 @@ export const useCanvasStore = create<CanvasState>()(
           selectedNoteIds: [],
           selectedAreaIds: [],
         });
+      },
+      createDiagram: (name) => {
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return "";
+        }
+        const newId = crypto.randomUUID();
+        const trimmed = name.trim() || "Untitled diagram";
+        set((s) => ({
+          diagrams: {
+            ...s.diagrams,
+            [newId]: { ...createDefaultDiagram(), name: trimmed },
+          },
+        }));
+        return newId;
       },
       renameDiagram: (id, name) => {
         const trimmed = name.trim();

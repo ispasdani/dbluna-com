@@ -228,6 +228,7 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {!readOnly && (
                         <Button
                           size="icon-sm"
                           variant="ghost"
@@ -235,6 +236,8 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
+                        )}
+                        {!readOnly && (
                         <Button
                           size="icon-sm"
                           variant="ghost"
@@ -242,6 +245,8 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
+                        )}
+                        {!readOnly && (
                         <Button
                           size="icon-sm"
                           variant="destructive"
@@ -249,6 +254,7 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

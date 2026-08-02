@@ -244,6 +244,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {!readOnly && (
           <button
             onClick={handleCopy}
             className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
@@ -251,6 +252,8 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
           >
             {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
+          )}
+          {!readOnly && (
           <button
             onClick={handleDownload}
             className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
@@ -258,6 +261,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
           >
             <Download className="w-3.5 h-3.5" />
           </button>
+          )}
         </div>
       </div>
 

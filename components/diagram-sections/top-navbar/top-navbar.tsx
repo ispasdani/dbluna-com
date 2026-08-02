@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Pencil, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,7 +22,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useViewStore } from "@/store/useViewStore";
-import { useDockStore } from "@/store/useDockStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
@@ -37,26 +36,17 @@ interface TopNavbarProps {
 
 export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const router = useRouter();
-  const {
-    selectedDiagram,
-    diagrams,
-    setSelectedDiagram,
-    createDiagram,
-    renameDiagram,
-  } = useDockStore();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
-  const [diagramToRename, setDiagramToRename] = useState("");
-  const [renamedName, setRenamedName] = useState("");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
 
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
+  const createDiagram = useCanvasStore((s) => s.createDiagram);
   const tables = useCanvasStore((s) => s.tables);
   const notes = useCanvasStore((s) => s.notes);
   const areas = useCanvasStore((s) => s.areas);
@@ -142,33 +132,24 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   };
 
   const handleCreateNew = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     setNewDiagramName("");
     setIsCreateOpen(true);
   };
 
   const handleCreateSubmit = () => {
-    if (newDiagramName.trim()) {
-      createDiagram(newDiagramName.trim());
-      setIsCreateOpen(false);
-      setNewDiagramName("");
-    }
+    if (!newDiagramName.trim()) return;
+    const newId = createDiagram(newDiagramName.trim());
+    setIsCreateOpen(false);
+    setNewDiagramName("");
+    if (newId) router.push(`/d/${newId}`);
   };
 
-  const handleRenameClick = (diagram: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDiagramToRename(diagram);
-    setRenamedName(diagram);
-    setIsRenameOpen(true);
-  };
-
-  const handleRenameSubmit = () => {
-    if (renamedName.trim() && renamedName !== diagramToRename) {
-      renameDiagram(diagramToRename, renamedName.trim());
-    }
-    setIsRenameOpen(false);
-    setIsRenameOpen(false);
-    setDiagramToRename("");
-    setRenamedName("");
+  const handleSwitchDiagram = (id: string) => {
+    router.push(`/d/${id}`);
   };
 
   return (
@@ -178,39 +159,37 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
         <div className="flex items-center gap-6">
           <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
 
-          {/* Diagram Selector */}
+          {/* Diagram Selector — backed by the real canvas store (each entry is
+              an actual diagram you own), not placeholder data. Renaming lives
+              solely in the My Diagrams dialog to avoid two places doing it. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 className="gap-2 min-w-[180px] justify-between font-mono text-sm"
               >
-                <span className="truncate">{selectedDiagram}</span>
+                <span className="truncate">{currentDiagramName}</span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-[220px]">
-              <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create new diagram
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {diagrams.map((diagram) => (
+              {!readOnly && (
+                <>
+                  <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Create new diagram
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {Object.entries(canvasDiagrams).map(([id, diagram]) => (
                 <DropdownMenuItem
-                  key={diagram}
-                  onClick={() => setSelectedDiagram(diagram)}
-                  className={`font-mono text-sm justify-between group ${diagram === selectedDiagram
-                    ? "bg-secondary text-primary"
-                    : ""
+                  key={id}
+                  onClick={() => handleSwitchDiagram(id)}
+                  className={`font-mono text-sm justify-between ${id === activeDiagramId ? "bg-secondary text-primary" : ""
                     }`}
                 >
-                  <span className="truncate">{diagram}</span>
-                  <button
-                    onClick={(e) => handleRenameClick(diagram, e)}
-                    className="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
+                  <span className="truncate">{diagram.name}</span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -236,34 +215,38 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <span className="hidden sm:inline">My Diagrams</span>
           </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-            onClick={handleShareClick}
-          >
-            <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Share</span>
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={handleShareClick}
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
+          )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Export</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={handleExportJson} className="gap-2">
-                <FileText className="w-4 h-4" />
-                Export as JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
-                <Database className="w-4 h-4" />
-                Export as DBML
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleExportJson} className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
+                  <Database className="w-4 h-4" />
+                  Export as DBML
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {!readOnly && (
             <Button variant="ghost" size="sm" className="gap-2" onClick={handleImportClick}>
@@ -321,40 +304,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               disabled={!newDiagramName.trim()}
             >
               Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Diagram Dialog */}
-      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Rename Diagram</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="rename-diagram" className="text-sm font-medium">
-              New Name
-            </Label>
-            <Input
-              id="rename-diagram"
-              value={renamedName}
-              onChange={(e) => setRenamedName(e.target.value)}
-              placeholder="Enter new name..."
-              className="mt-2"
-              onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRenameSubmit}
-              disabled={!renamedName.trim() || renamedName === diagramToRename}
-            >
-              Rename
             </Button>
           </DialogFooter>
         </DialogContent>
