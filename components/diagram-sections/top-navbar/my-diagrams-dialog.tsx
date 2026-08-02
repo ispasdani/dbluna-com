@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCanvasStore, getEffectiveDiagrams } from "@/store/useCanvasStore";
+import { useShallow } from "zustand/react/shallow";
 
 interface MyDiagramsDialogProps {
   open: boolean;
@@ -38,7 +39,7 @@ interface MyDiagramsDialogProps {
 
 export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) {
   const router = useRouter();
-  const diagrams = useCanvasStore(getEffectiveDiagrams);
+  const diagrams = useCanvasStore(useShallow(getEffectiveDiagrams));
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const renameDiagram = useCanvasStore((s) => s.renameDiagram);
   const duplicateDiagram = useCanvasStore((s) => s.duplicateDiagram);
