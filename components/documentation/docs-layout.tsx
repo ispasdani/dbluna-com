@@ -13,11 +13,16 @@ import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { Button } from "@/components/ui/button";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
+import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
 // Query param used to deep-link a specific table, e.g. ?table=orders
 const TABLE_PARAM = "table";
 
-export const DocsLayout = () => {
+interface DocsLayoutProps {
+    readOnly?: boolean;
+}
+
+export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
     const parsedDbml = useDocumentationStore(s => s.parsedDbml);
     const docTables = useDocumentationStore(s => s.tables);
@@ -78,6 +83,10 @@ export const DocsLayout = () => {
     }, [docTables, setSelectedTableId]);
 
     const handleExport = () => {
+        if (readOnly) {
+            useUpgradeToastStore.getState().trigger();
+            return;
+        }
         if (!parsedDbml) return;
         const markdown = generateDocsMarkdown(parsedDbml);
         const base = parsedDbml.project?.name?.trim().replace(/\s+/g, "-").toLowerCase() || "documentation";

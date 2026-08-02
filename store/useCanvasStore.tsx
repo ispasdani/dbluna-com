@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useEditorStore } from "./useEditorStore";
 import { createDebouncedStorage } from "./debounced-storage";
+import { useUpgradeToastStore } from "./useUpgradeToastStore";
 
 export type CanvasBackground = "grid" | "dots";
 
@@ -347,27 +348,42 @@ export const useCanvasStore = create<CanvasState>()(
       selectedTableIds: [],
       selectedRelationshipId: null,
       setBackground: (bg) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set({ background: bg });
       },
       toggleBackground: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({ background: s.background === "grid" ? "dots" : "grid" }));
       },
       snapToGrid: false,
       toggleSnapToGrid: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({ snapToGrid: !s.snapToGrid }));
       },
       isFocusModeEnabled: true,
       toggleFocusMode: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({ isFocusModeEnabled: !s.isFocusModeEnabled }));
       },
       setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
       setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
       addTable: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
 
@@ -424,19 +440,28 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       updateTable: (id, updates) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.map((t) => (t.id === id ? { ...t, ...updates } : t)),
         }));
       },
       updateTablePos: (id, x, y) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.map((t) => (t.id === id ? { ...t, x, y } : t)),
         }));
       },
       moveTables: (moves) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const map = new Map(moves.map(m => [m.id, m]));
           return {
@@ -449,21 +474,30 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       deleteTable: (id) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.filter((t) => t.id !== id),
           selectedTableIds: s.selectedTableIds.filter(tid => tid !== id),
         }));
       },
       deleteTables: (ids) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.filter(t => !ids.includes(t.id)),
           selectedTableIds: s.selectedTableIds.filter(tid => !ids.includes(tid)),
         }));
       },
       addField: (tableId) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -487,7 +521,10 @@ export const useCanvasStore = create<CanvasState>()(
         }));
       },
       updateField: (tableId, fieldId, updates) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -502,7 +539,10 @@ export const useCanvasStore = create<CanvasState>()(
         }));
       },
       deleteField: (tableId, fieldId) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           tables: s.tables.map((t) =>
             t.id === tableId
@@ -516,7 +556,10 @@ export const useCanvasStore = create<CanvasState>()(
       },
       relationships: [],
       addRelationship: (rel) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const newRel: Relationship = {
             id: crypto.randomUUID(),
@@ -534,7 +577,10 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       updateRelationship: (id, updates) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           relationships: s.relationships.map((r) =>
             r.id === id ? { ...r, ...updates } : r
@@ -542,14 +588,20 @@ export const useCanvasStore = create<CanvasState>()(
         }));
       },
       deleteRelationship: (id) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           relationships: s.relationships.filter((r) => r.id !== id),
           selectedRelationshipId: s.selectedRelationshipId === id ? null : s.selectedRelationshipId,
         }));
       },
       setTables: (tables) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set({ tables });
       },
 
@@ -558,15 +610,24 @@ export const useCanvasStore = create<CanvasState>()(
       tableGroups: [],
       project: null,
       setEnums: (enums) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set({ enums });
       },
       setTableGroups: (tableGroups) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set({ tableGroups });
       },
       setProject: (project) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set({ project });
       },
 
@@ -574,7 +635,10 @@ export const useCanvasStore = create<CanvasState>()(
       notes: [],
       selectedNoteIds: [],
       addNote: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
           const viewCenterX = viewport.w / 2;
@@ -604,13 +668,19 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       updateNote: (id, updates) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           notes: s.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
         }));
       },
       deleteNote: (id) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           notes: s.notes.filter((n) => n.id !== id),
           selectedNoteIds: s.selectedNoteIds.filter((nid) => nid !== id),
@@ -624,7 +694,10 @@ export const useCanvasStore = create<CanvasState>()(
           selectedAreaIds: [],
         }),
       moveNotes: (moves) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const map = new Map(moves.map((m) => [m.id, m]));
           return {
@@ -641,7 +714,10 @@ export const useCanvasStore = create<CanvasState>()(
       areas: [],
       selectedAreaIds: [],
       addArea: () => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const { viewport, camera } = useEditorStore.getState();
           const viewCenterX = viewport.w / 2;
@@ -672,13 +748,19 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       updateArea: (id, updates) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           areas: s.areas.map((a) => (a.id === id ? { ...a, ...updates } : a)),
         }));
       },
       deleteArea: (id) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => ({
           areas: s.areas.filter((a) => a.id !== id),
           selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
@@ -692,7 +774,10 @@ export const useCanvasStore = create<CanvasState>()(
           selectedNoteIds: [],
         }),
       moveAreas: (moves) => {
-        if (get().readOnly) return;
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
         set((s) => {
           const map = new Map(moves.map((m) => [m.id, m]));
           return {

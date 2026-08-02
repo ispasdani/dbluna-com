@@ -14,6 +14,7 @@ import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
+import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
 import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
 
 function clamp(n: number, min: number, max: number) {
@@ -123,8 +124,10 @@ export default function DiagramPage({ params }: PageProps) {
             )}
           </>
         )}
-        {workspaceMode === "docs" && <DocsLayout />}
+        {workspaceMode === "docs" && <DocsLayout readOnly={editingReadOnly} />}
       </div>
+
+      <UpgradeToast />
     </div>
   );
 }

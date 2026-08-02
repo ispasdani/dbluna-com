@@ -28,6 +28,7 @@ import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
 import { exportDiagramAsJson, exportDiagramAsDbml, parseImportedDiagramJson } from "@/lib/diagram-io";
+import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 interface TopNavbarProps {
@@ -97,11 +98,27 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   );
 
   const handleExportJson = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     exportDiagramAsJson(currentDiagramData, currentDiagramName);
   };
 
   const handleExportDbml = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     exportDiagramAsDbml(tables, relationships, currentDiagramName);
+  };
+
+  const handleShareClick = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    setIsShareOpen(true);
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -223,7 +240,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             variant="ghost"
             size="sm"
             className="gap-2"
-            onClick={() => setIsShareOpen(true)}
+            onClick={handleShareClick}
           >
             <Share2 className="w-4 h-4" />
             <span className="hidden sm:inline">Share</span>
@@ -343,7 +360,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
         </DialogContent>
       </Dialog>
 
-      <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} />
+      <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} readOnly={readOnly} />
       <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
     </>
   );

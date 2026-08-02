@@ -30,13 +30,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
 interface MyDiagramsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  readOnly?: boolean;
 }
 
-export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) {
+export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDiagramsDialogProps) {
   const router = useRouter();
   const rawDiagrams = useCanvasStore((s) => s.diagrams);
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
@@ -108,6 +110,10 @@ export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) 
 
   const startRename = (id: string, currentName: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     setRenamingId(id);
     setRenameValue(currentName);
   };
@@ -127,7 +133,20 @@ export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) 
 
   const handleDuplicate = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     duplicateDiagram(id);
+  };
+
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    setDeleteTargetId(id);
   };
 
   const confirmDelete = () => {
@@ -226,10 +245,7 @@ export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) 
                         <Button
                           size="icon-sm"
                           variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTargetId(id);
-                          }}
+                          onClick={(e) => handleDeleteClick(id, e)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>

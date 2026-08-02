@@ -14,6 +14,7 @@ import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { parseDbml, parsedTablesToCanvasTables, parsedToCanvasSchemaMeta } from "@/lib/parser/dsl-parser";
 import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
+import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -181,12 +182,20 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   }, [readOnly]);
 
   const handleCopy = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
     let mimeType = "text/plain";
     if (language === "json") mimeType = "application/json";
 
