@@ -28,12 +28,12 @@ export async function requireSignedIn(ctx: MutationCtx | QueryCtx) {
   return user;
 }
 
-export function isPro(user: Doc<"users">): boolean {
-  return user.subscriptionStatus === "active";
+export function isPro(user: Doc<"users">, plan: Doc<"plans"> | null): boolean {
+  return user.subscriptionStatus === "active" && plan?.slug === "pro";
 }
 
-export function requirePro(user: Doc<"users">) {
-  if (!isPro(user)) {
+export function requirePro(user: Doc<"users">, plan: Doc<"plans"> | null) {
+  if (!isPro(user, plan)) {
     throw new ConvexError("Upgrade to Pro to access this feature.");
   }
 }

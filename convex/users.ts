@@ -53,7 +53,8 @@ export const getCurrentUserPlan = query({
   handler: async (ctx) => {
     const user = await getCurrentUserDoc(ctx);
     if (!user) return { isPro: false };
-    return { isPro: isPro(user) };
+    const plan = user.planId ? await ctx.db.get(user.planId) : null;
+    return { isPro: isPro(user, plan) };
   },
 });
 
