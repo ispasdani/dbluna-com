@@ -242,16 +242,6 @@ function snapshotFor(state: CanvasState, id: string): DiagramData | undefined {
   return state.diagrams[id];
 }
 
-// For UI that lists all diagrams (e.g. the My Diagrams dialog) — overlays the
-// active diagram's live state onto the persisted record so the diagram
-// currently open always shows up with accurate data.
-export function getEffectiveDiagrams(state: CanvasState): Record<string, DiagramData> {
-  if (!state.activeDiagramId) return state.diagrams;
-  const snap = snapshotFor(state, state.activeDiagramId);
-  if (!snap) return state.diagrams;
-  return { ...state.diagrams, [state.activeDiagramId]: snap };
-}
-
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Copy, Trash2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCanvasStore, getEffectiveDiagrams } from "@/store/useCanvasStore";
-import { useShallow } from "zustand/react/shallow";
+import { useCanvasStore } from "@/store/useCanvasStore";
 
 interface MyDiagramsDialogProps {
   open: boolean;
@@ -39,15 +38,64 @@ interface MyDiagramsDialogProps {
 
 export function MyDiagramsDialog({ open, onOpenChange }: MyDiagramsDialogProps) {
   const router = useRouter();
-  const diagrams = useCanvasStore(useShallow(getEffectiveDiagrams));
+  const rawDiagrams = useCanvasStore((s) => s.diagrams);
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const renameDiagram = useCanvasStore((s) => s.renameDiagram);
   const duplicateDiagram = useCanvasStore((s) => s.duplicateDiagram);
   const deleteDiagram = useCanvasStore((s) => s.deleteDiagram);
 
+  // Live canvas fields for the active diagram, so it shows up-to-date in the
+  // list even before a diagram switch writes it back into `diagrams`. Selected
+  // individually (instead of via a selector that builds a new object) so each
+  // stays referentially stable unless actually mutated.
+  const activeTables = useCanvasStore((s) => s.tables);
+  const activeNotes = useCanvasStore((s) => s.notes);
+  const activeAreas = useCanvasStore((s) => s.areas);
+  const activeRelationships = useCanvasStore((s) => s.relationships);
+  const activeEnums = useCanvasStore((s) => s.enums);
+  const activeTableGroups = useCanvasStore((s) => s.tableGroups);
+  const activeProject = useCanvasStore((s) => s.project);
+  const activeBackground = useCanvasStore((s) => s.background);
+  const activeSnapToGrid = useCanvasStore((s) => s.snapToGrid);
+  const activeFocusMode = useCanvasStore((s) => s.isFocusModeEnabled);
+
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const diagrams = useMemo(() => {
+    const existing = activeDiagramId ? rawDiagrams[activeDiagramId] : undefined;
+    if (!activeDiagramId || !existing) return rawDiagrams;
+    return {
+      ...rawDiagrams,
+      [activeDiagramId]: {
+        ...existing,
+        tables: activeTables,
+        notes: activeNotes,
+        areas: activeAreas,
+        relationships: activeRelationships,
+        enums: activeEnums,
+        tableGroups: activeTableGroups,
+        project: activeProject,
+        background: activeBackground,
+        snapToGrid: activeSnapToGrid,
+        isFocusModeEnabled: activeFocusMode,
+      },
+    };
+  }, [
+    rawDiagrams,
+    activeDiagramId,
+    activeTables,
+    activeNotes,
+    activeAreas,
+    activeRelationships,
+    activeEnums,
+    activeTableGroups,
+    activeProject,
+    activeBackground,
+    activeSnapToGrid,
+    activeFocusMode,
+  ]);
 
   const rows = Object.entries(diagrams).sort(
     ([, a], [, b]) => b.updatedAt - a.updatedAt
