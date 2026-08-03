@@ -7,7 +7,15 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section
+      className="bg-background"
+      style={
+        {
+          "--background": "#ffffff",
+          "--foreground": "#111827",
+        } as React.CSSProperties
+      }
+    >
       <Navbar />
       {children}
       <Footer />
