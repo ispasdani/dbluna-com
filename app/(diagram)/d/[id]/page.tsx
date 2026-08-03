@@ -12,6 +12,8 @@ import { DockPanel } from "@/components/diagram-general/dock-panel";
 import { TabLauncherBar } from "@/components/diagram-sections/toolbar";
 import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
+import { useCloudAutoSave } from "@/hooks/use-cloud-autosave";
+import { useCloudReconciliation } from "@/hooks/use-cloud-reconciliation";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
@@ -28,7 +30,9 @@ interface PageProps {
 export default function DiagramPage({ params }: PageProps) {
   const { id } = use(params);
   const hasHydrated = useStoreHydration();
+  const { ready: cloudReady } = useCloudReconciliation(id);
   useDiagramAutoSave();
+  useCloudAutoSave();
 
   // Off while EDITING_GATE_ENABLED is false (default) — see lib/feature-flags.ts.
   // While loading (or if the flag is off), default to "not pro" so a
@@ -72,7 +76,7 @@ export default function DiagramPage({ params }: PageProps) {
     dragRef.current.active = false;
   };
 
-  if (!hasHydrated) {
+  if (!hasHydrated || !cloudReady) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
