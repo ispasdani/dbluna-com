@@ -17,6 +17,11 @@ type EditorState = {
   activeDiagramId: string | null;
   cameras: Record<string, Camera>;
   setEditorDiagramId: (id: string) => void;
+  // Hydrates a specific diagram's camera from a cloud pull (release-1-0's
+  // Phase 3 cloud sync) — updates the live `camera` too if that diagram
+  // happens to be the active one, since `camera` otherwise only mirrors
+  // `cameras[activeDiagramId]` on the next setEditorDiagramId switch.
+  setCameraForDiagram: (id: string, camera: Camera) => void;
   camera: Camera;
 
   viewport: { w: number; h: number };
@@ -52,6 +57,12 @@ export const useEditorStore = create<EditorState>()(
           cameras: newCameras,
           camera: target,
         });
+      },
+      setCameraForDiagram: (id, camera) => {
+        set((s) => ({
+          cameras: { ...s.cameras, [id]: camera },
+          camera: id === s.activeDiagramId ? camera : s.camera,
+        }));
       },
       camera: { x: 0, y: 0, zoom: 1 },
 

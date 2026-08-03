@@ -73,6 +73,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
     () => ({
       name: currentDiagramName,
       updatedAt: (activeDiagramId && canvasDiagrams[activeDiagramId]?.updatedAt) || 0,
+      storage: (activeDiagramId && canvasDiagrams[activeDiagramId]?.storage) || "local",
+      cloudId: (activeDiagramId && canvasDiagrams[activeDiagramId]?.cloudId) || null,
+      lastSyncedAt: (activeDiagramId && canvasDiagrams[activeDiagramId]?.lastSyncedAt) || null,
       tables,
       notes,
       areas,

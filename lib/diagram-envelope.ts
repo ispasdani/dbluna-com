@@ -24,6 +24,12 @@ export function parseDiagramEnvelope(parsed: unknown, fallbackName: string): Dia
     return {
         name: typeof obj.name === "string" && obj.name.trim() ? obj.name : fallbackName,
         updatedAt: Date.now(),
+        // Untrusted external data (a JSON file, a share-link fragment) must
+        // never claim a cloud link — force local-only regardless of what a
+        // hand-crafted or stale envelope might contain.
+        storage: "local",
+        cloudId: null,
+        lastSyncedAt: null,
         tables: obj.tables as DiagramData["tables"],
         notes: obj.notes as DiagramData["notes"],
         areas: obj.areas as DiagramData["areas"],

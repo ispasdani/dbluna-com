@@ -7,6 +7,9 @@ function buildDiagram(): DiagramData {
   return {
     name: "Test diagram",
     updatedAt: Date.now(),
+    storage: "local",
+    cloudId: null,
+    lastSyncedAt: null,
     tables: [
       {
         id: crypto.randomUUID(),

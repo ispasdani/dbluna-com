@@ -103,9 +103,17 @@ export interface Area {
   zIndex: number;
 }
 
+export type DiagramStorageMode = "local" | "cloud";
+
 export interface DiagramData {
   name: string;
   updatedAt: number;
+  // Cloud-sync metadata (release-1-0's Phase 3). Deliberately excluded from
+  // CanvasFields below, same treatment as name/updatedAt — never mirrored
+  // into top-level live-editing state.
+  storage: DiagramStorageMode;
+  cloudId: string | null; // Convex Id<"diagrams"> as a string, or null when storage === "local"
+  lastSyncedAt: number | null; // epoch ms of last successful push or pull; null until first sync
   tables: Table[];
   notes: Note[];
   areas: Area[];
@@ -136,6 +144,9 @@ function createDefaultDiagram(): DiagramData {
   return {
     name: "Untitled diagram",
     updatedAt: Date.now(),
+    storage: "local",
+    cloudId: null,
+    lastSyncedAt: null,
     tables: [],
     notes: [],
     areas: [],
@@ -171,6 +182,19 @@ type CanvasState = {
   duplicateDiagram: (id: string) => string | null;
   deleteDiagram: (id: string) => void;
   importDiagram: (id: string, data: DiagramData) => void;
+  // Cloud-sync metadata actions (release-1-0's Phase 3) — patch the
+  // diagrams[id] entry's cloud fields without touching CanvasFields.
+  setDiagramCloudLink: (id: string, cloudId: string, lastSyncedAt: number) => void;
+  clearDiagramCloudLink: (id: string) => void;
+  markCloudSynced: (id: string, remoteUpdatedAt: number) => void;
+  findLocalIdByCloudId: (cloudId: string) => string | null;
+  // Runtime-only (not persisted, see partialize) — mirrors the active
+  // diagram's push/pull status for the SavingIndicator. Only one diagram is
+  // ever active at a time, same reasoning as savingStatus below.
+  cloudSyncStatus: "idle" | "saving" | "synced" | "error";
+  setCloudSyncStatus: (status: "idle" | "saving" | "synced" | "error") => void;
+  cloudSyncErrorReason: "not-pro" | "network" | "unknown" | null;
+  setCloudSyncErrorReason: (reason: "not-pro" | "network" | "unknown" | null) => void;
   background: CanvasBackground;
   tables: Table[];
   selectedTableIds: string[];
@@ -239,6 +263,9 @@ function snapshotFor(state: CanvasState, id: string): DiagramData | undefined {
       ...toCanvasFields(state),
       name: existing?.name ?? "Untitled diagram",
       updatedAt: existing?.updatedAt ?? Date.now(),
+      storage: existing?.storage ?? "local",
+      cloudId: existing?.cloudId ?? null,
+      lastSyncedAt: existing?.lastSyncedAt ?? null,
     };
   }
   return state.diagrams[id];
@@ -264,6 +291,11 @@ export const useCanvasStore = create<CanvasState>()(
             ...toCanvasFields(get()),
             name: prevExisting?.name ?? "Untitled diagram",
             updatedAt: Date.now(),
+            // Preserve — this snapshots the SAME diagram being switched away
+            // from, never reset its cloud link just because it's no longer active.
+            storage: prevExisting?.storage ?? "local",
+            cloudId: prevExisting?.cloudId ?? null,
+            lastSyncedAt: prevExisting?.lastSyncedAt ?? null,
           };
         }
 
@@ -285,6 +317,10 @@ export const useCanvasStore = create<CanvasState>()(
           selectedRelationshipId: null,
           selectedNoteIds: [],
           selectedAreaIds: [],
+          // Reset so a stale cloud-sync error from a previously-open cloud
+          // diagram never bleeds into a freshly-opened one.
+          cloudSyncStatus: "idle",
+          cloudSyncErrorReason: null,
         });
       },
       createDiagram: (name) => {
@@ -323,6 +359,11 @@ export const useCanvasStore = create<CanvasState>()(
               ...structuredClone(source),
               name: `${source.name} (copy)`,
               updatedAt: Date.now(),
+              // Always local-only, even duplicating a cloud-synced source —
+              // otherwise two local ids would point at the same Convex doc.
+              storage: "local",
+              cloudId: null,
+              lastSyncedAt: null,
             },
           },
         });
@@ -347,6 +388,12 @@ export const useCanvasStore = create<CanvasState>()(
           return { diagrams: newDiagrams };
         });
       },
+      // Neutral write primitive — trusts `data` as given. Untrusted external
+      // data (JSON import, share-link decode) is forced local-only upstream,
+      // at the one shared parseDiagramEnvelope boundary (lib/diagram-envelope.ts),
+      // not here — this also lets cloud-sync call sites (reconciliation,
+      // cross-device bootstrap) legitimately pass storage:"cloud"/cloudId
+      // through this same action.
       importDiagram: (id, data) => {
         set((s) => ({
           diagrams: {
@@ -358,6 +405,46 @@ export const useCanvasStore = create<CanvasState>()(
             },
           },
         }));
+      },
+      setDiagramCloudLink: (id, cloudId, lastSyncedAt) => {
+        set((s) => {
+          const existing = s.diagrams[id];
+          if (!existing) return {};
+          return {
+            diagrams: {
+              ...s.diagrams,
+              [id]: { ...existing, storage: "cloud", cloudId, lastSyncedAt },
+            },
+          };
+        });
+      },
+      clearDiagramCloudLink: (id) => {
+        set((s) => {
+          const existing = s.diagrams[id];
+          if (!existing) return {};
+          return {
+            diagrams: {
+              ...s.diagrams,
+              [id]: { ...existing, storage: "local", cloudId: null, lastSyncedAt: null },
+            },
+          };
+        });
+      },
+      markCloudSynced: (id, remoteUpdatedAt) => {
+        set((s) => {
+          const existing = s.diagrams[id];
+          if (!existing) return {};
+          return {
+            diagrams: { ...s.diagrams, [id]: { ...existing, lastSyncedAt: remoteUpdatedAt } },
+          };
+        });
+      },
+      findLocalIdByCloudId: (cloudId) => {
+        const { diagrams } = get();
+        for (const [id, diagram] of Object.entries(diagrams)) {
+          if (diagram.cloudId === cloudId) return id;
+        }
+        return null;
       },
       background: "grid",
       tables: [],
@@ -807,6 +894,10 @@ export const useCanvasStore = create<CanvasState>()(
       },
       savingStatus: "idle",
       setSavingStatus: (status) => set({ savingStatus: status }),
+      cloudSyncStatus: "idle",
+      setCloudSyncStatus: (status) => set({ cloudSyncStatus: status }),
+      cloudSyncErrorReason: null,
+      setCloudSyncErrorReason: (reason) => set({ cloudSyncErrorReason: reason }),
     }),
     {
       name: "canvas-storage",
@@ -827,13 +918,20 @@ export const useCanvasStore = create<CanvasState>()(
         const { activeDiagramId, diagrams } = state;
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
+          const existing = diagrams[activeDiagramId];
           newDiagrams[activeDiagramId] = {
             ...toCanvasFields(state),
-            name: diagrams[activeDiagramId]?.name ?? "Untitled diagram",
+            name: existing?.name ?? "Untitled diagram",
             updatedAt: Date.now(),
+            // Preserve — this runs on every debounced write; losing the
+            // cloud link here would silently sever it on the very next autosave.
+            storage: existing?.storage ?? "local",
+            cloudId: existing?.cloudId ?? null,
+            lastSyncedAt: existing?.lastSyncedAt ?? null,
           };
         }
-        // savingStatus/hasHydrated/readOnly are intentionally NOT here — runtime-only.
+        // savingStatus/hasHydrated/readOnly/cloudSyncStatus/cloudSyncErrorReason
+        // are intentionally NOT here — runtime-only.
         return { diagrams: newDiagrams };
       },
     }
