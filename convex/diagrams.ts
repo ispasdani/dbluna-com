@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { ConvexError } from "convex/values";
+import { requireSignedInPro, requireProDiagramEditor } from "./guards";
 
 const generatePublicId = () => Math.random().toString(36).substring(2, 10);
 
@@ -49,32 +50,73 @@ export const create = mutation({
                     onUpdate: v.string(),
                     onDelete: v.string(),
                 })),
-                // We can add notes/areas later if needed for templates
+                areas: v.optional(v.array(v.object({
+                    id: v.string(),
+                    x: v.number(),
+                    y: v.number(),
+                    width: v.number(),
+                    height: v.number(),
+                    title: v.string(),
+                    color: v.string(),
+                    isLocked: v.boolean(),
+                    zIndex: v.number(),
+                }))),
+                notes: v.optional(v.array(v.object({
+                    id: v.string(),
+                    x: v.number(),
+                    y: v.number(),
+                    width: v.number(),
+                    height: v.number(),
+                    title: v.string(),
+                    content: v.string(),
+                    color: v.string(),
+                    isLocked: v.boolean(),
+                }))),
+                enums: v.optional(v.array(v.object({
+                    id: v.string(),
+                    name: v.string(),
+                    note: v.optional(v.string()),
+                    values: v.array(v.object({
+                        name: v.string(),
+                        note: v.optional(v.string()),
+                    })),
+                }))),
+                tableGroups: v.optional(v.array(v.object({
+                    id: v.string(),
+                    name: v.string(),
+                    tableNames: v.array(v.string()),
+                }))),
+                project: v.optional(v.object({
+                    name: v.optional(v.string()),
+                    databaseType: v.optional(v.string()),
+                    note: v.optional(v.string()),
+                })),
+                camera: v.optional(v.object({
+                    x: v.number(),
+                    y: v.number(),
+                    zoom: v.number(),
+                })),
             })
         ),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) throw new ConvexError("Unauthorized");
-
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!user) throw new ConvexError("User not found");
+        const { user } = await requireSignedInPro(ctx);
+        const now = Date.now();
 
         const diagramId = await ctx.db.insert("diagrams", {
             ownerId: user._id,
             name: args.name,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
+            createdAt: now,
+            updatedAt: now,
             publicId: generatePublicId(),
             tables: args.initialData?.tables ?? [],
             relationships: args.initialData?.relationships ?? [],
-            areas: [],
-            notes: [],
-            camera: { x: 0, y: 0, zoom: 1 },
+            areas: args.initialData?.areas ?? [],
+            notes: args.initialData?.notes ?? [],
+            enums: args.initialData?.enums ?? [],
+            tableGroups: args.initialData?.tableGroups ?? [],
+            project: args.initialData?.project,
+            camera: args.initialData?.camera ?? { x: 0, y: 0, zoom: 1 },
             isDeleted: false,
         });
 
@@ -83,12 +125,12 @@ export const create = mutation({
             diagramId,
             userId: user._id,
             role: "owner",
-            invitedAt: Date.now(),
-            acceptedAt: Date.now(),
-            updatedAt: Date.now(),
+            invitedAt: now,
+            acceptedAt: now,
+            updatedAt: now,
         });
 
-        return diagramId;
+        return { diagramId, updatedAt: now };
     },
 });
 
@@ -233,24 +275,7 @@ export const update = mutation({
         name: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const identity = await ctx.auth.getUserIdentity();
-        if (!identity) throw new ConvexError("Unauthorized");
-
-        const user = await ctx.db
-            .query("users")
-            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-            .unique();
-
-        if (!user) throw new ConvexError("User not found");
-
-        const member = await ctx.db
-            .query("diagramMembers")
-            .withIndex("by_diagram_and_user", (q) =>
-                q.eq("diagramId", args.diagramId).eq("userId", user._id)
-            )
-            .unique();
-
-        if (!member || member.role === "viewer") throw new ConvexError("No write access");
+        await requireProDiagramEditor(ctx, args.diagramId);
 
         // Construct patch
         const patch: any = { updatedAt: Date.now() };
@@ -265,6 +290,7 @@ export const update = mutation({
         if (args.project) patch.project = args.project;
 
         await ctx.db.patch(args.diagramId, patch);
+        return { updatedAt: patch.updatedAt as number };
     },
 });
 

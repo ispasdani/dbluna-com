@@ -101,3 +101,22 @@ export async function requireDiagramOwnerOrAdmin(
 ) {
   return requireDiagramRole(ctx, diagramId, ["owner", "admin"]);
 }
+
+// Composed guards for the cloud-sync mutations (release-1-0's Phase 3): signed
+// in isn't enough, the caller's plan must actually resolve to Pro.
+export async function requireSignedInPro(ctx: MutationCtx | QueryCtx) {
+  const user = await requireSignedIn(ctx);
+  const plan = user.planId ? await ctx.db.get(user.planId) : null;
+  requirePro(user, plan);
+  return { user, plan };
+}
+
+export async function requireProDiagramEditor(
+  ctx: MutationCtx | QueryCtx,
+  diagramId: Id<"diagrams">
+) {
+  const result = await requireDiagramEditor(ctx, diagramId);
+  const plan = result.user.planId ? await ctx.db.get(result.user.planId) : null;
+  requirePro(result.user, plan);
+  return { ...result, plan };
+}
