@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Copy, Trash2, Check, X } from "lucide-react";
+import { useQuery } from "convex/react";
+import { Pencil, Copy, Trash2, Check, X, Cloud, CloudOff, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,48 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useCloudSync } from "@/hooks/use-cloud-sync";
+import { softDeleteCloudDiagram } from "@/lib/diagram-persistence";
+import { api } from "@/convex/_generated/api";
+
+// Per-row cloud action — a subcomponent so useCloudSync (a hook) can be
+// called once per row rather than inside the .map() callback directly.
+function CloudRowAction({ id, readOnly }: { id: string; readOnly: boolean }) {
+  const { storage, isBusy, saveToCloud, makeLocalOnly } = useCloudSync(id);
+  if (readOnly) return null;
+
+  if (storage === "cloud") {
+    return (
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        disabled={isBusy}
+        title="Synced — click to make local-only"
+        onClick={(e) => {
+          e.stopPropagation();
+          void makeLocalOnly();
+        }}
+      >
+        <Cloud className="w-3.5 h-3.5 text-primary" />
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      size="icon-sm"
+      variant="ghost"
+      disabled={isBusy}
+      title="Save to cloud"
+      onClick={(e) => {
+        e.stopPropagation();
+        void saveToCloud();
+      }}
+    >
+      <CloudOff className="w-3.5 h-3.5" />
+    </Button>
+  );
+}
 
 interface MyDiagramsDialogProps {
   open: boolean;
@@ -64,6 +107,22 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isCloudSectionOpen, setIsCloudSectionOpen] = useState(false);
+
+  // Cross-device discovery: cloud diagrams this account owns that this
+  // browser hasn't seen locally yet — see app/(diagram)/d/cloud/[cloudId]/page.tsx.
+  const cloudDiagrams = useQuery(api.diagrams.list);
+  const localCloudIds = useMemo(
+    () => new Set(Object.values(rawDiagrams).map((d) => d.cloudId).filter((v): v is string => v !== null)),
+    [rawDiagrams]
+  );
+  const undiscoveredCloudDiagrams = useMemo(
+    () =>
+      (cloudDiagrams ?? [])
+        .filter((d): d is NonNullable<typeof d> => d !== null)
+        .filter((d) => !localCloudIds.has(d._id)),
+    [cloudDiagrams, localCloudIds]
+  );
 
   const diagrams = useMemo(() => {
     const existing = activeDiagramId ? rawDiagrams[activeDiagramId] : undefined;
@@ -149,8 +208,17 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
     setDeleteTargetId(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTargetId) return;
+    const target = diagrams[deleteTargetId];
+    if (target?.storage === "cloud" && target.cloudId) {
+      // Best-effort: don't block the local delete if Convex is unreachable —
+      // just let the user know manual cleanup of the cloud copy may be needed.
+      const result = await softDeleteCloudDiagram(target.cloudId);
+      if (!result.ok) {
+        alert("Removed locally; couldn't reach the cloud copy — it may need manual cleanup.");
+      }
+    }
     if (deleteTargetId === activeDiagramId) {
       // Navigate away first so the canvas never re-renders against a
       // just-deleted active diagram id (which would silently recreate it).
@@ -228,6 +296,7 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <CloudRowAction id={id} readOnly={readOnly} />
                         {!readOnly && (
                         <Button
                           size="icon-sm"
@@ -261,6 +330,44 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                 ))}
               </TableBody>
             </Table>
+          )}
+
+          {undiscoveredCloudDiagrams.length > 0 && (
+            <div className="mt-2 border-t border-border pt-3">
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setIsCloudSectionOpen((v) => !v)}
+              >
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform ${isCloudSectionOpen ? "" : "-rotate-90"}`}
+                />
+                Cloud diagrams not on this device ({undiscoveredCloudDiagrams.length})
+              </button>
+              {isCloudSectionOpen && (
+                <div className="mt-2 space-y-1">
+                  {undiscoveredCloudDiagrams.map((d) => (
+                    <button
+                      key={d._id}
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors text-left"
+                      onClick={() => {
+                        onOpenChange(false);
+                        router.push(`/d/cloud/${d._id}`);
+                      }}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Cloud className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="truncate">{d.name}</span>
+                      </span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {new Date(d.updatedAt).toLocaleDateString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
