@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
 import Link from "next/link";
 import { Container } from "../marketing-general/container";
 import { Badge } from "../marketing-general/badge";
@@ -8,9 +7,6 @@ import { Heading } from "../marketing-general/heading";
 import { SubHeading } from "../marketing-general/subHeading";
 import { ButtonWithIdGenerator } from "../marketing-general/buttonWithIdGenerator";
 import { Button } from "../marketing-general/button";
-import { GartnerLogo } from "../uiJsxAssets/gartnerLogo";
-import { GartnerLogoText } from "../uiJsxAssets/gartnerLogoText";
-import { Star } from "../uiJsxAssets/star";
 
 export const Hero = () => {
   return (
@@ -31,29 +27,6 @@ export const Hero = () => {
         <Button variant="secondary" as={Link} href="/pricing">
           View pricing
         </Button>
-      </div>
-      <div className="mt-6 flex items-center gap-2">
-        <GartnerLogo />
-        <div className="-gap-5 flex items-center">
-          {[...Array(5)].map((_, index) => (
-            <motion.div
-              key={index}
-              initial={{
-                opacity: 0,
-              }}
-              animate={{
-                opacity: 1,
-              }}
-              transition={{ duration: 1, delay: index * 0.05 }}
-            >
-              <Star key={index} />
-            </motion.div>
-          ))}
-        </div>
-        <span className="border-l border-gray-500 pl-4 text-[10px] text-gray-600 sm:text-sm">
-          Innovative AI solution 2025 by
-        </span>
-        <GartnerLogoText className="size-12 sm:size-16" />
       </div>
     </Container>
   );
