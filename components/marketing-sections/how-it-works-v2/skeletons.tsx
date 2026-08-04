@@ -9,6 +9,27 @@ import { cn } from "@/lib/utils";
 import { motion, useMotionValue } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
+      <path d="M7 11l5 5l5 -5" />
+      <path d="M12 4l0 12" />
+    </svg>
+  );
+};
+
 const AlertTriangleIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
     <svg
@@ -91,67 +112,90 @@ export const DocsPreviewSkeleton = () => {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="relative flex h-70 w-84 overflow-hidden rounded-2xl border-t border-gray-300 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
+        className="relative flex h-72 w-104 flex-col overflow-hidden rounded-2xl border-t border-gray-300 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
       >
         <div className="absolute inset-x-0 -top-1.5 mx-auto size-3 rounded-full border-2 border-gray-300 bg-white dark:border-neutral-700 dark:bg-neutral-900" />
 
-        <div className="flex w-24 shrink-0 flex-col gap-1 border-r border-gray-200 p-3 dark:border-neutral-700">
-          <span className="text-charcoal-700 mb-1 text-[10px] font-medium tracking-wide uppercase dark:text-neutral-400">
-            Tables
-          </span>
-          {tables.map((table, index) => (
-            <motion.div
-              key={table}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.2 + index * 0.1 }}
-              className={cn(
-                "flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px]",
-                table === "orders"
-                  ? "bg-brand/10 text-brand font-medium"
-                  : "text-gray-500 dark:text-neutral-400"
-              )}
-            >
-              <DatabaseIcon className="h-3 w-3 shrink-0" />
-              <span className="truncate">{table}</span>
-            </motion.div>
-          ))}
-        </div>
-
-        <div className="flex flex-1 flex-col p-4">
-          <div className="flex items-center gap-2">
-            <DatabaseIcon className="text-charcoal-700 h-4 w-4 dark:text-neutral-200" />
-            <span className="text-charcoal-700 text-sm font-medium dark:text-neutral-100">
+        {/* Doc site top bar */}
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-neutral-700">
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <DatabaseIcon className="h-3.5 w-3.5 text-gray-400 dark:text-neutral-500" />
+            <span className="text-gray-400 dark:text-neutral-500">Docs</span>
+            <span className="text-gray-300 dark:text-neutral-600">/</span>
+            <span className="text-charcoal-700 font-medium dark:text-neutral-100">
               orders
             </span>
-            <span className="text-charcoal-700 rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
-              4 columns
-            </span>
           </div>
-          <p className="mt-1 text-[11px] text-gray-500 dark:text-neutral-400">
-            Orders placed by customers.
-          </p>
-          <DivideX className="mt-2" />
-          <div className="mt-2 flex flex-col gap-2">
-            {columns.map((col, index) => (
+          <div className="flex items-center gap-1 rounded-md border border-gray-200 px-1.5 py-1 text-gray-500 dark:border-neutral-600 dark:text-neutral-400">
+            <DownloadIcon className="h-3 w-3" />
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-30 shrink-0 flex-col gap-0.5 border-r border-gray-200 p-3 dark:border-neutral-700">
+            <span className="text-charcoal-700 mb-1.5 text-[10px] font-medium tracking-wide uppercase dark:text-neutral-400">
+              Tables (4)
+            </span>
+            {tables.map((table, index) => (
               <motion.div
-                key={col.name}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.4 + index * 0.15 }}
-                className="flex items-center justify-between gap-2 text-[11px]"
+                key={table}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.2 + index * 0.1 }}
+                className={cn(
+                  "relative flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px]",
+                  table === "orders"
+                    ? "bg-brand/10 text-brand font-medium"
+                    : "text-gray-500 dark:text-neutral-400"
+                )}
               >
-                <span className="text-charcoal-700 font-mono dark:text-neutral-200">
-                  {col.name}
-                </span>
-                <span className="font-mono text-gray-500 dark:text-neutral-500">
-                  {col.type}
-                </span>
-                <span className="rounded-sm border border-blue-500 bg-blue-50 px-1.5 py-0.5 font-mono text-blue-500 dark:bg-blue-50/10">
-                  {col.constraint}
-                </span>
+                {table === "orders" && (
+                  <span className="bg-brand absolute top-1/2 left-0 h-3.5 w-0.5 -translate-y-1/2 rounded-full" />
+                )}
+                <DatabaseIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate">{table}</span>
               </motion.div>
             ))}
+          </div>
+
+          <div className="flex flex-1 flex-col overflow-hidden p-4">
+            <span className="text-charcoal-700 text-base font-semibold dark:text-neutral-100">
+              orders
+            </span>
+            <p className="mt-1 text-[11px] text-gray-500 dark:text-neutral-400">
+              Orders placed by customers, linked to users and products.
+            </p>
+
+            <div className="mt-3 grid grid-cols-[3.5rem_3.5rem_1fr] gap-x-2 text-[9px] font-medium tracking-wide text-gray-400 uppercase dark:text-neutral-500">
+              <span>Column</span>
+              <span>Type</span>
+              <span>Constraint</span>
+            </div>
+            <DivideX className="mt-1.5" />
+            <div className="flex flex-col">
+              {columns.map((col, index) => (
+                <motion.div
+                  key={col.name}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.4 + index * 0.15 }}
+                  className={cn(
+                    "grid grid-cols-[3.5rem_3.5rem_1fr] items-center gap-x-2 rounded-sm px-1 py-1.5 text-[11px]",
+                    index % 2 === 1 && "bg-gray-50 dark:bg-neutral-800/50"
+                  )}
+                >
+                  <span className="text-charcoal-700 truncate font-mono dark:text-neutral-200">
+                    {col.name}
+                  </span>
+                  <span className="truncate font-mono text-gray-500 dark:text-neutral-500">
+                    {col.type}
+                  </span>
+                  <span className="truncate font-mono text-blue-500">
+                    {col.constraint}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
           </div>
         </div>
       </motion.div>
