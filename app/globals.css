@@ -62,6 +62,10 @@
   --color-gray-400: #d7d7d7;
   --color-gray-500: #c0c0c0;
   --color-gray-600: #8b8b8b;
+  --color-canvas: var(--canvas);
+  --color-canvas-fill: var(--canvas-fill);
+  --color-dots: var(--dots);
+  --color-line: var(--line);
 }
 
 :root {
@@ -98,6 +102,10 @@
   --divide: oklch(0.928 0.006 264.531);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+  --canvas: var(--color-neutral-400);
+  --canvas-fill: var(--color-neutral-300);
+  --dots: var(--color-gray-300);
+  --line: var(--color-neutral-200);
 
   /* ✅ Your old “diagram tokens” (now in the new system) */
   --dock-bg: oklch(0.985 0 0);
@@ -509,6 +517,10 @@ body[data-palette="claude"] {
   --sidebar-ring: oklch(0.556 0 0);
   --divide: oklch(1 0 0 / 10%);
   --table-bg: var(--card);
+  --canvas: var(--color-neutral-200);
+  --canvas-fill: var(--color-neutral-800);
+  --dots: var(--color-neutral-800);
+  --line: var(--color-neutral-700);
 }
 
 @layer base {

@@ -5,7 +5,7 @@ import { FAQs } from "@/components/marketing-sections/faq";
 import { Features } from "@/components/marketing-sections/features/features";
 import { Hero } from "@/components/marketing-sections/hero";
 import { HeroImage } from "@/components/marketing-sections/hero-image";
-import { HowItWorks } from "@/components/marketing-sections/how-it-works/how-it-works";
+import { HowItWorksV2 } from "@/components/marketing-sections/how-it-works-v2/how-it-works-v2";
 import { Pricing } from "@/components/marketing-sections/pricing";
 import { UseCases } from "@/components/marketing-sections/use-cases";
 import VideoSec from "@/components/marketing-sections/video-sec";
@@ -18,9 +18,7 @@ export default function Home() {
       <DivideX />
       <HeroImage />
       <DivideX />
-      <LogoCloud />
-      <DivideX />
-      <HowItWorks />
+      <HowItWorksV2 />
       <DivideX />
       <Features />
       <DivideX />
