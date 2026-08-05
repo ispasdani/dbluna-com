@@ -3,29 +3,25 @@ import { Button } from "./button";
 import { Container } from "./container";
 import { SubHeading } from "./subHeading";
 import { LogoSVG } from "../uiJsxAssets/logo";
-import { SendIcon } from "../uiJsxAssets/send-icon";
+import { LegalPlaceholder } from "./legal";
 
 export const Footer = () => {
   const product = [
     {
-      title: "Agent Builder",
-      href: "#",
+      title: "Features",
+      href: "/#features",
     },
     {
-      title: "Simulation",
-      href: "#",
+      title: "How It Works",
+      href: "/#how-it-works",
     },
     {
-      title: "Integrations",
-      href: "#",
+      title: "Use Cases",
+      href: "/#use-cases",
     },
     {
-      title: "Multi Agent",
-      href: "#",
-    },
-    {
-      title: "Workflow API",
-      href: "#",
+      title: "FAQ",
+      href: "/#faq",
     },
   ];
 
@@ -45,22 +41,6 @@ export const Footer = () => {
     {
       title: "Pricing",
       href: "/pricing",
-    },
-    {
-      title: "Careers",
-      href: "/careers",
-    },
-    {
-      title: "Docs",
-      href: "#",
-    },
-    {
-      title: "Changelog",
-      href: "#",
-    },
-    {
-      title: "Glossary",
-      href: "#",
     },
   ];
 
@@ -84,9 +64,11 @@ export const Footer = () => {
         <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-3">
           <LogoSVG />
           <SubHeading as="p" className="mt-4 max-w-lg text-left">
-            Manage and simulate agentic workflows
+            Design, document, and share database schemas visually or in DBML
           </SubHeading>
-          <Button className="mt-4 mb-8 lg:mb-0">Start building</Button>
+          <Button className="mt-4 mb-8 lg:mb-0" as={Link} href="/sign-up">
+            Start building
+          </Button>
         </div>
         <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">
           <p className="text-sm font-medium text-gray-600">Product</p>
@@ -125,86 +107,26 @@ export const Footer = () => {
           ))}
         </div>
         <div className="col-span-1 mb-4 flex flex-col items-start md:col-span-1 md:mb-0 lg:col-span-2">
-          <p className="text-footer-link text-sm font-medium">Newsletter</p>
-          <div className="mt-2 flex w-full items-center rounded-xl border border-gray-300 bg-gray-200 p-1 placeholder-gray-600 dark:border-neutral-700 dark:bg-neutral-800">
-            <input
-              type="email"
-              placeholder="Your email"
-              className="flex-1 bg-transparent px-2 text-sm outline-none focus:outline-none"
-            />
-            <Button className="my-0 flex size-8 shrink-0 items-center justify-center rounded-lg px-0 py-0 text-center">
-              <SendIcon />
-            </Button>
-          </div>
+          <p className="text-footer-link text-sm font-medium">Contact Us</p>
           <SubHeading
             as="p"
-            className="mt-4 text-left text-sm md:text-sm lg:text-sm"
+            className="mt-2 text-left text-sm md:text-sm lg:text-sm"
           >
-            Get the latest product news and behind the scenes updates.
+            Questions about DBLuna, or interested in an Enterprise plan? Reach
+            out and we'll get back to you.
           </SubHeading>
+          <Button className="mt-4" as={Link} href="/contact">
+            Contact us
+          </Button>
         </div>
       </div>
       <div className="my-4 flex flex-col items-center justify-between px-4 pt-8 md:flex-row">
         <p className="text-footer-link text-sm">
-          © 2024 Notus Aceternity Fight Club. All rights reserved.
+          © 2026 DBLuna. All rights reserved.
         </p>
-        <div className="mt-4 flex items-center gap-4 md:mt-0">
-          <Link
-            href="https://twitter.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z" />
-            </svg>
-          </Link>
-          <Link
-            href="https://linkedin.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
-              <rect width="4" height="12" x="2" y="9" />
-              <circle cx="4" cy="4" r="2" />
-            </svg>
-          </Link>
-          <Link
-            href="https://instagram.com"
-            className="text-footer-link transition-colors hover:text-gray-900"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-              <path d="m16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-              <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-            </svg>
-          </Link>
-        </div>
+        <p className="mt-4 text-sm md:mt-0">
+          <LegalPlaceholder>[Add real social links]</LegalPlaceholder>
+        </p>
       </div>
     </Container>
   );

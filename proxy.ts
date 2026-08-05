@@ -17,6 +17,10 @@ const isPublicRoute = createRouteMatcher([
   "/blog(.*)",
   "/about(.*)",
   "/pricing(.*)",
+  "/contact(.*)",
+  "/privacy-policy(.*)",
+  "/terms-of-service(.*)",
+  "/cookie-policy(.*)",
 
   // ✅ webhooks / endpoints that must remain public
   "/clerk(.*)",

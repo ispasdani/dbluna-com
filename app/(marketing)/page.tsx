@@ -18,17 +18,27 @@ export default function Home() {
       <DivideX />
       <HeroImage />
       <DivideX />
-      <HowItWorksV2 />
+      <div id="how-it-works">
+        <HowItWorksV2 />
+      </div>
       <DivideX />
-      <Features />
+      <div id="features">
+        <Features />
+      </div>
       <DivideX />
-      <UseCases />
+      <div id="use-cases">
+        <UseCases />
+      </div>
       <DivideX />
       <Benefits />
       <DivideX />
-      <Pricing />
+      <div id="pricing">
+        <Pricing />
+      </div>
       <DivideX />
-      <FAQs />
+      <div id="faq">
+        <FAQs />
+      </div>
       <DivideX />
       <VideoSec />
       <DivideX />

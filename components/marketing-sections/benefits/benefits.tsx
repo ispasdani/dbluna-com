@@ -6,6 +6,7 @@ import { Container } from "../../marketing-general/container";
 import { Badge } from "../../marketing-general/badge";
 import { SectionHeading } from "../../marketing-general/section-heading";
 import { SubHeading } from "../../marketing-general/subHeading";
+import { Scale } from "../../marketing-general/scale";
 import { GraphIcon } from "../../uiJsxAssets/graph-icon";
 import { RocketIcon } from "../../uiJsxAssets/rocket-icon";
 import { ReuseBrainIcon } from "../../uiJsxAssets/reuse-brain-icon";
@@ -204,10 +205,15 @@ const Card = (props: {
 }) => {
   const { title, description, icon } = props;
   return (
-    <div className="relative z-10 rounded-lg bg-gray-50 p-4 transition duration-200 hover:bg-transparent md:p-5 dark:bg-neutral-800">
-      <div className="flex items-center gap-2">{icon}</div>
-      <h3 className="mt-4 mb-2 text-lg font-medium">{title}</h3>
-      <p className="text-gray-600">{description}</p>
+    <div className="group relative">
+      <div className="absolute inset-0 z-0 opacity-0 transition duration-200 group-hover:opacity-50">
+        <Scale />
+      </div>
+      <div className="relative z-10 rounded-lg bg-gray-50 p-4 transition duration-200 group-hover:bg-transparent md:p-5 dark:bg-neutral-800">
+        <div className="flex items-center gap-2">{icon}</div>
+        <h3 className="mt-4 mb-2 text-lg font-medium">{title}</h3>
+        <p className="text-gray-600">{description}</p>
+      </div>
     </div>
   );
 };
