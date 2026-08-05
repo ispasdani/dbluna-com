@@ -13,7 +13,7 @@ export const tiers = [
     subtitle: "For viewing shared work",
     monthly: 0,
     yearly: 0,
-    note: "View only — browse and explore diagrams shared with you. Upgrade to create, edit, and export your own.",
+    note: "View only. Browse and explore diagrams shared with you, and upgrade to create, edit, and export your own.",
     ctaText: "Get started",
     ctaLink: "/w",
     features: [
@@ -33,7 +33,7 @@ export const tiers = [
     ctaLink: "/pricing",
     features: [
       "Unlimited diagrams & tables",
-      "Full visual canvas — tables, relationships, notes & areas",
+      "Full visual canvas: tables, relationships, notes & areas",
       "Two-way DBML code editor",
       "Auto-generated documentation site",
       "Import from PostgreSQL, SQL Server, CSV & BACPAC",

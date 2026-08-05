@@ -19,7 +19,7 @@ export const Hero = () => {
 
       <SubHeading className="mx-auto mt-6 max-w-lg">
         Draw database flows, write DSL, simulate queries, and create
-        documentation—fast. Designed for developers and data-driven teams.
+        documentation fast. Designed for developers and data-driven teams.
       </SubHeading>
 
       <div className="mt-6 flex items-center gap-4">

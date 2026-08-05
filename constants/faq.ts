@@ -1,32 +1,42 @@
 export const faqs = [
   {
-    question: "What is this tool and what does it do?",
+    question: "What is DBLuna and what does it do?",
     answer:
-      "Our platform is a visual database schema design tool that lets you create, document, and export database schemas. Design schemas visually with drag-and-drop or write them in SQL/DBML code. Generate documentation instantly and export to multiple formats including SQL, DBML, and visual diagrams.",
+      "DBLuna is a visual database schema design and documentation tool. Design tables, columns, and relationships on an infinite canvas, keep everything in sync with a DBML code editor, and get a searchable documentation site generated automatically. No separate write-up needed.",
   },
   {
     question: "How do I create my first database schema?",
     answer:
-      "Start by adding tables to the canvas using the 'Add Table' button. Click on a table to add columns, set data types, and define constraints. Connect tables by creating relationships between them. You can also switch to code mode to write your schema in SQL or DBML format.",
+      "Add a table from the toolbar, then click into it to add columns, set types, and mark primary keys. Drag between columns to create foreign-key relationships. Prefer code? Switch to the Code tab and write DBML directly, and the canvas updates as you type. You can also start from a template in the Templates tab.",
   },
   {
-    question: "What export formats are supported?",
+    question: "What export and import formats are supported?",
     answer:
-      "We support multiple export formats including PostgreSQL, MySQL, SQLite, SQL Server, and Oracle SQL. You can also export to DBML format or generate visual documentation. Each export preserves your schema structure, relationships, and constraints.",
+      "You can export a full-fidelity DBML or JSON file and import it back exactly as it was. For pulling in an existing schema, DBLuna also supports live imports from PostgreSQL and SQL Server connections, plus CSV and BACPAC files.",
   },
   {
-    question: "Can I collaborate with my team on schemas?",
+    question: "Can I import an existing database?",
     answer:
-      "Yes! Share your workspace with team members and collaborate in real-time. Each member can have different roles (owner, admin, editor, viewer) to control access levels. Multiple people can work on the same schema simultaneously with instant sync.",
+      "Yes. Connect directly to a live PostgreSQL or SQL Server database, or upload a CSV or BACPAC file, and DBLuna will parse the schema and lay it out on the canvas automatically.",
   },
   {
-    question: "Can I import existing database schemas?",
+    question: "Can I share a schema with my team?",
     answer:
-      "Absolutely. Paste your existing SQL or DBML code into the code editor, and we'll automatically parse and visualize your schema. We support imports from PostgreSQL, MySQL, and other major database dialects, converting them into visual diagrams you can edit.",
+      "You can generate a read-only share link for any diagram. No account needed on either end, and nothing is sent to a server since the link encodes the diagram itself. Real-time multi-user editing with live cursors and roles isn't available yet; it's on our roadmap.",
   },
   {
     question: "What's the difference between visual and code modes?",
     answer:
-      "Visual mode lets you design schemas using drag-and-drop interface with tables, relationships, and areas. Code mode provides a text editor where you can write SQL or DBML directly. Both modes stay in sync - changes in one automatically update the other, giving you flexibility to work however you prefer.",
+      "Visual mode is the drag-and-drop canvas for tables, relationships, notes, and areas. Code mode is a DBML editor (with JSON and Mermaid views). Both stay in sync, so editing either one updates the other instantly.",
+  },
+  {
+    question: "What can I do on the Free plan?",
+    answer:
+      "Free accounts are view-only: you can open and browse any diagram shared with you, including its generated documentation. To create, edit, export, or share your own diagrams, you'll need a Pro plan.",
+  },
+  {
+    question: "Where is my data stored? Is it safe?",
+    answer:
+      "By default, every diagram is stored locally in your browser. Nothing leaves your device. If you want to reach a diagram from another device, you can opt in to cloud sync per diagram; it's never required.",
   },
 ];

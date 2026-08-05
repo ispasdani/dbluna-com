@@ -53,7 +53,7 @@ export const Features = () => {
             </div>
             <CardDescription>
               Describe what you're building in plain English and get a
-              ready-to-edit starter schema in seconds—no prompt engineering
+              ready-to-edit starter schema in seconds. No prompt engineering
               required.
             </CardDescription>
             <AISchemaGeneratorSkeleton />
@@ -64,9 +64,9 @@ export const Features = () => {
               <CardTitle>From Code to Canvas, Instantly</CardTitle>
             </div>
             <CardDescription>
-              Write your schema in SQL or DBML, and your diagram builds itself
-              automatically. Define tables, set foreign keys, establish
-              relationships,all through code.
+              Write your schema in DBML, and your diagram builds itself
+              automatically. Define tables, set foreign keys, and establish
+              relationships, all through code.
             </CardDescription>
             <TextToWorkflowBuilderSkeleton />
           </Card>
@@ -80,7 +80,7 @@ export const Features = () => {
             </div>
             <CardDescription>
               Design your database structure intuitively with drag-and-drop
-              tables, columns, and relationships—no code required.
+              tables, columns, and relationships. No code required.
             </CardDescription>
             <NativeToolsIntegrationSkeleton />
           </Card>
@@ -103,7 +103,7 @@ export const Features = () => {
             </div>
             <CardDescription>
               Pull schema straight from a live PostgreSQL or SQL Server
-              connection, a CSV, or a BACPAC file—auto-laid-out on the canvas
+              connection, a CSV, or a BACPAC file, auto-laid-out on the canvas
               in seconds
             </CardDescription>
           </Card>
@@ -113,8 +113,8 @@ export const Features = () => {
               <CardTitle>No-Account Share Links</CardTitle>
             </div>
             <CardDescription>
-              Share a read-only link that renders entirely in the browser—no
-              account required, nothing sent to a server
+              Share a read-only link that renders entirely in the browser, no
+              account required and nothing sent to a server
             </CardDescription>
           </Card>
           <Card>

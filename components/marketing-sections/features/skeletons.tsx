@@ -223,17 +223,17 @@ export const TextToWorkflowBuilderSkeleton = () => {
                 <tr className="border-b border-gray-100 dark:border-neutral-800">
                   <td className="px-1 py-1 font-mono">name</td>
                   <td className="px-1 py-1 font-mono">varchar</td>
-                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">-</td>
                 </tr>
                 <tr className="border-b border-gray-100 dark:border-neutral-800">
                   <td className="px-1 py-1 font-mono">email</td>
                   <td className="px-1 py-1 font-mono">varchar</td>
-                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">-</td>
                 </tr>
                 <tr>
                   <td className="px-1 py-1 font-mono">is_active</td>
                   <td className="px-1 py-1 font-mono">bool</td>
-                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">-</td>
                 </tr>
               </tbody>
             </table>

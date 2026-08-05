@@ -27,7 +27,7 @@ export const HowItWorksV2 = () => {
     {
       title: "Design Visually or with Code",
       description:
-        "Drag-and-drop tables on the canvas or write DBML directly — both stay in sync in real time.",
+        "Drag-and-drop tables on the canvas or write DBML directly, and both stay in sync in real time.",
       icon: FirstIcon,
       id: "design",
       skeleton: <SchemaDesignSkeleton />,
@@ -35,7 +35,7 @@ export const HowItWorksV2 = () => {
     {
       title: "Generate Documentation Instantly",
       description:
-        "Every diagram becomes a searchable, dbdocs.io-style documentation site — no extra work required.",
+        "Every diagram becomes a searchable, dbdocs.io-style documentation site. No extra work required.",
       icon: SecondIcon,
       id: "docs",
       skeleton: <DocsPreviewSkeleton />,
