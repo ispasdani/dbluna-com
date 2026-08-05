@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "motion/react";
+import { Share2 } from "lucide-react";
 import { Container } from "../marketing-general/container";
 import { Badge } from "../marketing-general/badge";
 import { SectionHeading } from "../marketing-general/section-heading";
@@ -9,7 +10,6 @@ import { Scale } from "../marketing-general/scale";
 import { DevopsIcon } from "../uiJsxAssets/devops-icon";
 import { GraphIcon } from "../uiJsxAssets/graph-icon";
 import { TruckIcon } from "../uiJsxAssets/truck-icon";
-import { PhoneIcon } from "../uiJsxAssets/phone-icon";
 import { WalletIcon } from "../uiJsxAssets/wallet-icon";
 import { DatabaseIcon } from "../uiJsxAssets/database-icon";
 
@@ -34,16 +34,15 @@ export const UseCases = () => {
       icon: <TruckIcon className="text-brand size-6" />,
     },
     {
-      title: "Team Collaboration",
+      title: "Onboarding & Legacy Systems",
       description:
-        "Work together on schema design with real-time synchronization",
-      icon: <PhoneIcon className="text-brand size-6" />,
+        "Import an existing database and get a documented schema in minutes",
+      icon: <DatabaseIcon className="text-brand size-6" />,
     },
     {
-      title: "Database Migration",
-      description:
-        "Generate SQL scripts for multiple databases from visual designs",
-      icon: <DatabaseIcon className="text-brand size-6" />,
+      title: "Schema Handoff & Review",
+      description: "Share a read-only link, no account needed to view it",
+      icon: <Share2 className="text-brand size-6" />,
     },
     {
       title: "Documentation",
@@ -62,8 +61,8 @@ export const UseCases = () => {
         </SectionHeading>
 
         <SubHeading as="p" className="mx-auto mt-6 max-w-lg">
-          We empower developers and technical teams to design, visualize,
-          simulate and document database schemas efficiently
+          We empower developers and technical teams to design, visualize, and
+          document database schemas efficiently
         </SubHeading>
 
         <div className="mt-12 grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-3">
