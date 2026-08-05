@@ -74,12 +74,27 @@ export const Pricing = () => {
                 {tier.subtitle}
               </p>
               <span className="mt-6 flex items-baseline-last text-2xl font-medium dark:text-white">
-                $
-                <Price
-                  value={activeTier === "monthly" ? tier.monthly : tier.yearly}
-                />
-                <span className="ml-2 text-sm font-normal">/seat</span>
+                {(activeTier === "monthly" ? tier.monthly : tier.yearly) ==
+                null ? (
+                  "Custom"
+                ) : (
+                  <>
+                    $
+                    <Price
+                      value={
+                        activeTier === "monthly" ? tier.monthly : tier.yearly
+                      }
+                    />
+                    <span className="ml-2 text-sm font-normal">/seat</span>
+                  </>
+                )}
               </span>
+
+              {tier.note && (
+                <p className="text-charcoal-700 mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300">
+                  {tier.note}
+                </p>
+              )}
 
               <div
                 key={tier.title + "tier-list-of-items"}

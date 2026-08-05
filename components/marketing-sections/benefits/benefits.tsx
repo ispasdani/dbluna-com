@@ -25,19 +25,19 @@ export const Benefits = () => {
     {
       title: "Design Faster",
       description:
-        "Build database schemas visually with drag-and-drop or code - whichever you prefer",
+        "Build database schemas visually with drag-and-drop, or write DBML instead",
       icon: <RocketIcon className="text-brand size-6" />,
     },
     {
-      title: "Collaborate Better",
+      title: "Never Lose Work",
       description:
-        "Share schemas with your team, manage access levels, and work together in real-time",
+        "Every diagram autosaves locally, with optional cloud sync when you're ready",
       icon: <RealtimeSyncIcon className="text-brand size-6" />,
     },
     {
       title: "Export Anywhere",
       description:
-        "Generate SQL, DBML, or documentation instantly for any database platform",
+        "Export a full-fidelity DBML or JSON snapshot, ready to import back anytime",
       icon: <GraphIcon className="text-brand size-6" />,
     },
     {
@@ -49,7 +49,7 @@ export const Benefits = () => {
     {
       title: "Catch Issues Early",
       description:
-        "Validate relationships and constraints automatically before deploying to production",
+        "Automatically catch duplicate names, missing keys, and type mismatches",
       icon: <ShieldIcon className="text-brand size-6" />,
     },
     {
@@ -68,8 +68,8 @@ export const Benefits = () => {
         </SectionHeading>
 
         <SubHeading as="p" className="mx-auto mt-6 max-w-lg">
-          Design, document, and deploy database schemas faster with visual tools
-          and instant code generation
+          Design, document, and share database schemas faster with visual
+          tools and instant code generation
         </SubHeading>
       </div>
       <div className="mt-20 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -90,7 +90,12 @@ export const Benefits = () => {
 };
 
 const MiddleCard = () => {
-  const texts = ["Schema exported", "Table created", "Relationship added"];
+  const texts = [
+    "Schema exported",
+    "Table created",
+    "Relationship added",
+    "Docs generated",
+  ];
   const [activeText, setActiveText] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -103,8 +108,7 @@ const MiddleCard = () => {
       <div className="absolute inset-0 bg-[radial-gradient(var(--color-dots)_1px,transparent_1px)] mask-radial-from-10% [background-size:10px_10px] shadow-xl"></div>
 
       <div className="flex items-center justify-center">
-        {/* OpenAI logo -> table */}
-        <TableBlock icon={<MiniTable label="ai_models" compact />} />
+        <TableBlock icon={<MiniTable label="users" compact />} />
 
         <HorizontalLine />
 
@@ -118,14 +122,13 @@ const MiddleCard = () => {
 
         <HorizontalLine />
 
-        {/* Slack logo -> table */}
-        <TableBlock icon={<MiniTable label="events" compact />} />
+        <TableBlock icon={<MiniTable label="orders" compact />} />
       </div>
 
       <div className="relative z-20 flex flex-col items-center justify-center">
         <VerticalLine />
         <div className="rounded-sm border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs text-blue-500 dark:bg-blue-900 dark:text-white">
-          Connected
+          Synced
         </div>
       </div>
 
@@ -164,8 +167,8 @@ const MiddleCard = () => {
               <div className="mt-4 flex flex-col gap-y-3 mask-b-from-50%">
                 {[
                   { label: "Tables Created", width: 85 },
-                  { label: "Relationships", width: 92 },
-                  { label: "Team Members", width: 65 },
+                  { label: "Relationships Mapped", width: 92 },
+                  { label: "Docs Generated", width: 74 },
                 ].map((item, index) => (
                   <div key={item.label} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
