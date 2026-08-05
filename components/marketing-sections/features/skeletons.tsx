@@ -1,471 +1,257 @@
 "use client";
 
-import { motion } from "motion/react";
-import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { IntegrationsLogo } from "@/components/uiJsxAssets/integrations-logo";
-import { AttachmentIcon } from "@/components/uiJsxAssets/attachement-icon";
-import { SendIcon } from "@/components/uiJsxAssets/send-icon";
+import { Sparkles, Zap } from "lucide-react";
 import { WindowIcon } from "@/components/uiJsxAssets/window-icon";
 import { CodeIcon } from "@/components/uiJsxAssets/code-icon";
 import { PhoneIcon } from "@/components/uiJsxAssets/phone-icon";
-import { OpenAILogo } from "@/components/uiJsxAssets/open-ai-icon";
-import { AnthropicLogo } from "@/components/uiJsxAssets/anthropic-logo";
-import { MetaLogo } from "@/components/uiJsxAssets/meta-logo";
 import { DivideX } from "@/components/marketing-general/divideX";
 import { LogoSVG } from "@/components/uiJsxAssets/logo";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import { TableBlock } from "@/components/marketing-general/table-block";
 
-export const LLMModelSelectorSkeleton = () => {
-  const models = [
-    {
-      name: "Claude 4 Opus",
-      logo: AnthropicLogo,
-      status: "Unavailable",
-      variant: "danger",
-    },
-    {
-      name: "ChatGPT",
-      logo: OpenAILogo,
-      status: "Connected",
-      variant: "success",
-    },
-    {
-      name: "Llama 3.2",
-      logo: MetaLogo,
-      status: "Waiting",
-      variant: "warning",
-    },
-  ];
+// "LLM Model Selector" card — a single model, one job: describe your app, get a starter schema.
+export const AISchemaGeneratorSkeleton = () => {
+  const PROMPT = "An e-commerce store with users, orders, and products";
+  const [started, setStarted] = useState(false);
+  const { displayText, isComplete } = useTypewriter(started ? PROMPT : "", 35);
+  const [showResult, setShowResult] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStarted(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isComplete) return;
+    const timer = setTimeout(() => setShowResult(true), 400);
+    return () => clearTimeout(timer);
+  }, [isComplete]);
+
   return (
-    <motion.div className="relative mx-auto mt-20 h-full max-h-70 min-h-40 w-[85%] rounded-2xl border-t border-gray-300 bg-white p-4 shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
-      <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1, delay: 1.5 }}
-        className="shadow-aceternity absolute -top-10 -right-10 z-20 flex w-40 shrink-0 flex-col items-start rounded-lg bg-white text-xs dark:bg-neutral-900"
-      >
-        <div className="flex w-full items-center justify-between p-2">
-          <div className="flex items-center gap-2 font-medium">
-            <OpenAILogo />
-            Open AI
-          </div>
-          <p className="font-mono text-gray-600">GPT 5</p>
-        </div>
-        <DivideX />
-        <div className="m-2 rounded-sm border border-blue-500 bg-blue-50 px-2 py-0.5 text-blue-500 dark:bg-blue-50/10">
-          Connected
-        </div>
-      </motion.div>
-      <div className="mb-4 flex gap-2">
-        <div className="h-3 w-3 rounded-full bg-red-500"></div>
-        <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
-        <div className="h-3 w-3 rounded-full bg-green-500"></div>
+    <motion.div className="relative mx-auto mt-8 h-full max-h-70 min-h-52 w-[85%] rounded-2xl border-t border-gray-300 bg-white p-4 shadow-2xl dark:border-neutral-700 dark:bg-neutral-800">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-neutral-400">
+        <Sparkles className="text-brand h-3.5 w-3.5" />
+        Describe your app
       </div>
-      <div className="mt-12 flex items-center gap-2">
-        <IntegrationsLogo />
-        <span className="text-charcoal-700 text-sm font-medium dark:text-neutral-200">
-          All Models
-        </span>
-        <span className="text-charcoal-700 rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
-          69,420
-        </span>
+      <div className="text-charcoal-700 mt-2 min-h-11 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs dark:border-neutral-700 dark:bg-neutral-900/60 dark:text-neutral-200">
+        {displayText}
+        {started && !isComplete && <span className="animate-pulse">|</span>}
       </div>
-      <DivideX className="mt-2" />
-      {models.map((model, index) => (
-        <div className="relative" key={model.name + index}>
-          <motion.div
-            key={model.name + index}
-            className="mt-4 flex items-center justify-between gap-2"
-            initial={{ clipPath: "inset(0 100% 0 0)", filter: "blur(10px)" }}
-            whileInView={{ clipPath: "inset(0 0% 0 0)", filter: "blur(0px)" }}
-            viewport={{ once: true }}
-            transition={{
-              duration: 1,
-              delay: index * 1,
-              ease: "easeInOut",
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <model.logo className="h-4 w-4 shrink-0" />
-              <span className="text-charcoal-700 text-sm font-medium dark:text-neutral-200">
-                {model.name}
-              </span>
-            </div>
 
-            <div
-              className={cn(
-                "rounded-sm border px-2 py-0.5 text-xs",
-                model.variant === "success" &&
-                  "border-emerald-500 bg-emerald-50 text-emerald-500 dark:bg-emerald-50/10",
-                model.variant === "warning" &&
-                  "border-yellow-500 bg-yellow-50 text-yellow-500 dark:bg-yellow-50/10",
-                model.variant === "danger" &&
-                  "border-red-500 bg-red-50 text-red-500 dark:bg-red-50/10"
-              )}
-            >
-              {model.status}
-            </div>
-          </motion.div>
+      <AnimatePresence>
+        {showResult && (
           <motion.div
-            initial={{
-              left: 0,
-              opacity: 0,
-            }}
-            whileInView={{
-              left: "100%",
-              opacity: [0, 1, 1, 1, 0],
-            }}
-            viewport={{ once: true }}
-            transition={{
-              left: {
-                duration: 1,
-                delay: index * 1,
-                ease: "easeInOut",
-              },
-              opacity: {
-                duration: 1,
-                delay: index * 1,
-                ease: "easeInOut",
-              },
-            }}
-            className="absolute inset-y-0 left-0 h-full w-[2px] bg-gradient-to-t from-transparent via-blue-500 to-transparent"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
           >
-            {Array.from({ length: 8 }).map((_, sparkleIndex) => {
-              const randomX = Math.random() * 100 - 50;
-              const randomY = Math.random() * 100 - 50;
-              const randomDelay = Math.random() * 0.8;
-              const randomDuration = 0.5 + Math.random() * 1;
-              const randomScale = 0.5 + Math.random() * 0.5;
-
-              return (
+            <DivideX className="my-3" />
+            <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-gray-400 uppercase dark:text-neutral-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Schema generated
+            </div>
+            <div className="flex gap-2">
+              {["users", "orders", "products"].map((label, index) => (
                 <motion.div
-                  key={sparkleIndex}
-                  initial={{
-                    opacity: 0,
-                    scale: 0,
-                    x: 0,
-                    y: 0,
-                  }}
-                  whileInView={{
-                    opacity: [0, 1, 0],
-                    scale: [0, randomScale, 0],
-                    x: randomX,
-                    y: randomY,
-                    rotate: [0, 360],
-                  }}
-                  viewport={{ once: true }}
-                  transition={{
-                    duration: randomDuration,
-                    delay: index * 1 + randomDelay,
-                    ease: "easeOut",
-                  }}
-                  className="absolute top-1/2 left-1/2 h-1 w-1 text-xs text-blue-400"
+                  key={label}
+                  initial={{ opacity: 0, y: 10, scale: 0.92 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.15 }}
+                  className="h-24 w-1/3"
                 >
-                  ✨
+                  <MiniTable label={label} />
                 </motion.div>
-              );
-            })}
+              ))}
+            </div>
           </motion.div>
-        </div>
-      ))}
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
 
-const TYPING_SPEED = 30;
+// "From Code to Canvas, Instantly" card — a DBML editor with a live, synced table preview.
+const DBML_LINES: { number: number; content: React.ReactNode }[] = [
+  {
+    number: 1,
+    content: (
+      <>
+        <span className="text-brand font-medium">Table</span>{" "}
+        <span className="text-charcoal-700 dark:text-neutral-200">
+          clients
+        </span>{" "}
+        <span className="text-gray-400 dark:text-neutral-500">{"{"}</span>
+      </>
+    ),
+  },
+  {
+    number: 2,
+    content: (
+      <>
+        {"  "}
+        <span className="text-charcoal-700 dark:text-neutral-200">id</span>{" "}
+        <span className="text-blue-500">int</span>{" "}
+        <span className="text-emerald-600 dark:text-emerald-400">
+          [pk, increment]
+        </span>
+      </>
+    ),
+  },
+  {
+    number: 3,
+    content: (
+      <>
+        {"  "}
+        <span className="text-charcoal-700 dark:text-neutral-200">name</span>{" "}
+        <span className="text-blue-500">varchar(255)</span>
+      </>
+    ),
+  },
+  {
+    number: 4,
+    content: (
+      <>
+        {"  "}
+        <span className="text-charcoal-700 dark:text-neutral-200">
+          email
+        </span>{" "}
+        <span className="text-blue-500">varchar(255)</span>
+      </>
+    ),
+  },
+  {
+    number: 5,
+    content: (
+      <>
+        {"  "}
+        <span className="text-charcoal-700 dark:text-neutral-200">
+          is_active
+        </span>{" "}
+        <span className="text-blue-500">bool</span>
+      </>
+    ),
+  },
+  {
+    number: 6,
+    content: (
+      <>
+        {"  "}
+        <span className="text-charcoal-700 dark:text-neutral-200">
+          created_at
+        </span>{" "}
+        <span className="text-blue-500">datetime</span>
+      </>
+    ),
+  },
+  {
+    number: 7,
+    content: <span className="text-gray-400 dark:text-neutral-500">{"}"}</span>,
+  },
+];
 
 export const TextToWorkflowBuilderSkeleton = () => {
-  const [chat, setChat] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
-  const [inputText, setInputText] = useState("");
-  const [chatContainerRef, setChatContainerRef] =
-    useState<HTMLDivElement | null>(null);
-  const [showTablePreview, setShowTablePreview] = useState(false);
-
-  const [isDemoPlaying, setIsDemoPlaying] = useState(true);
-  const [demoIndex, setDemoIndex] = useState(0);
-
-  const DEMO_DBML =
-    "Table clients { id int [pk, increment], name varchar(255), email varchar(255), is_active bool, created_at datetime }";
-
-  const TYPING_DELAY = 40; // ms per character
-
-  const RANDOM_MESSAGES = [
-    "Do you really think I was gonna answer?",
-    "I'm not a real assistant, I'm just a skeleton",
-    "Meri ek taang nakli hai, mai hockey ka bohot bada khiladi tha. Ek din Uday bhai ko meri kisi baat pe gussa aagaya aur mere hi hockey se meri taang ke do tukde kar diye. Lekin dil ke bohot ache hain, fauran mujhe hospital le gaye aur ye nakli taang lagwayi",
-    "Mimicking chat here, this isn't real.",
-    "Bro stop.",
-    "Main langotiya jeetu ka mara hua yaar bol rha hoon.",
-  ];
-
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
-
-    // If user interacts, kill the demo
-    if (isDemoPlaying) {
-      setIsDemoPlaying(false);
-    }
-
-    const newMessages = [
-      ...chat,
-      {
-        role: "user" as const,
-        content: inputText.trim(),
-      },
-      {
-        role: "assistant" as const,
-        content:
-          RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)],
-      },
-    ];
-
-    setChat(newMessages);
-    setInputText("");
-    setShowTablePreview(true); // still show table when user sends something
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  // Demo typing effect in the input
-  useEffect(() => {
-    if (!isDemoPlaying) return;
-
-    if (demoIndex >= DEMO_DBML.length) {
-      // Demo complete -> show table
-      setIsDemoPlaying(false);
-      setShowTablePreview(true);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      const nextIndex = demoIndex + 1;
-      setDemoIndex(nextIndex);
-      setInputText(DEMO_DBML.slice(0, nextIndex));
-    }, TYPING_DELAY);
-
-    return () => clearTimeout(timer);
-  }, [demoIndex, isDemoPlaying, DEMO_DBML]);
-
-  // Stop demo if user manually types
-  const handleChangeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isDemoPlaying) {
-      setIsDemoPlaying(false);
-    }
-    setInputText(e.target.value);
-  };
-
-  // Auto-scroll when chat or table changes
-  useEffect(() => {
-    if (chatContainerRef) {
-      chatContainerRef.scrollTo({
-        top: chatContainerRef.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [chat, showTablePreview, chatContainerRef]);
-
-  // No typing effect for messages now; simple render
-  const handleMessageComplete = () => {
-    // no-op; kept for compatibility with UserMessage/AssistantMessage props
-  };
+  const previewDelay = 0.15 + DBML_LINES.length * 0.16 + 0.2;
 
   return (
-    <motion.div className="relative mx-auto mt-2 h-full max-h-70 min-h-40 w-[85%] p-4">
-      {/* Input bar – same styling */}
-      <div className="absolute  inset-x-0 -bottom-4 mx-auto flex w-[93%] items-center justify-between rounded-lg border border-gray-300 bg-white shadow-[0px_2px_12px_0px_rgba(0,0,0,0.08)] dark:border-neutral-700 dark:bg-neutral-800">
-        <input
-          type="text"
-          value={inputText}
-          onChange={handleChangeInput}
-          onKeyDown={onKeyDown}
-          className="flex-1 border-none px-4 py-4 text-xs placeholder-neutral-600 focus:outline-none"
-          placeholder="Ask Notus AI"
-        />
-        <div className="mr-4 flex items-center gap-2">
-          <AttachmentIcon />
-          <button onClick={handleSendMessage} className="cursor-pointer">
-            <SendIcon />
-          </button>
-        </div>
+    <motion.div className="relative mx-auto mt-6 h-full max-h-70 min-h-56 w-[92%] overflow-hidden rounded-2xl border-t border-gray-300 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 dark:border-neutral-700">
+        <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
+        <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+        <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
+        <span className="ml-2 font-mono text-[10px] text-gray-400 dark:text-neutral-500">
+          schema.dbml
+        </span>
       </div>
 
-      {/* Scroll area – same styling */}
-      <div
-        ref={setChatContainerRef}
-        className="mask-bg-gradient-to-b flex max-h-[calc(100%-1rem)] flex-col gap-4 overflow-y-auto from-white to-transparent mask-t-from-70% mask-b-from-70% pt-4 pb-16 dark:from-neutral-900 dark:to-transparent"
-        style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-        }}
-      >
-        {/* Any user-triggered chat will still show here */}
-        {chat.map((message, index) => (
+      <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-neutral-700">
+        <div className="p-3 font-mono text-[11px] leading-relaxed">
+          {DBML_LINES.map((line, index) => (
+            <motion.div
+              key={line.number}
+              initial={{ opacity: 0, x: -6 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.3, delay: 0.15 + index * 0.16 }}
+              className="flex gap-2"
+            >
+              <span className="w-3 shrink-0 text-right text-gray-300 select-none dark:text-neutral-600">
+                {line.number}
+              </span>
+              <span className="whitespace-pre">{line.content}</span>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="flex flex-col p-3">
           <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.3, delay: previewDelay }}
+            className="mb-2 flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-gray-400 uppercase dark:text-neutral-500"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live preview
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.35, delay: previewDelay + 0.15 }}
+            className="rounded-lg border border-gray-200 bg-white p-2.5 text-xs shadow-sm dark:border-neutral-700 dark:bg-neutral-900"
           >
-            {message.role === "user" ? (
-              <UserMessage
-                content={message.content}
-                isActive={false}
-                onComplete={handleMessageComplete}
-              />
-            ) : (
-              <AssistantMessage
-                content={message.content}
-                isActive={false}
-                onComplete={handleMessageComplete}
-              />
-            )}
-          </motion.div>
-        ))}
-
-        {/* Same table preview as before */}
-        {showTablePreview && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-2 w-full rounded-lg border border-gray-200 bg-white p-4 text-xs shadow-[0px_2px_12px_0px_rgba(0,0,0,0.08)] dark:border-neutral-700 dark:bg-neutral-900"
-          >
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-              Preview:{" "}
-              <span className="font-bold text-neutral-800 dark:text-neutral-100">
-                clients
-              </span>
-            </div>
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-gray-200 text-[11px] font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
-                  <th className="px-2 py-1 text-left">Column</th>
-                  <th className="px-2 py-1 text-left">Type</th>
-                  <th className="px-2 py-1 text-left">Key</th>
+                <tr className="border-b border-gray-200 text-[10px] font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+                  <th className="px-1 py-1 text-left">Column</th>
+                  <th className="px-1 py-1 text-left">Type</th>
+                  <th className="px-1 py-1 text-left">Key</th>
                 </tr>
               </thead>
-              <tbody className="text-[11px] text-neutral-800 dark:text-neutral-100">
+              <tbody className="text-[10px] text-neutral-800 dark:text-neutral-100">
                 <tr className="border-b border-gray-100 dark:border-neutral-800">
-                  <td className="px-2 py-1 font-mono">id</td>
-                  <td className="px-2 py-1 font-mono">int</td>
-                  <td className="px-2 py-1 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                    PK • auto-increment
+                  <td className="px-1 py-1 font-mono">id</td>
+                  <td className="px-1 py-1 font-mono">int</td>
+                  <td className="px-1 py-1 text-[9px] tracking-wide text-emerald-600 uppercase dark:text-emerald-400">
+                    PK
                   </td>
                 </tr>
                 <tr className="border-b border-gray-100 dark:border-neutral-800">
-                  <td className="px-2 py-1 font-mono">name</td>
-                  <td className="px-2 py-1 font-mono">varchar(255)</td>
-                  <td className="px-2 py-1 text-[10px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 font-mono">name</td>
+                  <td className="px-1 py-1 font-mono">varchar</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
                 </tr>
                 <tr className="border-b border-gray-100 dark:border-neutral-800">
-                  <td className="px-2 py-1 font-mono">email</td>
-                  <td className="px-2 py-1 font-mono">varchar(255)</td>
-                  <td className="px-2 py-1 text-[10px] text-neutral-400">—</td>
-                </tr>
-                <tr className="border-b border-gray-100 dark:border-neutral-800">
-                  <td className="px-2 py-1 font-mono">is_active</td>
-                  <td className="px-2 py-1 font-mono">bool</td>
-                  <td className="px-2 py-1 text-[10px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 font-mono">email</td>
+                  <td className="px-1 py-1 font-mono">varchar</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
                 </tr>
                 <tr>
-                  <td className="px-2 py-1 font-mono">created_at</td>
-                  <td className="px-2 py-1 font-mono">datetime</td>
-                  <td className="px-2 py-1 text-[10px] text-neutral-400">—</td>
+                  <td className="px-1 py-1 font-mono">is_active</td>
+                  <td className="px-1 py-1 font-mono">bool</td>
+                  <td className="px-1 py-1 text-[9px] text-neutral-400">—</td>
                 </tr>
               </tbody>
             </table>
           </motion.div>
-        )}
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.3, delay: previewDelay + 0.5 }}
+            className="mt-2 flex items-center gap-1 text-[10px] text-gray-400 dark:text-neutral-500"
+          >
+            <Zap className="h-3 w-3 text-emerald-500" />
+            Synced instantly
+          </motion.div>
+        </div>
       </div>
     </motion.div>
-  );
-};
-
-const UserMessage = ({
-  content,
-  isActive,
-  onComplete,
-}: {
-  content: string;
-  isActive: boolean;
-  onComplete: () => void;
-}) => {
-  const { displayText, isComplete } = useTypewriter(
-    isActive ? content : content,
-    TYPING_SPEED
-  );
-
-  useEffect(() => {
-    if (isComplete && isActive) {
-      onComplete();
-    }
-  }, [isComplete, isActive, onComplete]);
-
-  return (
-    <div className="flex justify-end gap-3">
-      <div className="flex max-w-xs flex-col gap-1">
-        <div className="rounded-2xl rounded-br-md bg-blue-500 px-4 py-2 text-sm text-white">
-          {isActive ? displayText : content}
-          {isActive && !isComplete && <span className="animate-pulse">|</span>}
-        </div>
-      </div>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-xs font-medium text-white">
-        <Image
-          src="/avatar.webp"
-          alt="user"
-          width={32}
-          height={32}
-          className="rounded-full"
-        />
-      </div>
-    </div>
-  );
-};
-
-const AssistantMessage = ({
-  content,
-  isActive,
-  onComplete,
-}: {
-  content: string;
-  isActive: boolean;
-  onComplete: () => void;
-}) => {
-  const { displayText, isComplete } = useTypewriter(
-    isActive ? content : content,
-    TYPING_SPEED
-  );
-
-  useEffect(() => {
-    if (isComplete && isActive) {
-      onComplete();
-    }
-  }, [isComplete, isActive, onComplete]);
-
-  return (
-    <div className="flex gap-3 px-1">
-      <div className="shadow-aceternity flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-xs font-medium text-white dark:bg-neutral-900">
-        <LogoSVG className="size-4 text-black dark:text-white" />
-      </div>
-      <div className="flex max-w-xs flex-col gap-1">
-        <div className="text-charcoal-700 rounded-2xl rounded-bl-md bg-gray-100 px-4 py-2 text-sm">
-          {isActive ? displayText : content}
-          {isActive && !isComplete && <span className="animate-pulse">|</span>}
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -485,7 +271,7 @@ export const NativeToolsIntegrationSkeleton = () => {
 
       {/* Desktop layout stays untouched, only inner icons swapped */}
       <motion.div className="relative mx-auto my-12 hidden h-full max-h-70 min-h-80 max-w-[67rem] grid-cols-2 p-4 lg:grid">
-        <div className="hidden md:flex items-center justify-between ">
+        <div className="hidden items-center justify-between md:flex">
           <div className="flex flex-col gap-10">
             <TextIconBlock icon={<WindowIcon />} text="Drag & Drop Tables">
               <TopSVG className="absolute top-2 -right-84" />
@@ -517,7 +303,7 @@ export const NativeToolsIntegrationSkeleton = () => {
               Connected
             </span>
 
-            {/* Column of “tables” instead of product logos */}
+            {/* Column of "tables" instead of product logos */}
             <div className="absolute inset-x-0 -top-30 flex h-full flex-col items-center">
               <TableBlock icon={<MiniTable label="users" />} />
               <VerticalLine />
@@ -526,7 +312,7 @@ export const NativeToolsIntegrationSkeleton = () => {
             </div>
           </div>
 
-          {/* Second column of “tables” instead of product logos */}
+          {/* Second column of "tables" instead of product logos */}
           <div className="absolute -top-4 right-30 flex h-full flex-col items-center">
             <TableBlock icon={<MiniTable label="tasks" />} />
             <VerticalLine />
@@ -535,7 +321,7 @@ export const NativeToolsIntegrationSkeleton = () => {
 
           <RightSideSVG />
 
-          {/* Final “table” instead of OpenAI logo */}
+          {/* Final "table" instead of OpenAI logo */}
           <TableBlock icon={<MiniTable label="relations" compact />} />
         </div>
       </motion.div>
@@ -557,12 +343,12 @@ export const MiniTable = ({
   return (
     <div
       className={[
-        "relative flex flex-col overflow-hidden rounded-md border border-neutral-200 bg-white shadow-sm w-3/4 h-3/4",
+        "relative flex h-3/4 w-3/4 flex-col overflow-hidden rounded-md border border-neutral-200 bg-white shadow-sm",
         "dark:border-neutral-700 dark:bg-neutral-900",
       ].join(" ")}
     >
       {/* header bar */}
-      <div className="h-4 w-full bg-neutral-100 dark:bg-neutral-800 flex justify-center items-center">
+      <div className="flex h-4 w-full items-center justify-center bg-neutral-100 dark:bg-neutral-800">
         <div className="rounded-sm bg-blue-50 px-1 text-[8px] font-medium text-blue-600 dark:bg-blue-900 dark:text-white">
           {label}
         </div>
@@ -587,8 +373,6 @@ export const MiniTable = ({
           <span className="text-neutral-400 dark:text-neutral-500">ts</span>
         </div>
       </div>
-
-      {/* label chip */}
     </div>
   );
 };

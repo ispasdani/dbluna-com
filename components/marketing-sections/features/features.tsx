@@ -1,7 +1,14 @@
 "use client";
 
 import React from "react";
-import { FileText, FlaskConical, Users } from "lucide-react";
+import {
+  Database,
+  FileJson,
+  FileText,
+  Palette,
+  Share2,
+  ShieldCheck,
+} from "lucide-react";
 import { Container } from "@/components/marketing-general/container";
 import { SectionHeading } from "@/components/marketing-general/section-heading";
 import { Badge } from "@/components/marketing-general/badge";
@@ -13,7 +20,7 @@ import { Card } from "@/components/marketing-general/card";
 import { CardTitle } from "@/components/marketing-general/cart-title";
 import { CardDescription } from "@/components/marketing-general/card-description";
 import {
-  LLMModelSelectorSkeleton,
+  AISchemaGeneratorSkeleton,
   NativeToolsIntegrationSkeleton,
   TextToWorkflowBuilderSkeleton,
 } from "./skeletons";
@@ -42,14 +49,14 @@ export const Features = () => {
           <Card className="overflow-hidden mask-b-from-80%">
             <div className="flex items-center gap-2">
               <BrainIcon />
-              <CardTitle>LLM Model Selector</CardTitle>
+              <CardTitle>AI Schema Generator</CardTitle>
             </div>
             <CardDescription>
-              Start fast with built-in models or bring your own API keys for
-              custom providers—seamlessly switch between options as your needs
-              evolve.
+              Describe what you're building in plain English and get a
+              ready-to-edit starter schema in seconds—no prompt engineering
+              required.
             </CardDescription>
-            <LLMModelSelectorSkeleton />
+            <AISchemaGeneratorSkeleton />
           </Card>
           <Card className="overflow-hidden mask-b-from-80%">
             <div className="flex items-center gap-2">
@@ -81,7 +88,7 @@ export const Features = () => {
         <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
           <Card>
             <div className="flex items-center gap-2">
-              <FileText className="w-6 h-6" />
+              <FileText className="h-6 w-6" />
               <CardTitle>Instant Documentation</CardTitle>
             </div>
             <CardDescription>
@@ -91,22 +98,53 @@ export const Features = () => {
           </Card>
           <Card>
             <div className="flex items-center gap-2">
-              <FlaskConical className="w-6 h-6" />
-              <CardTitle>Interactive Playground</CardTitle>
+              <Database className="h-6 w-6" />
+              <CardTitle>Multi-Source Import</CardTitle>
             </div>
             <CardDescription>
-              Test queries, simulate data, and validate your schema in a safe
-              sandbox environment before deployment
+              Pull schema straight from a live PostgreSQL or SQL Server
+              connection, a CSV, or a BACPAC file—auto-laid-out on the canvas
+              in seconds
             </CardDescription>
           </Card>
           <Card>
             <div className="flex items-center gap-2">
-              <Users className="w-6 h-6" />
-              <CardTitle>Real-Time Collaboration</CardTitle>
+              <Share2 className="h-6 w-6" />
+              <CardTitle>No-Account Share Links</CardTitle>
             </div>
             <CardDescription>
-              Design schemas together with your team through live cursor
-              tracking, instant updates, and seamless synchronization
+              Share a read-only link that renders entirely in the browser—no
+              account required, nothing sent to a server
+            </CardDescription>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-6 w-6" />
+              <CardTitle>Real-Time Schema Validation</CardTitle>
+            </div>
+            <CardDescription>
+              Catch duplicate table names, reserved keywords, orphaned
+              tables, and foreign-key type mismatches as you design
+            </CardDescription>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-2">
+              <FileJson className="h-6 w-6" />
+              <CardTitle>DBML & JSON Export</CardTitle>
+            </div>
+            <CardDescription>
+              Export a full-fidelity DBML or JSON snapshot of your diagram,
+              and import it back exactly as it was
+            </CardDescription>
+          </Card>
+          <Card>
+            <div className="flex items-center gap-2">
+              <Palette className="h-6 w-6" />
+              <CardTitle>Six Canvas Themes</CardTitle>
+            </div>
+            <CardDescription>
+              Switch between Default, Blue, Cyberpunk, Contrast, Tokyo Night,
+              and Dracula palettes to match your setup
             </CardDescription>
           </Card>
         </div>
