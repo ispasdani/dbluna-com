@@ -61,7 +61,7 @@ export const Footer = () => {
   return (
     <Container>
       <div className="grid grid-cols-1 px-4 py-20 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
-        <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-3">
+        <div className="mb-6 sm:col-span-2 md:col-span-4 lg:col-span-3 mr-10">
           <LogoSVG />
           <SubHeading as="p" className="mt-4 max-w-lg text-left">
             Design, document, and share database schemas visually or in DBML
