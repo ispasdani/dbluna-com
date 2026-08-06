@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DivideX } from "@/components/marketing-general/divideX";
 import {
   LegalPage,
   LegalSection,
@@ -12,7 +13,9 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPage title="Privacy Policy" lastUpdated="August 5, 2026">
+    <>
+      <DivideX />
+      <LegalPage title="Privacy Policy" lastUpdated="August 5, 2026">
       <p>
         This Privacy Policy explains what personal data DBLuna ("we," "us")
         collects, why we collect it, and the rights you have over it. It
@@ -182,6 +185,8 @@ export default function PrivacyPolicyPage() {
         <LegalPlaceholder>highlighted placeholders</LegalPlaceholder> with
         your real business details, before relying on it.
       </p>
-    </LegalPage>
+      </LegalPage>
+      <DivideX />
+    </>
   );
 }
