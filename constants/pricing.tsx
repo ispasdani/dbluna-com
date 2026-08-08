@@ -68,7 +68,7 @@ export const pricingTable = [
   {
     title: "Diagrams",
     tiers: [
-      { title: TierName.TIER_1, value: "5" },
+      { title: TierName.TIER_1, value: "View only" },
       { title: TierName.TIER_2, value: "Unlimited" },
       { title: TierName.TIER_3, value: "Unlimited" },
     ],
