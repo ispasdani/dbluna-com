@@ -38,6 +38,7 @@ export const tiers = [
       "Auto-generated documentation site",
       "Import from PostgreSQL, SQL Server, CSV & BACPAC",
       "DBML & JSON export/import",
+      "PNG, SVG & SQL export",
       "No-account share links",
       "Cloud sync across devices",
       "Real-time schema validation",
@@ -102,7 +103,7 @@ export const pricingTable = [
     tiers: [
       {
         title: TierName.TIER_1,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
+        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
         title: TierName.TIER_2,
@@ -119,7 +120,7 @@ export const pricingTable = [
     tiers: [
       {
         title: TierName.TIER_1,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
+        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
         title: TierName.TIER_2,
@@ -136,7 +137,7 @@ export const pricingTable = [
     tiers: [
       {
         title: TierName.TIER_1,
-        value: <CheckIcon className="mx-auto size-5 text-gray-600" />,
+        value: <CloseIcon className="mx-auto size-5 text-gray-600" />,
       },
       {
         title: TierName.TIER_2,

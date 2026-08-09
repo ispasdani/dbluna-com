@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -26,7 +29,15 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
-import { exportDiagramAsJson, exportDiagramAsDbml, parseImportedDiagramJson } from "@/lib/diagram-io";
+import {
+  exportDiagramAsJson,
+  exportDiagramAsDbml,
+  exportDiagramAsSql,
+  exportDiagramAsSvg,
+  exportDiagramAsPng,
+  parseImportedDiagramJson,
+} from "@/lib/diagram-io";
+import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
@@ -104,6 +115,37 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       return;
     }
     exportDiagramAsDbml(tables, relationships, currentDiagramName);
+  };
+
+  const handleExportSql = (dialect: SqlDialect) => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    const ok = exportDiagramAsSql(tables, relationships, dialect, currentDiagramName, {
+      project,
+      enums,
+      tableGroups,
+    });
+    if (!ok) alert("Couldn't generate SQL from this diagram — check the DBML editor for schema errors.");
+  };
+
+  const handleExportSvg = async () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    const ok = await exportDiagramAsSvg(tables, notes, areas, currentDiagramName);
+    if (!ok) alert("Couldn't export the diagram — try again after the canvas has finished loading.");
+  };
+
+  const handleExportPng = async () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    const ok = await exportDiagramAsPng(tables, notes, areas, currentDiagramName);
+    if (!ok) alert("Couldn't export the diagram — try again after the canvas has finished loading.");
   };
 
   const handleShareClick = () => {
@@ -246,6 +288,28 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                 <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
                   <Database className="w-4 h-4" />
                   Export as DBML
+                </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <Database className="w-4 h-4" />
+                    Export as SQL
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {SQL_DIALECTS.map((d) => (
+                      <DropdownMenuItem key={d.value} onClick={() => handleExportSql(d.value)}>
+                        {d.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportPng} className="gap-2">
+                  <ImageIcon className="w-4 h-4" />
+                  Export as PNG
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportSvg} className="gap-2">
+                  <FileCode className="w-4 h-4" />
+                  Export as SVG
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

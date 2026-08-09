@@ -54,6 +54,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const camera = useEditorStore((s) => s.camera);
   const panBy = useEditorStore((s) => s.panBy);
   const zoomAt = useEditorStore((s) => s.zoomAt);
+  const isExporting = useEditorStore((s) => s.isExporting);
 
   const setViewportStore = useEditorStore((s) => s.setViewport);
   const setCameraXY = useEditorStore((s) => s.setCameraXY);
@@ -1152,12 +1153,14 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     [camera.x, camera.y, camera.zoom]
   );
 
-  // Viewport Culling Bounds (with generous margin to prevent clipping)
+  // Viewport Culling Bounds (with generous margin to prevent clipping).
+  // Disabled entirely while exporting to PNG/SVG so the export captures the
+  // whole diagram, not just what's currently panned into view.
   const CULL_MARGIN = 1500;
-  const vLeft = -camera.x / camera.zoom - CULL_MARGIN;
-  const vTop = -camera.y / camera.zoom - CULL_MARGIN;
-  const vRight = (-camera.x + viewport.w) / camera.zoom + CULL_MARGIN;
-  const vBottom = (-camera.y + viewport.h) / camera.zoom + CULL_MARGIN;
+  const vLeft = isExporting ? -Infinity : -camera.x / camera.zoom - CULL_MARGIN;
+  const vTop = isExporting ? -Infinity : -camera.y / camera.zoom - CULL_MARGIN;
+  const vRight = isExporting ? Infinity : (-camera.x + viewport.w) / camera.zoom + CULL_MARGIN;
+  const vBottom = isExporting ? Infinity : (-camera.y + viewport.h) / camera.zoom + CULL_MARGIN;
 
   return (
     <div
@@ -1186,6 +1189,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         >
           {/* SVG Layer for Tables */}
           <svg
+            data-diagram-canvas-svg
             width={1}
             height={1}
             className="absolute inset-0 overflow-visible pointer-events-none"

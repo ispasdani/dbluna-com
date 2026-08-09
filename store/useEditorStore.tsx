@@ -36,6 +36,12 @@ type EditorState = {
   setCameraXY: (x: number, y: number) => void;
 
   resetCamera: () => void;
+
+  // Runtime-only flag: while true, the canvas renders every table/note/area
+  // regardless of viewport culling, so PNG/SVG export can capture the whole
+  // diagram rather than just what's currently on screen. Never persisted.
+  isExporting: boolean;
+  setIsExporting: (v: boolean) => void;
 };
 
 export const useEditorStore = create<EditorState>()(
@@ -116,6 +122,9 @@ export const useEditorStore = create<EditorState>()(
       resetCamera: () => {
         set({ camera: { x: 0, y: 0, zoom: 1 } });
       },
+
+      isExporting: false,
+      setIsExporting: (v) => set({ isExporting: v }),
     }),
     {
       name: "editor-storage",

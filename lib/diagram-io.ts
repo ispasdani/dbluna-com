@@ -1,6 +1,9 @@
-import type { DiagramData, Table, Relationship } from "@/store/useCanvasStore";
-import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
+import type { DiagramData, Table, Relationship, Note, Area } from "@/store/useCanvasStore";
+import { generateDbmlFromCanvas, type DbmlSchemaMeta } from "@/lib/generator/dbml-generator";
+import { generateSqlFromCanvas, type SqlDialect } from "@/lib/generator/sql-generator";
 import { DIAGRAM_ENVELOPE_VERSION, parseDiagramEnvelope } from "@/lib/diagram-envelope";
+import { computeDiagramBounds, serializeCanvasSvg, renderSvgToPngBlob } from "@/lib/canvas-export";
+import { useEditorStore } from "@/store/useEditorStore";
 
 function sanitizeFileName(name: string): string {
     return name.trim().replace(/[\\/:*?"<>|]+/g, "_") || "diagram";
@@ -26,6 +29,82 @@ export function exportDiagramAsJson(diagram: DiagramData, name: string): void {
 export function exportDiagramAsDbml(tables: Table[], relationships: Relationship[], name: string): void {
     const dbml = generateDbmlFromCanvas(tables, relationships);
     downloadBlob(dbml, "text/plain", `${sanitizeFileName(name)}.dbml`);
+}
+
+export function exportDiagramAsSql(
+    tables: Table[],
+    relationships: Relationship[],
+    dialect: SqlDialect,
+    name: string,
+    meta: DbmlSchemaMeta = {}
+): boolean {
+    const sql = generateSqlFromCanvas(tables, relationships, dialect, meta);
+    if (sql === null) return false;
+    downloadBlob(sql, "text/plain", `${sanitizeFileName(name)}.sql`);
+    return true;
+}
+
+function downloadBinaryBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+// Waits two animation frames — enough for React to commit a state change
+// (like flipping isExporting) and the browser to paint it, before we read
+// the DOM.
+function waitForRender(): Promise<void> {
+    return new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+}
+
+// Temporarily disables viewport culling (see useEditorStore.isExporting)
+// so the live canvas SVG renders every table/note/area, then serializes it
+// cropped to the diagram's content bounds. Always restores culling
+// afterwards, even on failure.
+async function captureCanvasSvg(tables: Table[], notes: Note[], areas: Area[]): Promise<{ svg: string; bounds: ReturnType<typeof computeDiagramBounds> } | null> {
+    const { setIsExporting } = useEditorStore.getState();
+    setIsExporting(true);
+    try {
+        await waitForRender();
+        const bounds = computeDiagramBounds(tables, notes, areas);
+        const svg = serializeCanvasSvg(bounds);
+        if (!svg) return null;
+        return { svg, bounds };
+    } finally {
+        setIsExporting(false);
+    }
+}
+
+export async function exportDiagramAsSvg(
+    tables: Table[],
+    notes: Note[],
+    areas: Area[],
+    name: string
+): Promise<boolean> {
+    const captured = await captureCanvasSvg(tables, notes, areas);
+    if (!captured) return false;
+    downloadBlob(captured.svg, "image/svg+xml", `${sanitizeFileName(name)}.svg`);
+    return true;
+}
+
+export async function exportDiagramAsPng(
+    tables: Table[],
+    notes: Note[],
+    areas: Area[],
+    name: string
+): Promise<boolean> {
+    const captured = await captureCanvasSvg(tables, notes, areas);
+    if (!captured) return false;
+    const blob = await renderSvgToPngBlob(captured.svg, captured.bounds);
+    downloadBinaryBlob(blob, `${sanitizeFileName(name)}.png`);
+    return true;
 }
 
 /**
