@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,6 +29,7 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
+import { InviteDialog } from "@/components/diagram-sections/top-navbar/invite-dialog";
 import {
   exportDiagramAsJson,
   exportDiagramAsDbml,
@@ -51,6 +52,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
@@ -154,6 +156,14 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       return;
     }
     setIsShareOpen(true);
+  };
+
+  const handleInviteClick = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    setIsInviteOpen(true);
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -273,6 +283,18 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           )}
 
           {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={handleInviteClick}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Invite</span>
+            </Button>
+          )}
+
+          {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2">
@@ -378,6 +400,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
       <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} readOnly={readOnly} />
       <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
+      <InviteDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} localId={activeDiagramId} />
     </>
   );
 }

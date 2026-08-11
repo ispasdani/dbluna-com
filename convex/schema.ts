@@ -163,6 +163,23 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_diagram_and_user", ["diagramId", "userId"]),
 
+  diagramInvites: defineTable({
+    diagramId: v.id("diagrams"),
+    token: v.string(),
+    invitedEmail: v.string(),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("editor"),
+      v.literal("viewer")
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_diagram", ["diagramId"]),
+
   userPreferences: defineTable({
     userId: v.id("users"),
     theme: v.optional(v.string()),
