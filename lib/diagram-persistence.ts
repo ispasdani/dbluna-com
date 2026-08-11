@@ -141,12 +141,18 @@ export async function createCloudDiagram(
   }
 }
 
-export async function softDeleteCloudDiagram(cloudId: string): Promise<{ ok: boolean }> {
+export async function softDeleteCloudDiagram(
+  cloudId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     await convex.mutation(api.diagrams.deleteDiagram, { diagramId: toCloudId(cloudId) });
     return { ok: true };
-  } catch {
-    return { ok: false };
+  } catch (err) {
+    const message =
+      err instanceof ConvexError && typeof err.data === "string"
+        ? err.data
+        : "Couldn't disconnect this diagram from the cloud — please try again.";
+    return { ok: false, message };
   }
 }
 

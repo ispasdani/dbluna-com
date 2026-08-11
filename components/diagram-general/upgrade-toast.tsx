@@ -2,8 +2,12 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useQuery } from "convex/react";
 import { Sparkles, X } from "lucide-react";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useCanvasStore } from "@/store/useCanvasStore";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 const AUTO_DISMISS_MS = 4500;
 
@@ -11,6 +15,22 @@ export function UpgradeToast() {
   const visible = useUpgradeToastStore((s) => s.visible);
   const nonce = useUpgradeToastStore((s) => s.nonce);
   const dismiss = useUpgradeToastStore((s) => s.dismiss);
+
+  // Role-aware copy (release-1-0/collaboration-plan.md Phase A §5): every
+  // read-only-gated action in the app funnels through this single toast, so
+  // branching the subtitle here — rather than threading a "why" through each
+  // of the ~30 call sites — is the only change needed to stop an invited,
+  // not-yet-Pro collaborator from reading "your diagrams" about someone
+  // else's diagram.
+  const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
+  const cloudId = useCanvasStore((s) =>
+    s.activeDiagramId ? s.diagrams[s.activeDiagramId]?.cloudId : null
+  );
+  const role = useQuery(
+    api.diagrams.getMyRole,
+    cloudId ? { diagramId: cloudId as Id<"diagrams"> } : "skip"
+  );
+  const isInvitedMember = Boolean(activeDiagramId) && role != null && role !== "owner";
 
   // Restarts on every `nonce` bump, so repeated blocked attempts keep the
   // toast alive instead of letting an in-flight timer cut it short.
@@ -40,7 +60,9 @@ export function UpgradeToast() {
               Upgrade to Pro to perform this action
             </p>
             <p className="text-xs text-white/60">
-              Free accounts can only view diagrams created by Pro users.
+              {isInvitedMember
+                ? "You were invited to this diagram — upgrade to Pro to make changes."
+                : "Free accounts can only view diagrams created by Pro users."}
             </p>
           </div>
 

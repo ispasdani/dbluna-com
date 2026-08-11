@@ -51,7 +51,9 @@ function CloudRowAction({ id, readOnly }: { id: string; readOnly: boolean }) {
         title="Synced — click to make local-only"
         onClick={(e) => {
           e.stopPropagation();
-          void makeLocalOnly();
+          void makeLocalOnly().then((result) => {
+            if (!result.ok && result.message) alert(result.message);
+          });
         }}
       >
         <Cloud className="w-3.5 h-3.5 text-primary" />
@@ -212,10 +214,21 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
     if (!deleteTargetId) return;
     const target = diagrams[deleteTargetId];
     if (target?.storage === "cloud" && target.cloudId) {
-      // Best-effort: don't block the local delete if Convex is unreachable —
-      // just let the user know manual cleanup of the cloud copy may be needed.
       const result = await softDeleteCloudDiagram(target.cloudId);
       if (!result.ok) {
+        // The orphan guard (release-1-0/collaboration-plan.md Phase A §6) is a
+        // deliberate rejection, not a reachability problem — removing the
+        // local entry anyway would strand the owner's own access to a
+        // diagram that's still fully alive in the cloud with active
+        // collaborators. Stop here instead of the network-failure fallback.
+        if (result.message.includes("collaborators")) {
+          alert(result.message);
+          setDeleteTargetId(null);
+          return;
+        }
+        // Genuine best-effort case (Convex unreachable, etc.): don't trap the
+        // user unable to clean up their local list — proceed and flag that
+        // the cloud copy may need manual cleanup.
         alert("Removed locally; couldn't reach the cloud copy — it may need manual cleanup.");
       }
     }

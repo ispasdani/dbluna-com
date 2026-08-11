@@ -161,6 +161,36 @@ export const get = query({
     },
 });
 
+// Non-throwing membership lookup for UI copy only (release-1-0/collaboration-plan.md
+// Phase A §5) — lets the read-only upgrade prompt say "you were invited" for a
+// collaborator instead of the owner-framed default, without gating anything.
+export const getMyRole = query({
+    args: { diagramId: v.id("diagrams") },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) return null;
+
+        const user = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+            .unique();
+        if (!user) return null;
+
+        const diagram = await ctx.db.get(args.diagramId);
+        if (!diagram) return null;
+        if (diagram.ownerId === user._id) return "owner" as const;
+
+        const member = await ctx.db
+            .query("diagramMembers")
+            .withIndex("by_diagram_and_user", (q) =>
+                q.eq("diagramId", args.diagramId).eq("userId", user._id)
+            )
+            .unique();
+
+        return member?.role ?? null;
+    },
+});
+
 export const list = query({
     args: {},
     handler: async (ctx) => {
@@ -313,6 +343,21 @@ export const deleteDiagram = mutation({
             .unique();
 
         if (!member || member.role !== "owner") throw new ConvexError("Only owner can delete");
+
+        // Shared by "delete for real" (My Diagrams) and "make local-only"
+        // (useCloudSync) — both sever this Convex row, so both must be
+        // blocked while other members exist, or a collaborator's access gets
+        // silently cut off with no warning to anyone (release-1-0/collaboration-plan.md
+        // Phase A §6).
+        const allMembers = await ctx.db
+            .query("diagramMembers")
+            .withIndex("by_diagram", (q) => q.eq("diagramId", args.diagramId))
+            .collect();
+        if (allMembers.length > 1) {
+            throw new ConvexError(
+                "Remove all collaborators before deleting or disconnecting this diagram from the cloud."
+            );
+        }
 
         await ctx.db.patch(args.diagramId, { isDeleted: true });
     },

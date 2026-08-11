@@ -51,10 +51,10 @@ export function useCloudSync(localId: string) {
     }
   }, [localId]);
 
-  const makeLocalOnly = useCallback(async () => {
-    if (busyRef.current) return;
+  const makeLocalOnly = useCallback(async (): Promise<{ ok: boolean; message?: string }> => {
+    if (busyRef.current) return { ok: false };
     const diagram = useCanvasStore.getState().diagrams[localId];
-    if (!diagram || diagram.storage !== "cloud" || !diagram.cloudId) return;
+    if (!diagram || diagram.storage !== "cloud" || !diagram.cloudId) return { ok: false };
 
     busyRef.current = true;
     setIsBusy(true);
@@ -78,9 +78,17 @@ export function useCloudSync(localId: string) {
         });
         useEditorStore.getState().setCameraForDiagram(localId, pulled.camera);
       }
-      await softDeleteCloudDiagram(cloudId);
-    } finally {
+
+      const result = await softDeleteCloudDiagram(cloudId);
+      // Only sever the local link once the server actually confirms the
+      // diagram has no other collaborators — otherwise (e.g. the orphan
+      // guard rejected it) the diagram must stay "cloud" so it isn't left
+      // pointing nowhere while the Convex row is still very much alive.
+      if (!result.ok) return { ok: false, message: result.message };
+
       useCanvasStore.getState().clearDiagramCloudLink(localId);
+      return { ok: true };
+    } finally {
       busyRef.current = false;
       setIsBusy(false);
     }
