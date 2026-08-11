@@ -30,6 +30,7 @@ import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
 import { InviteDialog } from "@/components/diagram-sections/top-navbar/invite-dialog";
+import { PresenceAvatars } from "@/components/diagram-sections/top-navbar/presence-avatars";
 import {
   exportDiagramAsJson,
   exportDiagramAsDbml,
@@ -293,6 +294,8 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               <span className="hidden sm:inline">Invite</span>
             </Button>
           )}
+
+          <PresenceAvatars cloudId={currentDiagramData.cloudId} />
 
           {!readOnly && (
             <DropdownMenu>

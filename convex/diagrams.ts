@@ -155,7 +155,13 @@ export const get = query({
             )
             .unique();
 
-        if (!member) throw new ConvexError("No access to this diagram");
+        // Returns null rather than throwing (release-1-0/collaboration-plan.md
+        // Phase B §2) — this query is used reactively via useQuery, where a
+        // thrown error surfaces as an uncaught render-time exception instead
+        // of a value the caller can branch on. The one caller
+        // (lib/diagram-persistence.ts's pullCloudDiagram) already treats "no
+        // doc" and "no access" identically, so this changes no behavior there.
+        if (!member) return null;
 
         return await ctx.db.get(args.diagramId);
     },
@@ -303,9 +309,19 @@ export const update = mutation({
             note: v.optional(v.string()),
         })),
         name: v.optional(v.string()),
+        expectedUpdatedAt: v.number(),
     },
     handler: async (ctx, args) => {
-        await requireProDiagramEditor(ctx, args.diagramId);
+        const { diagram } = await requireProDiagramEditor(ctx, args.diagramId);
+
+        // Optimistic-lock check (release-1-0/collaboration-plan.md Phase B §1):
+        // the client's snapshot must still be current, or this push would
+        // silently overwrite a collaborator's edit that landed since the
+        // client last synced. Client-side comparisons alone can't catch this
+        // — two pushes can both pass one and still land back-to-back here.
+        if (diagram.updatedAt !== args.expectedUpdatedAt) {
+            throw new ConvexError("CONFLICT");
+        }
 
         // Construct patch
         const patch: any = { updatedAt: Date.now() };

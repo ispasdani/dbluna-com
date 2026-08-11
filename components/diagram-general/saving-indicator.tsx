@@ -5,6 +5,7 @@ import Link from "next/link";
 import { HardDrive, Save, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { retryCloudAutoSaveNow } from "@/hooks/use-cloud-autosave";
+import { useConflictBannerStore } from "@/store/useConflictBannerStore";
 
 export function SavingIndicator() {
     const savingStatus = useCanvasStore((s) => s.savingStatus);
@@ -78,7 +79,23 @@ export function SavingIndicator() {
                             <span className="text-muted-foreground">Pro required — not syncing</span>
                         </Link>
                     )}
-                    {cloudSyncStatus === "error" && cloudSyncErrorReason !== "not-pro" && (
+                    {cloudSyncStatus === "error" && cloudSyncErrorReason === "conflict" && (
+                        <>
+                            <CloudOff className="w-3.5 h-3.5 text-amber-500" />
+                            <span className="text-muted-foreground">Someone else edited this diagram</span>
+                            <button
+                                type="button"
+                                onClick={() => useConflictBannerStore.getState().trigger()}
+                                className="flex items-center gap-1 text-primary hover:underline"
+                            >
+                                <RefreshCw className="w-3 h-3" />
+                                Reload
+                            </button>
+                        </>
+                    )}
+                    {cloudSyncStatus === "error" &&
+                        cloudSyncErrorReason !== "not-pro" &&
+                        cloudSyncErrorReason !== "conflict" && (
                         <>
                             <CloudOff className="w-3.5 h-3.5 text-destructive" />
                             <span className="text-muted-foreground">Sync error</span>

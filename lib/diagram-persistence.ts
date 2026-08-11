@@ -1,7 +1,7 @@
 import { ConvexError } from "convex/values";
 import { convex } from "@/lib/convex-client";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { DiagramData, Relationship } from "@/store/useCanvasStore";
 import type { Camera } from "@/store/useEditorStore";
 
@@ -14,7 +14,7 @@ export type CloudDiagramPayload = Pick<
   "name" | "tables" | "notes" | "areas" | "relationships" | "enums" | "tableGroups" | "project"
 > & { camera: Camera };
 
-export type CloudFailureReason = "not-pro" | "unauthorized" | "network" | "unknown";
+export type CloudFailureReason = "not-pro" | "unauthorized" | "network" | "unknown" | "conflict";
 
 export type CloudPullResult =
   | {
@@ -42,6 +42,7 @@ export type CloudCreateResult =
 function classifyError(err: unknown): CloudFailureReason {
   if (err instanceof ConvexError) {
     const message = typeof err.data === "string" ? err.data : String(err.message ?? "");
+    if (message === "CONFLICT") return "conflict";
     if (message.includes("Upgrade to Pro")) return "not-pro";
     if (message.includes("access") || message.includes("Sign in") || message.includes("not found")) {
       return "unauthorized";
@@ -56,39 +57,46 @@ function toCloudId(id: string): Id<"diagrams"> {
   return id as Id<"diagrams">;
 }
 
+// Shared by pullCloudDiagram (one-shot) and use-cloud-reconciliation's live
+// useQuery subscription (Phase B §2) so the Convex-doc → DiagramData mapping
+// only lives in one place.
+export function mapCloudDoc(
+  doc: Doc<"diagrams">
+): { data: Omit<DiagramData, "storage" | "cloudId" | "lastSyncedAt">; camera: Camera; remoteUpdatedAt: number } {
+  const { camera, ...rest } = doc;
+  return {
+    data: {
+      name: rest.name,
+      updatedAt: rest.updatedAt,
+      tables: rest.tables,
+      notes: rest.notes,
+      areas: rest.areas,
+      // Convex's validator uses plain v.string() for these fields (avoids
+      // duplicating the full literal-union type server-side); the data
+      // always originates from client pushes that already conform to the
+      // narrower client type, so this cast is safe.
+      relationships: rest.relationships as Relationship[],
+      enums: rest.enums ?? [],
+      tableGroups: rest.tableGroups ?? [],
+      project: rest.project ?? null,
+      // Convex never stores these — they're local view prefs, not document
+      // data. Placeholders only to satisfy DiagramData's shape; callers MUST
+      // override these three with the diagram's existing local values before
+      // writing this back in, never with what's returned here.
+      background: "grid",
+      snapToGrid: false,
+      isFocusModeEnabled: true,
+    },
+    camera,
+    remoteUpdatedAt: rest.updatedAt,
+  };
+}
+
 export async function pullCloudDiagram(cloudId: string): Promise<CloudPullResult> {
   try {
     const doc = await convex.query(api.diagrams.get, { diagramId: toCloudId(cloudId) });
     if (!doc) return { ok: false, reason: "not-found" };
-    const { camera, ...rest } = doc;
-    return {
-      ok: true,
-      data: {
-        name: rest.name,
-        updatedAt: rest.updatedAt,
-        tables: rest.tables,
-        notes: rest.notes,
-        areas: rest.areas,
-        // Convex's validator uses plain v.string() for these fields (avoids
-        // duplicating the full literal-union type server-side); the data
-        // always originates from client pushes that already conform to the
-        // narrower client type, so this cast is safe.
-        relationships: rest.relationships as Relationship[],
-        enums: rest.enums ?? [],
-        tableGroups: rest.tableGroups ?? [],
-        project: rest.project ?? null,
-        // Convex never stores these — they're local view prefs, not document
-        // data (see the plan's schema-alignment note). Placeholders only to
-        // satisfy DiagramData's shape; the caller (use-cloud-reconciliation)
-        // MUST override these three with the diagram's existing local values
-        // before writing this back in, never with what's returned here.
-        background: "grid",
-        snapToGrid: false,
-        isFocusModeEnabled: true,
-      },
-      camera,
-      remoteUpdatedAt: rest.updatedAt,
-    };
+    return { ok: true, ...mapCloudDoc(doc) };
   } catch (err) {
     return { ok: false, reason: classifyError(err) };
   }
@@ -96,7 +104,8 @@ export async function pullCloudDiagram(cloudId: string): Promise<CloudPullResult
 
 export async function pushCloudDiagram(
   cloudId: string,
-  payload: CloudDiagramPayload
+  payload: CloudDiagramPayload,
+  expectedUpdatedAt: number
 ): Promise<CloudPushResult> {
   try {
     const result = await convex.mutation(api.diagrams.update, {
@@ -110,6 +119,7 @@ export async function pushCloudDiagram(
       tableGroups: payload.tableGroups,
       project: payload.project ?? undefined,
       camera: payload.camera,
+      expectedUpdatedAt,
     });
     return { ok: true, remoteUpdatedAt: result.updatedAt };
   } catch (err) {

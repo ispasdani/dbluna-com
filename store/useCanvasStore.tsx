@@ -193,8 +193,8 @@ type CanvasState = {
   // ever active at a time, same reasoning as savingStatus below.
   cloudSyncStatus: "idle" | "saving" | "synced" | "error";
   setCloudSyncStatus: (status: "idle" | "saving" | "synced" | "error") => void;
-  cloudSyncErrorReason: "not-pro" | "network" | "unknown" | null;
-  setCloudSyncErrorReason: (reason: "not-pro" | "network" | "unknown" | null) => void;
+  cloudSyncErrorReason: "not-pro" | "network" | "unknown" | "conflict" | null;
+  setCloudSyncErrorReason: (reason: "not-pro" | "network" | "unknown" | "conflict" | null) => void;
   background: CanvasBackground;
   tables: Table[];
   selectedTableIds: string[];

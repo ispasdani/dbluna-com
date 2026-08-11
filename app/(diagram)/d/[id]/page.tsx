@@ -5,6 +5,7 @@ import { useRef, use } from "react";
 import { useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import { useCanvasStore } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
@@ -14,9 +15,11 @@ import { CanvasStage } from "@/components/diagram-sections/canvas/canvas";
 import { useDiagramAutoSave } from "@/hooks/use-diagram-autosave";
 import { useCloudAutoSave } from "@/hooks/use-cloud-autosave";
 import { useCloudReconciliation } from "@/hooks/use-cloud-reconciliation";
+import { usePresence } from "@/hooks/use-presence";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
+import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
 import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
 
 function clamp(n: number, min: number, max: number) {
@@ -33,6 +36,7 @@ export default function DiagramPage({ params }: PageProps) {
   const { ready: cloudReady } = useCloudReconciliation(id);
   useDiagramAutoSave();
   useCloudAutoSave();
+  usePresence(useCanvasStore((s) => s.diagrams[id]?.cloudId));
 
   // Off while EDITING_GATE_ENABLED is false (default) — see lib/feature-flags.ts.
   // While loading (or if the flag is off), default to "not pro" so a
@@ -132,6 +136,7 @@ export default function DiagramPage({ params }: PageProps) {
       </div>
 
       <UpgradeToast />
+      <ConflictBanner />
     </div>
   );
 }

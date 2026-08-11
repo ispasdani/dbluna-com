@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useConflictBannerStore } from "@/store/useConflictBannerStore";
 import { pushCloudDiagram, type CloudDiagramPayload } from "@/lib/diagram-persistence";
 
 const DEBOUNCE_MS = 1500;
@@ -15,8 +16,19 @@ const DEBOUNCE_MS = 1500;
 // than the one that armed the debounce.
 let retryCurrentPush: (() => void) | null = null;
 
+// Set once a push is rejected as stale (Phase B §1) and only cleared once the
+// diagram has actually been reloaded with a fresh server snapshot — see
+// clearCloudSyncConflict, called from ConflictBanner's Reload action. Without
+// this, every further local edit would keep re-arming a push that's
+// guaranteed to fail again with the same conflict until the reload happens.
+let conflicted = false;
+
 export function retryCloudAutoSaveNow() {
   retryCurrentPush?.();
+}
+
+export function clearCloudSyncConflict() {
+  conflicted = false;
 }
 
 function buildPayload(): CloudDiagramPayload | null {
@@ -49,7 +61,7 @@ async function doPush() {
   const payload = buildPayload();
   if (!cloudId || !payload) return;
 
-  const result = await pushCloudDiagram(cloudId, payload);
+  const result = await pushCloudDiagram(cloudId, payload, diagram?.lastSyncedAt ?? 0);
   // Bail if the user navigated to a different diagram while the push was in flight.
   if (useCanvasStore.getState().activeDiagramId !== activeDiagramId) return;
 
@@ -67,6 +79,14 @@ async function doPush() {
     // paid-editing gate already built, rather than inventing new UI.
     useCanvasStore.getState().setReadOnly(true);
     useUpgradeToastStore.getState().trigger();
+  }
+
+  if (result.reason === "conflict") {
+    // Retrying would just fail again with the same stale expectedUpdatedAt —
+    // this needs a reload, not a retry, so halt the loop and hand off to the
+    // blocking banner instead (Phase B §3).
+    conflicted = true;
+    useConflictBannerStore.getState().trigger();
   }
 }
 
@@ -92,6 +112,7 @@ export function useCloudAutoSave() {
   const lastPushedSignatureRef = useRef<string | null>(null);
 
   const armPush = () => {
+    if (conflicted) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     useCanvasStore.getState().setCloudSyncStatus("saving");
     timerRef.current = setTimeout(() => {
@@ -112,6 +133,7 @@ export function useCloudAutoSave() {
 
   useEffect(() => {
     const retry = () => {
+      if (conflicted) return; // needs a reload, see clearCloudSyncConflict
       if (timerRef.current) clearTimeout(timerRef.current);
       lastPushedSignatureRef.current = null; // force the push through even if unchanged
       armPush();
@@ -134,16 +156,19 @@ export function useCloudAutoSave() {
   }, [tables, notes, areas, relationships, enums, tableGroups, project, camera, storage]);
 
   // Reset the "skip first run" flag whenever the active diagram changes, and
-  // clear any pending timer from the diagram being left.
+  // clear any pending timer from the diagram being left. A conflict is
+  // specific to the diagram that hit it, so switching away clears it too —
+  // the new diagram's own sync loop starts clean.
   useEffect(() => {
     isInitialMount.current = true;
     lastPushedSignatureRef.current = null;
+    conflicted = false;
     if (timerRef.current) clearTimeout(timerRef.current);
   }, [activeDiagramId]);
 
   useEffect(() => {
     const flush = () => {
-      if (!timerRef.current) return;
+      if (!timerRef.current || conflicted) return;
       clearTimeout(timerRef.current);
       timerRef.current = null;
       void doPush(); // best-effort, fire-and-forget — can't reliably await inside pagehide

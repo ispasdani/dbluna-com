@@ -180,6 +180,14 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_diagram", ["diagramId"]),
 
+  diagramPresence: defineTable({
+    diagramId: v.id("diagrams"),
+    userId: v.id("users"),
+    lastSeenAt: v.number(),
+  })
+    .index("by_diagram", ["diagramId"])
+    .index("by_diagram_and_user", ["diagramId", "userId"]),
+
   userPreferences: defineTable({
     userId: v.id("users"),
     theme: v.optional(v.string()),
