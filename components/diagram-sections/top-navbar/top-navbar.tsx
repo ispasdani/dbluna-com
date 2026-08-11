@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode, UserPlus } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode, UserPlus, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,6 +30,7 @@ import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
 import { InviteDialog } from "@/components/diagram-sections/top-navbar/invite-dialog";
+import { HistoryDialog } from "@/components/diagram-sections/top-navbar/history-dialog";
 import { PresenceAvatars } from "@/components/diagram-sections/top-navbar/presence-avatars";
 import {
   exportDiagramAsJson,
@@ -54,6 +55,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
@@ -165,6 +167,14 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       return;
     }
     setIsInviteOpen(true);
+  };
+
+  const handleHistoryClick = () => {
+    if (readOnly) {
+      useUpgradeToastStore.getState().trigger();
+      return;
+    }
+    setIsHistoryOpen(true);
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -295,6 +305,18 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </Button>
           )}
 
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={handleHistoryClick}
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">History</span>
+            </Button>
+          )}
+
           <PresenceAvatars cloudId={currentDiagramData.cloudId} />
 
           {!readOnly && (
@@ -404,6 +426,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} readOnly={readOnly} />
       <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
       <InviteDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} localId={activeDiagramId} />
+      <HistoryDialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen} localId={activeDiagramId} />
     </>
   );
 }
