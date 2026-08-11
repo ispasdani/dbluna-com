@@ -11,6 +11,7 @@
 import type * as crons from "../crons.js";
 import type * as diagramInvites from "../diagramInvites.js";
 import type * as diagramPresence from "../diagramPresence.js";
+import type * as diagramVersions from "../diagramVersions.js";
 import type * as diagrams from "../diagrams.js";
 import type * as guards from "../guards.js";
 import type * as http from "../http.js";
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   diagramInvites: typeof diagramInvites;
   diagramPresence: typeof diagramPresence;
+  diagramVersions: typeof diagramVersions;
   diagrams: typeof diagrams;
   guards: typeof guards;
   http: typeof http;

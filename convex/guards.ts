@@ -111,6 +111,21 @@ export async function requireSignedInPro(ctx: MutationCtx | QueryCtx) {
   return { user, plan };
 }
 
+// Version history's viewer gate (release-1-0/version-history-plan.md §5):
+// unlike requireDiagramViewer, this checks the *requesting* user's own plan,
+// not the diagram owner's — a Free-tier collaborator on someone else's Pro
+// diagram gets no history access at all, only ever the diagram's latest
+// state via the ordinary requireDiagramViewer path.
+export async function requireProDiagramViewer(
+  ctx: MutationCtx | QueryCtx,
+  diagramId: Id<"diagrams">
+) {
+  const result = await requireDiagramViewer(ctx, diagramId);
+  const plan = result.user.planId ? await ctx.db.get(result.user.planId) : null;
+  requirePro(result.user, plan);
+  return { ...result, plan };
+}
+
 export async function requireProDiagramEditor(
   ctx: MutationCtx | QueryCtx,
   diagramId: Id<"diagrams">

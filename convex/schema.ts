@@ -180,6 +180,116 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_diagram", ["diagramId"]),
 
+  diagramVersions: defineTable({
+    diagramId: v.id("diagrams"),
+    createdAt: v.number(),
+    createdBy: v.id("users"),
+    kind: v.union(v.literal("promotion"), v.literal("auto"), v.literal("manual")),
+    label: v.optional(v.string()), // only set for kind: "manual"
+
+    // Full snapshot — mirrors diagrams' own content fields.
+    name: v.string(),
+    tables: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        x: v.number(),
+        y: v.number(),
+        color: v.string(),
+        isLocked: v.optional(v.boolean()),
+        comment: v.optional(v.string()),
+        columns: v.array(
+          v.object({
+            id: v.string(),
+            name: v.string(),
+            type: v.string(),
+            isPrimaryKey: v.boolean(),
+            isNotNull: v.boolean(),
+            isUnique: v.boolean(),
+            isAutoIncrement: v.boolean(),
+          })
+        ),
+      })
+    ),
+    relationships: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        sourceTableId: v.string(),
+        sourceColumnId: v.string(),
+        targetTableId: v.string(),
+        targetColumnId: v.string(),
+        cardinality: v.string(),
+        onUpdate: v.string(),
+        onDelete: v.string(),
+      })
+    ),
+    areas: v.array(
+      v.object({
+        id: v.string(),
+        x: v.number(),
+        y: v.number(),
+        width: v.number(),
+        height: v.number(),
+        title: v.string(),
+        color: v.string(),
+        isLocked: v.boolean(),
+        zIndex: v.number(),
+      })
+    ),
+    notes: v.array(
+      v.object({
+        id: v.string(),
+        x: v.number(),
+        y: v.number(),
+        width: v.number(),
+        height: v.number(),
+        title: v.string(),
+        content: v.string(),
+        color: v.string(),
+        isLocked: v.boolean(),
+      })
+    ),
+    camera: v.object({
+      x: v.number(),
+      y: v.number(),
+      zoom: v.number(),
+    }),
+    enums: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          note: v.optional(v.string()),
+          values: v.array(
+            v.object({
+              name: v.string(),
+              note: v.optional(v.string()),
+            })
+          ),
+        })
+      )
+    ),
+    tableGroups: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          name: v.string(),
+          tableNames: v.array(v.string()),
+        })
+      )
+    ),
+    project: v.optional(
+      v.object({
+        name: v.optional(v.string()),
+        databaseType: v.optional(v.string()),
+        note: v.optional(v.string()),
+      })
+    ),
+  })
+    .index("by_diagram", ["diagramId"])
+    .index("by_diagram_and_created", ["diagramId", "createdAt"]),
+
   diagramPresence: defineTable({
     diagramId: v.id("diagrams"),
     userId: v.id("users"),

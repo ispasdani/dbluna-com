@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { ConvexError } from "convex/values";
 import { requireSignedInPro, requireProDiagramEditor } from "./guards";
+import { insertVersion, maybeAutoSnapshot } from "./diagramVersions";
 
 const generatePublicId = () => Math.random().toString(36).substring(2, 10);
 
@@ -129,6 +130,13 @@ export const create = mutation({
             acceptedAt: now,
             updatedAt: now,
         });
+
+        // version-history-plan.md: the moment a diagram exists in the cloud
+        // (fresh creation, or a local diagram promoted via saveToCloud), it
+        // gets a "promotion" version so there's always something to restore
+        // to as version 1.
+        const diagram = await ctx.db.get(diagramId);
+        if (diagram) await insertVersion(ctx, diagram, user._id, "promotion");
 
         return { diagramId, updatedAt: now };
     },
@@ -310,9 +318,14 @@ export const update = mutation({
         })),
         name: v.optional(v.string()),
         expectedUpdatedAt: v.number(),
+        // version-history-plan.md §2 "Manual": when present, snapshot the
+        // post-patch state as a named, never-pruned version. Distinct from
+        // the auto-snapshot below, which fires on its own schedule and
+        // captures the pre-patch state instead.
+        versionLabel: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const { diagram } = await requireProDiagramEditor(ctx, args.diagramId);
+        const { user, diagram } = await requireProDiagramEditor(ctx, args.diagramId);
 
         // Optimistic-lock check (release-1-0/collaboration-plan.md Phase B §1):
         // the client's snapshot must still be current, or this push would
@@ -322,6 +335,12 @@ export const update = mutation({
         if (diagram.updatedAt !== args.expectedUpdatedAt) {
             throw new ConvexError("CONFLICT");
         }
+
+        // Auto-snapshot check (version-history-plan.md §2): must run before
+        // the patch below, against the pre-patch `diagram` doc — this is
+        // "the state about to be overwritten," not the new one. No-ops
+        // unless the newest version row (of any kind) is stale enough.
+        await maybeAutoSnapshot(ctx, diagram, user._id);
 
         // Construct patch
         const patch: any = { updatedAt: Date.now() };
@@ -336,6 +355,12 @@ export const update = mutation({
         if (args.project) patch.project = args.project;
 
         await ctx.db.patch(args.diagramId, patch);
+
+        if (args.versionLabel) {
+            const patched = await ctx.db.get(args.diagramId);
+            if (patched) await insertVersion(ctx, patched, user._id, "manual", args.versionLabel);
+        }
+
         return { updatedAt: patch.updatedAt as number };
     },
 });
