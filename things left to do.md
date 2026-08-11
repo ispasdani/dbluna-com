@@ -9,7 +9,13 @@ and verified in code (checked against `feedingTime.md` and the current codebase 
    now ship (see below), plus a new SQL export (Postgres/MySQL/SQL Server/Oracle) via `@dbml/core`.
 2. **Collaboration (multi-user)** — `diagramMembers` table and role guards exist in Convex, but
    there's no invite UI or real-time presence. Backend scaffolding only, not a working feature.
-3. **Version history** — advertised, no code at all.
+3. **Version history** — ~~advertised, no code at all~~ **built, not yet manually verified.** Full
+   implementation shipped: `diagramVersions` table, auto snapshots (30 min gap since the last save of
+   any kind, capped to the 20 most recent auto snapshots) plus manual "Save version" checkpoints and
+   non-destructive restore, all Pro-gated and cloud-only — same pattern as collaboration (see
+   `release-1-0/version-history-plan.md`). History button + dialog are wired into `TopNavbar`. Same
+   caveat as item 5's cloud sync: connected in code, **not yet manually clicked through end-to-end by a
+   human**. One deliberate v1 gap: no diff summary per version (plain timestamp + author list only).
 4. **Mermaid import** — only export works today. There's no importer, despite Mermaid being one
    of the three code-editor modes (DBML/JSON/Mermaid).
 5. **Cloud sync** — the code path (save-to-cloud, cross-device pull, server-side Free-user
