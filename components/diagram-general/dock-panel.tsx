@@ -14,6 +14,7 @@ import { RelationshipsPanel } from "./relationships-panel";
 import { CodeEditor } from "./code-editor";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
+import { AiChatPanel } from "./ai-chat-panel";
 
 const DraggableTab = dynamic(
   () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
@@ -83,6 +84,8 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <IssuesPanel />
           ) : activeTab === "templates" ? (
             <TemplatesPanel />
+          ) : activeTab === "ai-chat" ? (
+            <AiChatPanel readOnly={readOnly} />
           ) : activeTabInfo ? (
             <div className="animate-fade-in">
               <h3 className="font-medium text-foreground mb-2">

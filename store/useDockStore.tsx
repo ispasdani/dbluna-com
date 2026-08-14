@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type TabId = "code" | "schema" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas";
+export type TabId = "code" | "schema" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas" | "ai-chat";
 export type DockSide = "left" | "right";
 
 export interface TabInfo {
@@ -18,6 +18,7 @@ export const TABS: TabInfo[] = [
   { id: "relationships", label: "Relationships", icon: "Link" },
   { id: "notes", label: "Notes", icon: "StickyNote" },
   { id: "areas", label: "Areas", icon: "Square" },
+  { id: "ai-chat", label: "AI Chat", icon: "Sparkles" },
 ];
 
 interface DockState {
