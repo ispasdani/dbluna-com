@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-import { Sparkles, Send, Lock } from "lucide-react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { Sparkles, Send, Lock, Loader2, Check, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,48 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { applyToolCall } from "@/lib/ai/tool-executor";
+
+type MessagePart = UIMessage["parts"][number];
+
+function ToolCallPill({ part }: { part: MessagePart & { type: string } }) {
+  const toolName =
+    part.type === "dynamic-tool"
+      ? (part as { toolName: string }).toolName
+      : part.type.replace(/^tool-/, "");
+  const state = (part as { state?: string }).state;
+  const errorText = (part as { errorText?: string }).errorText;
+  const output = (part as { output?: unknown }).output;
+
+  const isRunning = state === "input-streaming" || state === "input-available";
+  const isError = state === "output-error" || !!errorText;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs border",
+        isError
+          ? "border-destructive/40 text-destructive"
+          : isRunning
+          ? "border-border text-muted-foreground"
+          : "border-primary/30 text-foreground"
+      )}
+    >
+      {isRunning ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : isError ? (
+        <X className="w-3 h-3" />
+      ) : (
+        <Check className="w-3 h-3" />
+      )}
+      <span className="font-mono">{toolName}</span>
+      {typeof output === "string" && !isError && (
+        <span className="text-muted-foreground truncate">{output}</span>
+      )}
+      {isError && errorText && <span className="truncate">{errorText}</span>}
+    </div>
+  );
+}
 
 interface AiChatPanelProps {
   readOnly?: boolean;
@@ -20,7 +62,7 @@ export function AiChatPanel({ readOnly = false }: AiChatPanelProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, sendMessage, addToolOutput, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/ai-chat",
       // Regenerated fresh per request straight from the live store, so the
@@ -37,6 +79,14 @@ export function AiChatPanel({ readOnly = false }: AiChatPanelProps) {
         };
       },
     }),
+    // Client-side tool execution: the server only declares tools (no
+    // `execute`), so calls stream here as events. Run them against the store
+    // and report the result back so the model can confirm what happened.
+    async onToolCall({ toolCall }) {
+      if (toolCall.dynamic) return;
+      const output = await applyToolCall(toolCall.toolName, toolCall.input);
+      addToolOutput({ tool: toolCall.toolName as never, toolCallId: toolCall.toolCallId, output });
+    },
   });
 
   const isBusy = status === "submitted" || status === "streaming";
@@ -85,13 +135,19 @@ export function AiChatPanel({ readOnly = false }: AiChatPanelProps) {
                 : "bg-muted mr-auto"
             )}
           >
-            {message.parts.map((part, i) =>
-              part.type === "text" ? (
-                <div key={i} className="prose prose-sm dark:prose-invert max-w-none">
-                  <ReactMarkdown>{part.text}</ReactMarkdown>
-                </div>
-              ) : null
-            )}
+            {message.parts.map((part, i) => {
+              if (part.type === "text") {
+                return (
+                  <div key={i} className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{part.text}</ReactMarkdown>
+                  </div>
+                );
+              }
+              if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+                return <ToolCallPill key={i} part={part} />;
+              }
+              return null;
+            })}
           </div>
         ))}
         {error && (

@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { fetchQuery } from "convex/nextjs";
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { api } from "@/convex/_generated/api";
+import { aiTools } from "@/lib/ai/tools";
 
 export const maxDuration = 30;
 
 const SYSTEM_PROMPT = (dbml: string) => `You are the AI assistant inside DBLuna, a database diagram editor. \
-You help the user understand the schema they're currently editing by answering questions about it.
+You help the user understand the schema they're currently editing, and you can edit it for them using the \
+provided tools (add/update/delete tables, columns, and relationships; add notes and areas).
 
-You cannot edit the diagram yet — if the user asks you to add, remove, or change tables, columns, or \
-relationships, explain that diagram editing from chat is coming soon, and instead describe what they'd \
-need to change.
+Rules:
+- Refer to tables and columns by name, never by id — you don't have ids.
+- Before adding a relationship or column, make sure the table/column names you're using actually exist in \
+the current schema below. If something doesn't exist, say so instead of guessing.
+- After a tool call finishes, briefly confirm what changed using the tool's result. If a tool call returns \
+an error, relay it plainly and suggest a fix — don't retry blindly.
+- For pure questions, answer directly from the schema below without calling any tool.
 
 Current diagram schema (DBML):
 \`\`\`dbml
 ${dbml || "-- empty diagram, no tables yet --"}
 \`\`\`
 
-Answer questions using only this schema. Be concise.`;
+Be concise.`;
 
 export async function POST(req: NextRequest) {
   const { userId, getToken } = await auth();
@@ -61,6 +67,8 @@ export async function POST(req: NextRequest) {
     model: google("gemini-2.5-flash-lite"),
     system: SYSTEM_PROMPT(dbml ?? ""),
     messages: await convertToModelMessages(messages),
+    tools: aiTools,
+    stopWhen: stepCountIs(8),
   });
 
   return result.toUIMessageStreamResponse();
