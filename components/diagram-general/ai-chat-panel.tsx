@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useAiChatStore } from "@/store/useAiChatStore";
 import { applyToolCall } from "@/lib/ai/tool-executor";
 
 type MessagePart = UIMessage["parts"][number];
@@ -58,11 +59,34 @@ interface AiChatPanelProps {
   readOnly?: boolean;
 }
 
+// Chat history is diagram-scoped and IndexedDB-persisted (useAiChatStore),
+// local-only for v1. Gating the whole panel on hydration and keying the
+// inner component by diagramId means useChat's `messages` init option always
+// sees the right diagram's history on first render — no post-mount
+// setMessages() call needed, which would otherwise race the persist effect
+// below (both fire on mount; the persist effect would win and clobber the
+// just-loaded history with the pre-load empty array).
 export function AiChatPanel({ readOnly = false }: AiChatPanelProps) {
+  const diagramId = useCanvasStore((s) => s.activeDiagramId) ?? "unsaved";
+  const hasHydrated = useAiChatStore((s) => s.hasHydrated);
+
+  if (!hasHydrated) {
+    return <div className="h-full w-full bg-dock-bg" />;
+  }
+
+  return <AiChatPanelInner key={diagramId} diagramId={diagramId} readOnly={readOnly} />;
+}
+
+function AiChatPanelInner({
+  diagramId,
+  readOnly = false,
+}: AiChatPanelProps & { diagramId: string }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, addToolOutput, status, error } = useChat({
+    id: diagramId,
+    messages: useAiChatStore.getState().getMessages(diagramId),
     transport: new DefaultChatTransport({
       api: "/api/ai-chat",
       // Regenerated fresh per request straight from the live store, so the
@@ -97,6 +121,10 @@ export function AiChatPanel({ readOnly = false }: AiChatPanelProps) {
       behavior: "smooth",
     });
   }, [messages, status]);
+
+  useEffect(() => {
+    useAiChatStore.getState().setMessages(diagramId, messages);
+  }, [diagramId, messages]);
 
   const handleSend = () => {
     if (readOnly) {
