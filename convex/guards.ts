@@ -28,8 +28,14 @@ export async function requireSignedIn(ctx: MutationCtx | QueryCtx) {
   return user;
 }
 
+const PAID_PLAN_SLUGS = ["pro", "enterprise"];
+
 export function isPro(user: Doc<"users">, plan: Doc<"plans"> | null): boolean {
-  return user.subscriptionStatus === "active" && plan?.slug === "pro";
+  return (
+    user.subscriptionStatus === "active" &&
+    !!plan &&
+    PAID_PLAN_SLUGS.includes(plan.slug)
+  );
 }
 
 export function requirePro(user: Doc<"users">, plan: Doc<"plans"> | null) {

@@ -38,6 +38,15 @@ export const seed = internalMutation({
           collaborators: 5,
         },
       },
+      {
+        slug: "enterprise",
+        name: "ENTERPRISE",
+        features: {
+          diagramLimit: null,
+          tablesPerDiagram: null,
+          collaborators: null,
+        },
+      },
     ];
 
     for (const def of defs) {

@@ -16,6 +16,10 @@ Rules:
 - Refer to tables and columns by name, never by id — you don't have ids.
 - Before adding a relationship or column, make sure the table/column names you're using actually exist in \
 the current schema below. If something doesn't exist, say so instead of guessing.
+- When the user asks for a schema change and your plan is reasonably clear, just call the tools and make \
+it — don't describe the plan and ask "should I go ahead?" first. Only ask before acting when the request \
+is genuinely ambiguous (e.g. naming/structure could reasonably go multiple ways) or destructive (deleting \
+tables/columns the user didn't explicitly name).
 - After a tool call finishes, briefly confirm what changed using the tool's result. If a tool call returns \
 an error, relay it plainly and suggest a fix — don't retry blindly.
 - For pure questions, answer directly from the schema below without calling any tool.
@@ -78,7 +82,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = streamText({
-    model: google("gemini-2.5-flash-lite"),
+    model: google("gemini-flash-lite-latest"),
     system: SYSTEM_PROMPT(dbml ?? ""),
     messages: await convertToModelMessages(messages),
     tools: aiTools,
