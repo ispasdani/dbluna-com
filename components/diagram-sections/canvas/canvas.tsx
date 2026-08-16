@@ -240,12 +240,48 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     pan.current.idleTimer = window.setTimeout(commitPan, PAN_IDLE_MS);
   }, [flushPanToDom, commitPan]);
 
+  // ─── Drag/resize frame gate ────────────────────────────────────────────────
+  // Node drags and resizes have the same problem panning did: they wrote to
+  // React (setDragOffset) or to the store (updateNote/updateArea) once per
+  // pointermove, and each write re-renders the whole stage. A mouse reporting
+  // faster than the display then queues several of those per frame.
+  //
+  // The pointer handlers still do their (cheap) delta math eagerly, but the
+  // state write is deferred to the next animation frame, latest-wins — so the
+  // stage re-renders at most once per frame no matter the pointer event rate.
+  const gestureFrame = useRef<{ raf: number; work: (() => void) | null }>({ raf: 0, work: null });
+
+  const scheduleGestureFrame = useCallback((work: () => void) => {
+    gestureFrame.current.work = work;
+    if (gestureFrame.current.raf) return;
+    gestureFrame.current.raf = requestAnimationFrame(() => {
+      gestureFrame.current.raf = 0;
+      const pending = gestureFrame.current.work;
+      gestureFrame.current.work = null;
+      pending?.();
+    });
+  }, []);
+
+  // Run any deferred work now rather than dropping it — the last few pixels of
+  // a gesture live in that pending frame when the pointer comes up.
+  const flushGestureFrame = useCallback(() => {
+    if (gestureFrame.current.raf) {
+      cancelAnimationFrame(gestureFrame.current.raf);
+      gestureFrame.current.raf = 0;
+    }
+    const pending = gestureFrame.current.work;
+    gestureFrame.current.work = null;
+    pending?.();
+  }, []);
+
   // Never leave an in-flight gesture uncommitted (unmount, diagram switch).
   useEffect(() => {
     const panRef = pan.current;
+    const frameRef = gestureFrame.current;
     return () => {
       if (panRef.raf) cancelAnimationFrame(panRef.raf);
       if (panRef.idleTimer) clearTimeout(panRef.idleTimer);
+      if (frameRef.raf) cancelAnimationFrame(frameRef.raf);
     };
   }, []);
 
@@ -390,9 +426,13 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     return { focusedTables: tablesSet, focusedRelationships: relsSet };
   }, [isFocusModeEnabled, selectedTableIds, relationships]);
 
+  // Every relationship endpoint resolves a table by id on every render; with a
+  // linear find that is O(relationships × tables) per frame during a drag.
+  const tablesById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
+
   // Helper to get column position in world coordinates
   const getColumnPosition = (tableId: string, columnId: string, isSource: boolean) => {
-    const table = tables.find(t => t.id === tableId);
+    const table = tablesById.get(tableId);
     if (!table) return null;
     const colIndex = table.columns.findIndex(c => c.id === columnId);
     if (colIndex === -1) return null;
@@ -839,7 +879,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragTable.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragTable.current.initialMouseY) / camera.zoom;
-      setDragOffset({ dx, dy, active: true });
+      scheduleGestureFrame(() => setDragOffset({ dx, dy, active: true }));
       return;
     }
 
@@ -848,25 +888,26 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragNote.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragNote.current.initialMouseY) / camera.zoom;
-      setDragOffset({ dx, dy, active: true });
+      scheduleGestureFrame(() => setDragOffset({ dx, dy, active: true }));
       return;
     }
 
     if (resizeNote.current.active) {
       e.preventDefault();
       const dx = (e.clientX - resizeNote.current.initialMouseX) / camera.zoom;
-      const updateNote = useCanvasStore.getState().updateNote;
-
       const { initialWidth, initialX, direction, noteId } = resizeNote.current;
 
-      if (direction === "right") {
-        const newWidth = Math.max(100, initialWidth + dx); // Min width 100
-        updateNote(noteId, { width: newWidth });
-      } else {
-        const newWidth = Math.max(100, initialWidth - dx);
-        const newX = initialX + (initialWidth - newWidth); // Shift X to keep right side fixed
-        updateNote(noteId, { width: newWidth, x: newX });
-      }
+      scheduleGestureFrame(() => {
+        const updateNote = useCanvasStore.getState().updateNote;
+        if (direction === "right") {
+          const newWidth = Math.max(100, initialWidth + dx); // Min width 100
+          updateNote(noteId, { width: newWidth });
+        } else {
+          const newWidth = Math.max(100, initialWidth - dx);
+          const newX = initialX + (initialWidth - newWidth); // Shift X to keep right side fixed
+          updateNote(noteId, { width: newWidth, x: newX });
+        }
+      });
       return;
     }
 
@@ -877,7 +918,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - dragArea.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - dragArea.current.initialMouseY) / camera.zoom;
-      setDragOffset({ dx, dy, active: true });
+      scheduleGestureFrame(() => setDragOffset({ dx, dy, active: true }));
       return;
     }
 
@@ -885,37 +926,39 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       e.preventDefault();
       const dx = (e.clientX - resizeArea.current.initialMouseX) / camera.zoom;
       const dy = (e.clientY - resizeArea.current.initialMouseY) / camera.zoom;
-      const updateArea = useCanvasStore.getState().updateArea;
-
       const { initialWidth, initialHeight, initialX, initialY, direction, areaId } = resizeArea.current;
 
-      let newX = initialX;
-      let newY = initialY;
-      let newW = initialWidth;
-      let newH = initialHeight;
+      scheduleGestureFrame(() => {
+        const updateArea = useCanvasStore.getState().updateArea;
 
-      if (direction.includes("r")) {
-        newW = Math.max(100, initialWidth + dx);
-      }
-      if (direction.includes("b")) {
-        newH = Math.max(100, initialHeight + dy);
-      }
-      if (direction.includes("l")) {
-        const proposedW = initialWidth - dx;
-        if (proposedW >= 100) {
-          newX = initialX + dx;
-          newW = proposedW;
-        }
-      }
-      if (direction.includes("t")) {
-        const proposedH = initialHeight - dy;
-        if (proposedH >= 100) {
-          newY = initialY + dy;
-          newH = proposedH;
-        }
-      }
+        let newX = initialX;
+        let newY = initialY;
+        let newW = initialWidth;
+        let newH = initialHeight;
 
-      updateArea(areaId, { x: newX, y: newY, width: newW, height: newH });
+        if (direction.includes("r")) {
+          newW = Math.max(100, initialWidth + dx);
+        }
+        if (direction.includes("b")) {
+          newH = Math.max(100, initialHeight + dy);
+        }
+        if (direction.includes("l")) {
+          const proposedW = initialWidth - dx;
+          if (proposedW >= 100) {
+            newX = initialX + dx;
+            newW = proposedW;
+          }
+        }
+        if (direction.includes("t")) {
+          const proposedH = initialHeight - dy;
+          if (proposedH >= 100) {
+            newY = initialY + dy;
+            newH = proposedH;
+          }
+        }
+
+        updateArea(areaId, { x: newX, y: newY, width: newW, height: newH });
+      });
       return;
     }
 
@@ -934,7 +977,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
       dragConnection.current.currentX = worldX;
       dragConnection.current.currentY = worldY;
-      setTick(t => t + 1);
+      // The ref already holds the newest point; only the repaint is deferred.
+      scheduleGestureFrame(() => setTick(t => t + 1));
       return;
     }
 
@@ -957,7 +1001,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       const w = Math.abs(worldX - dragSelection.current.startX);
       const h = Math.abs(worldY - dragSelection.current.startY);
 
-      setSelectionRect({ x, y, w, h });
+      scheduleGestureFrame(() => setSelectionRect({ x, y, w, h }));
       return;
     }
 
@@ -972,6 +1016,10 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   const onPointerUp = (e: React.PointerEvent) => {
     const target = e.currentTarget as Element;
+
+    // Land the frame the gesture had queued before reading final positions,
+    // otherwise the last pointermove's worth of movement is dropped.
+    flushGestureFrame();
 
     // Handle Table Drop
     if (dragTable.current.active && dragTable.current.pointerId === e.pointerId) {
