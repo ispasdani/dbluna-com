@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "./button";
+import { ButtonWithIdGenerator } from "./buttonWithIdGenerator";
 import {
   AnimatePresence,
   motion,
@@ -98,14 +98,12 @@ const MobileNav = ({ items }: { items: { title: string; href: string }[] }) => {
                 </Link>
               ))}
               <div className="mt-4 p-4">
-                <Button
+                <ButtonWithIdGenerator
                   onClick={() => setIsOpen(false)}
-                  as={Link}
-                  href="/sign-up"
                   className="w-full"
                 >
                   Start building
-                </Button>
+                </ButtonWithIdGenerator>
               </div>
             </div>
           </motion.div>
@@ -136,9 +134,7 @@ const DesktopNav = ({
       </div>
       <div className="flex items-center gap-2">
         <ModeToggle />
-        <Button as={Link} href="/sign-up">
-          Start building
-        </Button>
+        <ButtonWithIdGenerator>Start building</ButtonWithIdGenerator>
       </div>
     </div>
   );
@@ -177,9 +173,7 @@ const FloatingNav = ({
       </div>
       <div className="flex items-center gap-2">
         <ModeToggle />
-        <Button as={Link} href="/sign-up">
-          Start building
-        </Button>
+        <ButtonWithIdGenerator>Start building</ButtonWithIdGenerator>
       </div>
     </motion.div>
   );

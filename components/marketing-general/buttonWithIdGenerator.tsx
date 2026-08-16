@@ -9,6 +9,7 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
   variant = "primary",
   className,
   as,
+  onClick,
   ...props
 }: {
   children: React.ReactNode;
@@ -23,7 +24,9 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
 
   const router = useRouter();
 
-  const handleStartBuilding = () => {
+  const handleStartBuilding = (e: React.MouseEvent) => {
+    if (typeof onClick === "function") onClick(e);
+
     const diagramId = crypto.randomUUID();
 
     router.push(`/d/${diagramId}`);
@@ -41,7 +44,7 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
             : "border-divide border bg-white text-black transition duration-200 hover:bg-gray-300 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:bg-neutral-800",
         className
       )}
-      onClick={() => handleStartBuilding()}
+      onClick={handleStartBuilding}
     >
       {children}
     </Component>
