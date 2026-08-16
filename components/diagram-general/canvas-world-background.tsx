@@ -3,12 +3,30 @@
 import { useMemo } from "react";
 import type { CanvasBackground } from "@/store/useCanvasStore";
 
+/**
+ * The `backgroundPosition` for a given camera origin. Exported because the
+ * canvas writes it straight to the DOM while a pan gesture is in flight
+ * (see `queuePan` in canvas.tsx) — both paths must agree on the format or
+ * the grid would jump when the pan is finally committed to the store.
+ */
+export function backgroundPositionFor(
+  variant: CanvasBackground,
+  x: number,
+  y: number
+) {
+  const origin = `${x}px ${y}px`;
+  // "grid" layers four background-images, so it needs four positions.
+  return variant === "dots" ? origin : `${origin}, ${origin}, ${origin}, ${origin}`;
+}
+
 export function WorldBackground({
   camera,
   variant,
+  ref,
 }: {
   camera: { x: number; y: number; zoom: number };
   variant: CanvasBackground;
+  ref?: React.Ref<HTMLDivElement>;
 }) {
   const minor = 24 * camera.zoom;
   const major = minor * 5;
@@ -25,7 +43,7 @@ export function WorldBackground({
         backgroundImage:
           "radial-gradient(var(--canvas-dots) 1px, transparent 1px)",
         backgroundSize: `${minor}px ${minor}px`,
-        backgroundPosition: `${camera.x}px ${camera.y}px`,
+        backgroundPosition: backgroundPositionFor(variant, camera.x, camera.y),
       };
     }
 
@@ -53,9 +71,9 @@ export function WorldBackground({
         `${major}px ${major}px`,
       ].join(","),
 
-      backgroundPosition: `${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px, ${camera.x}px ${camera.y}px`,
+      backgroundPosition: backgroundPositionFor(variant, camera.x, camera.y),
     };
   }, [camera.x, camera.y, minor, major, variant]);
 
-  return <div style={style} />;
+  return <div ref={ref} style={style} />;
 }

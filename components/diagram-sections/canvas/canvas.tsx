@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
-import { WorldBackground } from "@/components/diagram-general/canvas-world-background";
+import {
+  WorldBackground,
+  backgroundPositionFor,
+} from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { CanvasShortcutsHelp } from "./canvas-shortcuts-help";
 import { TableNode } from "./table-node";
@@ -27,8 +30,17 @@ interface CanvasStageProps {
   readOnly?: boolean;
 }
 
+// How far (in screen px) a pan may drift from the camera in the store before
+// we push it back in. Keeps viewport culling and the minimap from going stale
+// mid-gesture; stays well inside CULL_MARGIN at every allowed zoom level.
+const PAN_COMMIT_PX = 120;
+// Trailing commit for pan sources with no natural "end" event (wheel).
+const PAN_IDLE_MS = 100;
+
 export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const backgroundRef = useRef<HTMLDivElement>(null);
 
   const background = useCanvasStore((s) => s.background);
   const tables = useCanvasStore((s) => s.tables);
@@ -161,6 +173,81 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     lastY: number;
     pointerId: number | null;
   }>({ active: false, lastX: 0, lastY: 0, pointerId: null });
+
+  // ─── Pan pipeline ──────────────────────────────────────────────────────────
+  // Panning used to call panBy() straight from pointermove/wheel. Every one of
+  // those store writes re-rendered the whole stage (all relationship paths, all
+  // node wrappers, the minimap) — ~4.5ms each, and a mouse reporting at 500Hz+
+  // fires several per frame, so the work piled up and the pan visibly stuttered.
+  //
+  // Instead the gesture is accumulated in a ref, flushed to the DOM once per
+  // animation frame (a transform + a background-position, no React), and only
+  // pushed into the store every PAN_COMMIT_PX or when the gesture goes idle.
+  // React still owns the camera — it just hears about it a few times per
+  // gesture instead of a few times per frame.
+  const pan = useRef({ dx: 0, dy: 0, raf: 0, idleTimer: 0 });
+
+  const commitPan = useCallback(() => {
+    if (pan.current.idleTimer) {
+      clearTimeout(pan.current.idleTimer);
+      pan.current.idleTimer = 0;
+    }
+    const { dx, dy } = pan.current;
+    if (dx === 0 && dy === 0) return;
+    // Zero *before* panBy: the DOM already shows camera+dx, so once the store
+    // catches up React's render writes the identical transform — no jump.
+    pan.current.dx = 0;
+    pan.current.dy = 0;
+    panBy(dx, dy);
+  }, [panBy]);
+
+  const flushPanToDom = useCallback(() => {
+    pan.current.raf = 0;
+    const { camera: committed } = useEditorStore.getState();
+    const x = committed.x + pan.current.dx;
+    const y = committed.y + pan.current.dy;
+
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate(${x}px, ${y}px) scale(${committed.zoom})`;
+    }
+    if (backgroundRef.current) {
+      backgroundRef.current.style.backgroundPosition = backgroundPositionFor(background, x, y);
+    }
+
+    if (Math.abs(pan.current.dx) >= PAN_COMMIT_PX || Math.abs(pan.current.dy) >= PAN_COMMIT_PX) {
+      commitPan();
+    }
+  }, [background, commitPan]);
+
+  // The camera as it is actually on screen right now — the store's value plus
+  // whatever the in-flight gesture hasn't committed yet. Anything converting
+  // screen coordinates to world coordinates must use this, not the `camera`
+  // from render, which can trail by up to PAN_COMMIT_PX mid-gesture.
+  const getLiveCamera = useCallback(() => {
+    const { camera: committed } = useEditorStore.getState();
+    return {
+      x: committed.x + pan.current.dx,
+      y: committed.y + pan.current.dy,
+      zoom: committed.zoom,
+    };
+  }, []);
+
+  const queuePan = useCallback((dx: number, dy: number) => {
+    pan.current.dx += dx;
+    pan.current.dy += dy;
+    if (!pan.current.raf) pan.current.raf = requestAnimationFrame(flushPanToDom);
+    if (pan.current.idleTimer) clearTimeout(pan.current.idleTimer);
+    pan.current.idleTimer = window.setTimeout(commitPan, PAN_IDLE_MS);
+  }, [flushPanToDom, commitPan]);
+
+  // Never leave an in-flight gesture uncommitted (unmount, diagram switch).
+  useEffect(() => {
+    const panRef = pan.current;
+    return () => {
+      if (panRef.raf) cancelAnimationFrame(panRef.raf);
+      if (panRef.idleTimer) clearTimeout(panRef.idleTimer);
+    };
+  }, []);
 
   // Table dragging
   const dragTable = useRef<{
@@ -476,8 +563,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
       const rect = rootRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const worldX = (e.clientX - rect.left - camera.x) / camera.zoom;
-      const worldY = (e.clientY - rect.top - camera.y) / camera.zoom;
+      const live = getLiveCamera();
+      const worldX = (e.clientX - rect.left - live.x) / live.zoom;
+      const worldY = (e.clientY - rect.top - live.y) / live.zoom;
 
       dragSelection.current = {
         active: true,
@@ -840,8 +928,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       const clientX = e.clientX - rect.left;
       const clientY = e.clientY - rect.top;
 
-      const worldX = (clientX - camera.x) / camera.zoom;
-      const worldY = (clientY - camera.y) / camera.zoom;
+      const live = getLiveCamera();
+      const worldX = (clientX - live.x) / live.zoom;
+      const worldY = (clientY - live.y) / live.zoom;
 
       dragConnection.current.currentX = worldX;
       dragConnection.current.currentY = worldY;
@@ -855,8 +944,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       const rect = rootRef.current?.getBoundingClientRect();
       if (!rect) return;
 
-      const worldX = (e.clientX - rect.left - camera.x) / camera.zoom;
-      const worldY = (e.clientY - rect.top - camera.y) / camera.zoom;
+      const live = getLiveCamera();
+      const worldX = (e.clientX - rect.left - live.x) / live.zoom;
+      const worldY = (e.clientY - rect.top - live.y) / live.zoom;
 
       dragSelection.current.currentX = worldX;
       dragSelection.current.currentY = worldY;
@@ -877,7 +967,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     const dy = e.clientY - drag.current.lastY;
     drag.current.lastX = e.clientX;
     drag.current.lastY = e.clientY;
-    panBy(dx, dy);
+    queuePan(dx, dy);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -1102,6 +1192,13 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     if (drag.current.pointerId !== e.pointerId) return;
     drag.current.active = false;
     drag.current.pointerId = null;
+    // Land the gesture in the store immediately rather than waiting out the
+    // idle timer — the pending frame is redundant once React re-renders.
+    if (pan.current.raf) {
+      cancelAnimationFrame(pan.current.raf);
+      pan.current.raf = 0;
+    }
+    commitPan();
   };
 
   /**
@@ -1124,6 +1221,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       const isZoomGesture = e.ctrlKey || e.metaKey;
 
       if (isZoomGesture) {
+        // Zoom changes the scale, culling and the grid spacing — it has to go
+        // through React, so land any pan still buffered in the ref first.
+        commitPan();
         const factor = Math.exp(-e.deltaY * 0.0015);
         const safeFactor = clamp(factor, 0.85, 1.15);
         zoomAt(safeFactor, sx, sy);
@@ -1141,12 +1241,12 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       dx = clamp(dx, -120, 120);
       dy = clamp(dy, -120, 120);
 
-      panBy(dx, dy);
+      queuePan(dx, dy);
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [panBy, zoomAt]);
+  }, [queuePan, commitPan, zoomAt]);
 
   const worldTransform = useMemo(
     () => `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
@@ -1176,10 +1276,12 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         style={{ cursor: spaceDown ? "grab" : "default" }}
       >
         <WorldBackground
+          ref={backgroundRef}
           camera={camera}
           variant={background}
         />
         <div
+          ref={worldRef}
           className="absolute left-0 top-0 origin-top-left"
           style={{
             width: 1,
@@ -1432,6 +1534,11 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         notes={notes}
         areas={areas}
         onRecenter={(worldX, worldY) => {
+          // Drop any pan still buffered in the ref — the jump replaces it,
+          // and committing it afterwards would drag the camera back off-target.
+          pan.current.dx = 0;
+          pan.current.dy = 0;
+
           const targetScreenX = viewport.w / 2;
           const targetScreenY = viewport.h / 2;
 
