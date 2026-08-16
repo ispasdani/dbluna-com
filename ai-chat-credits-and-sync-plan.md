@@ -54,7 +54,10 @@ mostly stubs. That's since changed:
 
 ## Recommended approach
 
-### A. Credit metering
+This splits into two independent phases — Phase 1 (credit metering) doesn't depend on Phase 2 (Convex
+sync) or vice versa, so they can ship separately.
+
+### Phase 1: Credit metering
 
 **Unit of metering: 1 credit = 1 user turn.** One `POST /api/ai-chat` call consumes exactly 1 credit,
 regardless of how many of the up-to-8 tool-call steps (`stepCountIs(8)`) happen inside it. Simple,
@@ -119,13 +122,30 @@ events can all fire for the same underlying subscription (renewal, metadata chan
 gating on the *transition*, a user would get re-granted credits on every incidental webhook, not just
 once on upgrade.
 
-**Open question for you, not something I'm deciding unilaterally:** the exact starter amount
-(`AI_CHAT_STARTER_CREDITS`) and whether it should reset every billing period (`currentPeriodStart`
-changing) or just be a one-time grant. I'm recommending **one-time grant on first upgrade, no
-auto-reset** for v1 — resetting-on-renewal is a real feature (has to distinguish "renewal" from "any
-other subscription.updated") that I'd rather scope separately once the one-time version is proven out.
-Buying *more* credits (the pricing page's "AI credits purchase" line) needs a real checkout item and is
-out of scope here entirely.
+**Decided: `AI_CHAT_STARTER_CREDITS = 500`, one-time grant on first upgrade, no auto-reset for v1.**
+Sized against real numbers, not a guess: Gemini 2.5 Flash-Lite is $0.10/1M input, $0.40/1M output
+tokens. Our actual per-turn token profile is inflated by three things specific to this
+implementation — the full DBML snapshot resent every request, all 9 tool schemas resent every
+request (~1,500-2,000 tokens of fixed overhead even on a pure Q&A turn), and the full unwindowed
+message history resent every turn — so a typical turn runs ≈$0.0005, and a worst-case turn (huge
+diagram, long conversation) ≈$0.0034. At 500 credits/month, that's **~$0.26/month typical, ~$1.70/month
+worst-case** in raw model spend against a $10/mo Pro subscription — 3% typical, 17% worst-case, which
+lands right at the upper end of the industry's "AI-augmented feature" margin-hit range (12-17 points)
+even in the pessimistic case. Sizing this as "500 messages/month" rather than "N EUR of tokens" also
+matches how credits are conventionally marketed — as a round, legible number, not a raw pass-through of
+provider cost, which for a model this cheap would look either absurdly generous or confusingly stingy
+depending on rounding.
+
+Whether the allotment should reset every billing period (`currentPeriodStart` changing) instead of being
+a one-time grant is still open — resetting-on-renewal has to distinguish "renewal" from "any other
+subscription.updated" webhook, which is real complexity I'd rather scope separately once the one-time
+version is proven out. Buying *more* credits (the pricing page's "AI credits purchase" line) needs a real
+checkout item and stays out of scope here entirely.
+
+**Fast-follow, not blocking:** the three cost-inflating factors above (full DBML resend, full tool-schema
+resend, unwindowed history resend) are all fixable independent of the credit number — trimming them would
+lower real COGS further without touching the user-facing allotment. Worth doing eventually, not required
+to ship Phase 1.
 
 **Client UX.** Extend `getCurrentUserPlan`'s return shape to include `credits`:
 
@@ -139,7 +159,7 @@ calls) for a live "N credits left" indicator in the header, and adds a second ga
 existing `readOnly` one: when Pro but `credits <= 0`, swap the composer for a distinct "Out of AI
 credits" message (not the "Upgrade to Pro" copy — the user's already Pro, that copy would be wrong).
 
-### B. Convex-synced chat history
+### Phase 2: Convex-synced chat history
 
 **Deliberately much simpler than diagram sync, because the data shape is different.** A diagram is one
 mutable document multiple people can edit concurrently, so it needs last-write-wins + conflict

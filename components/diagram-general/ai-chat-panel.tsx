@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { useQuery } from "convex/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { Sparkles, Send, Lock, Loader2, Check, X } from "lucide-react";
+import { Sparkles, Send, Lock, Loader2, Check, X, Coins, CircleSlash } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,8 @@ import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useAiChatStore } from "@/store/useAiChatStore";
 import { applyToolCall } from "@/lib/ai/tool-executor";
+import { useCloudAiChatSync } from "@/hooks/use-cloud-ai-chat-sync";
+import { api } from "@/convex/_generated/api";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -84,7 +87,14 @@ function AiChatPanelInner({
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, addToolOutput, status, error } = useChat({
+  // ai-chat-credits-and-sync-plan.md, Phase 1: live balance for the header
+  // counter and the "out of credits" composer state. The route independently
+  // re-checks and spends a credit server-side on every send — this query is
+  // UX only, never the enforcement boundary.
+  const plan = useQuery(api.users.getCurrentUserPlan);
+  const outOfCredits = !readOnly && plan !== undefined && plan.isPro && plan.credits <= 0;
+
+  const { messages, sendMessage, addToolOutput, setMessages, status, error } = useChat({
     id: diagramId,
     messages: useAiChatStore.getState().getMessages(diagramId),
     transport: new DefaultChatTransport({
@@ -115,6 +125,23 @@ function AiChatPanelInner({
 
   const isBusy = status === "submitted" || status === "streaming";
 
+  // ai-chat-credits-and-sync-plan.md, Phase 2: no-op unless this diagram is
+  // cloud-synced. Pull/merge happens inside the hook; push fires below once
+  // a turn actually completes.
+  const pushMessages = useCloudAiChatSync(diagramId, setMessages);
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    // Skip the first run after mount so opening the panel doesn't re-push
+    // the whole seeded/cloud-merged history — same reasoning as
+    // use-cloud-autosave.ts's own isInitialMount guard.
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (status !== "ready") return;
+    pushMessages(messages);
+  }, [status, messages, pushMessages]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
@@ -131,6 +158,7 @@ function AiChatPanelInner({
       useUpgradeToastStore.getState().trigger();
       return;
     }
+    if (outOfCredits) return;
     const text = input.trim();
     if (!text || isBusy) return;
     sendMessage({ text });
@@ -143,6 +171,18 @@ function AiChatPanelInner({
       <div className="flex-none h-10 px-3 flex items-center gap-2 border-b border-border bg-dock-header select-none">
         <Sparkles className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs font-medium text-muted-foreground">AI Chat</span>
+        {plan?.isPro && (
+          <span
+            className={cn(
+              "ml-auto flex items-center gap-1 text-xs",
+              outOfCredits ? "text-destructive" : "text-muted-foreground"
+            )}
+            title="AI chat credits remaining this period"
+          >
+            <Coins className="w-3 h-3" />
+            {plan.credits}
+          </span>
+        )}
       </div>
 
       {/* Messages */}
@@ -194,6 +234,11 @@ function AiChatPanelInner({
             <Lock className="w-3 h-3" />
             Upgrade to chat with AI
           </button>
+        ) : outOfCredits ? (
+          <div className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2">
+            <CircleSlash className="w-3 h-3" />
+            Out of AI credits for this period
+          </div>
         ) : (
           <div className="flex items-end gap-2">
             <Textarea
@@ -213,7 +258,7 @@ function AiChatPanelInner({
               size="sm"
               className="h-9 w-9 p-0 shrink-0"
               onClick={handleSend}
-              disabled={isBusy || !input.trim()}
+              disabled={isBusy || !input.trim() || outOfCredits}
             >
               <Send className="w-3.5 h-3.5" />
             </Button>

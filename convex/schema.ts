@@ -298,6 +298,22 @@ export default defineSchema({
     .index("by_diagram", ["diagramId"])
     .index("by_diagram_and_user", ["diagramId", "userId"]),
 
+  // AI chat history sync (ai-chat-credits-and-sync-plan.md, Phase 2). One row
+  // per message, not one row per diagram with an embedded array like
+  // `diagrams` — messages are append-only, so there's no last-write-wins
+  // conflict to design around the way diagram edits need.
+  aiChatMessages: defineTable({
+    diagramId: v.id("diagrams"),
+    messageId: v.string(), // matches the client's UIMessage.id — idempotency key
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+    parts: v.any(), // UIMessagePart[] — polymorphic (text/tool-call/tool-result/...),
+                     // not worth encoding exactly; mirrors plans.features' v.any() precedent
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_diagram", ["diagramId"])
+    .index("by_diagram_and_created", ["diagramId", "createdAt"]),
+
   userPreferences: defineTable({
     userId: v.id("users"),
     theme: v.optional(v.string()),

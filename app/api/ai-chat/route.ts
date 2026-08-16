@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { fetchQuery } from "convex/nextjs";
+import { fetchMutation, fetchQuery } from "convex/nextjs";
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { google } from "@ai-sdk/google";
 import { api } from "@/convex/_generated/api";
@@ -42,6 +42,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Upgrade to Pro to use AI chat." },
       { status: 403 }
+    );
+  }
+
+  // ai-chat-credits-and-sync-plan.md, Phase 1: spend one credit for this
+  // turn before calling the model. Atomic (single Convex mutation), so two
+  // concurrent requests from the same user can't both slip through on the
+  // last credit. 402, not 403 — this is "you're allowed, but you're out",
+  // distinct from the Pro gate above.
+  try {
+    await fetchMutation(api.users.consumeAiCredit, {}, { token });
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "Out of AI credits." },
+      { status: 402 }
     );
   }
 

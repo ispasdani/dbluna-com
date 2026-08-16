@@ -4,6 +4,7 @@ import { httpRouter } from "convex/server";
 import { Webhook } from "svix";
 import { internal } from "./_generated/api";
 import { httpAction, type ActionCtx } from "./_generated/server";
+import { AI_CHAT_STARTER_CREDITS } from "./aiChatConstants";
 
 const http = httpRouter();
 
@@ -151,6 +152,18 @@ async function applyPlanUpdate(
     ? await ctx.runQuery(internal.plans.getBySlug, { slug: args.planSlug })
     : null;
 
+  // ai-chat-credits-and-sync-plan.md, Phase 1: grant a one-time starter
+  // credit allotment on a genuine Free -> Pro transition, not on every
+  // subscription.* / subscriptionItem.* webhook that touches an
+  // already-active Pro subscription (renewal, metadata changes, etc. all
+  // fire these same event types).
+  const existingUser = await ctx.runQuery(internal.users.getByClerkIdInternal, {
+    clerkId: args.clerkId,
+  });
+  const wasActive = existingUser?.subscriptionStatus === "active";
+  const becomingActivePro = args.status === "active" && plan?.slug === "pro";
+  const creditGrant = !wasActive && becomingActivePro ? AI_CHAT_STARTER_CREDITS : undefined;
+
   try {
     await ctx.runMutation(internal.users.updateUser, {
       clerkId: args.clerkId,
@@ -164,6 +177,10 @@ async function applyPlanUpdate(
         : undefined,
       cancelAtPeriodEnd: args.cancelAtPeriodEnd,
       planId: plan?._id,
+      credits:
+        creditGrant !== undefined
+          ? (existingUser?.credits ?? 0) + creditGrant
+          : undefined,
     });
   } catch (err) {
     if (err instanceof ConvexError) return;

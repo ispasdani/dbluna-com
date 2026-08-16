@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
-import { getCurrentUserDoc, isPro } from "./guards";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { getCurrentUserDoc, isPro, requireSignedInPro } from "./guards";
 
 // Helpers
 const now = () => Date.now();
@@ -17,6 +17,21 @@ export const getUserByClerkId = query({
 
     if (!user) throw new ConvexError("User not found");
     return user;
+  },
+});
+
+// Non-throwing counterpart for internal callers that need to check "does
+// this user exist yet, and what's their current state" without treating
+// "not found" as exceptional — used by http.ts's webhook handler, where a
+// billing event can legitimately arrive before the user.created webhook has
+// been processed.
+export const getByClerkIdInternal = internalQuery({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
   },
 });
 
@@ -52,9 +67,29 @@ export const getCurrentUserPlan = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUserDoc(ctx);
-    if (!user) return { isPro: false };
+    if (!user) return { isPro: false, credits: 0 };
     const plan = user.planId ? await ctx.db.get(user.planId) : null;
-    return { isPro: isPro(user, plan) };
+    return { isPro: isPro(user, plan), credits: user.credits ?? 0 };
+  },
+});
+
+/**
+ * Spends one AI chat credit (ai-chat-credits-and-sync-plan.md, Phase 1).
+ * Read-then-patch inside a single Convex mutation is transactional, so two
+ * concurrent requests from the same user (e.g. two tabs) can't both read
+ * `credits: 1` and both succeed — this must stay one mutation call from the
+ * route, never a separate query-then-mutation from the client.
+ */
+export const consumeAiCredit = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireSignedInPro(ctx);
+    const remaining = user.credits ?? 0;
+    if (remaining <= 0) {
+      throw new ConvexError({ code: "OUT_OF_CREDITS" });
+    }
+    await ctx.db.patch(user._id, { credits: remaining - 1 });
+    return { remaining: remaining - 1 };
   },
 });
 
