@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, Image as ImageIcon, FileCode, UserPlus, History } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,7 +37,6 @@ import {
   exportDiagramAsDbml,
   exportDiagramAsSql,
   exportDiagramAsSvg,
-  exportDiagramAsPng,
   parseImportedDiagramJson,
 } from "@/lib/diagram-io";
 import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
@@ -141,15 +140,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       return;
     }
     const ok = await exportDiagramAsSvg(tables, notes, areas, currentDiagramName);
-    if (!ok) alert("Couldn't export the diagram — try again after the canvas has finished loading.");
-  };
-
-  const handleExportPng = async () => {
-    if (readOnly) {
-      useUpgradeToastStore.getState().trigger();
-      return;
-    }
-    const ok = await exportDiagramAsPng(tables, notes, areas, currentDiagramName);
     if (!ok) alert("Couldn't export the diagram — try again after the canvas has finished loading.");
   };
 
@@ -350,10 +340,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleExportPng} className="gap-2">
-                  <ImageIcon className="w-4 h-4" />
-                  Export as PNG
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleExportSvg} className="gap-2">
                   <FileCode className="w-4 h-4" />
                   Export as SVG

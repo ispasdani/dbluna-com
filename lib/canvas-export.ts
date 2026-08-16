@@ -110,36 +110,3 @@ export function serializeCanvasSvg(bounds: DiagramBounds): string | null {
 
     return new XMLSerializer().serializeToString(clone);
 }
-
-// Rasterizes the serialized SVG to a PNG blob at the given device-pixel
-// scale (2x by default for a crisp, retina-quality export).
-export function renderSvgToPngBlob(svgString: string, bounds: DiagramBounds, scale = 2): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-        const url = URL.createObjectURL(svgBlob);
-
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = Math.round(bounds.w * scale);
-            canvas.height = Math.round(bounds.h * scale);
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-                URL.revokeObjectURL(url);
-                reject(new Error("Canvas 2D context unavailable"));
-                return;
-            }
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            URL.revokeObjectURL(url);
-            canvas.toBlob((blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error("Failed to rasterize diagram"));
-            }, "image/png");
-        };
-        img.onerror = () => {
-            URL.revokeObjectURL(url);
-            reject(new Error("Failed to load diagram SVG for rasterization"));
-        };
-        img.src = url;
-    });
-}

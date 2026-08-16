@@ -38,7 +38,7 @@ export const tiers = [
       "Auto-generated documentation site",
       "Import from PostgreSQL, SQL Server, CSV & BACPAC",
       "DBML & JSON export/import",
-      "PNG, SVG & SQL export",
+      "SVG & SQL export",
       "No-account share links",
       "Cloud sync across devices",
       "Real-time schema validation",
@@ -133,7 +133,7 @@ export const pricingTable = [
     ],
   },
   {
-    title: "Export to PNG/SVG",
+    title: "Export to SVG",
     tiers: [
       {
         title: TierName.TIER_1,

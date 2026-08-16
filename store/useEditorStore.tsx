@@ -38,7 +38,7 @@ type EditorState = {
   resetCamera: () => void;
 
   // Runtime-only flag: while true, the canvas renders every table/note/area
-  // regardless of viewport culling, so PNG/SVG export can capture the whole
+  // regardless of viewport culling, so SVG export can capture the whole
   // diagram rather than just what's currently on screen. Never persisted.
   isExporting: boolean;
   setIsExporting: (v: boolean) => void;

@@ -2,7 +2,7 @@ import type { DiagramData, Table, Relationship, Note, Area } from "@/store/useCa
 import { generateDbmlFromCanvas, type DbmlSchemaMeta } from "@/lib/generator/dbml-generator";
 import { generateSqlFromCanvas, type SqlDialect } from "@/lib/generator/sql-generator";
 import { DIAGRAM_ENVELOPE_VERSION, parseDiagramEnvelope } from "@/lib/diagram-envelope";
-import { computeDiagramBounds, serializeCanvasSvg, renderSvgToPngBlob } from "@/lib/canvas-export";
+import { computeDiagramBounds, serializeCanvasSvg } from "@/lib/canvas-export";
 import { useEditorStore } from "@/store/useEditorStore";
 
 function sanitizeFileName(name: string): string {
@@ -44,17 +44,6 @@ export function exportDiagramAsSql(
     return true;
 }
 
-function downloadBinaryBlob(blob: Blob, filename: string): void {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-}
-
 // Waits two animation frames — enough for React to commit a state change
 // (like flipping isExporting) and the browser to paint it, before we read
 // the DOM.
@@ -91,19 +80,6 @@ export async function exportDiagramAsSvg(
     const captured = await captureCanvasSvg(tables, notes, areas);
     if (!captured) return false;
     downloadBlob(captured.svg, "image/svg+xml", `${sanitizeFileName(name)}.svg`);
-    return true;
-}
-
-export async function exportDiagramAsPng(
-    tables: Table[],
-    notes: Note[],
-    areas: Area[],
-    name: string
-): Promise<boolean> {
-    const captured = await captureCanvasSvg(tables, notes, areas);
-    if (!captured) return false;
-    const blob = await renderSvgToPngBlob(captured.svg, captured.bounds);
-    downloadBinaryBlob(blob, `${sanitizeFileName(name)}.png`);
     return true;
 }
 

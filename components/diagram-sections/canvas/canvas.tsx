@@ -1154,7 +1154,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   );
 
   // Viewport Culling Bounds (with generous margin to prevent clipping).
-  // Disabled entirely while exporting to PNG/SVG so the export captures the
+  // Disabled entirely while exporting to SVG so the export captures the
   // whole diagram, not just what's currently panned into view.
   const CULL_MARGIN = 1500;
   const vLeft = isExporting ? -Infinity : -camera.x / camera.zoom - CULL_MARGIN;
