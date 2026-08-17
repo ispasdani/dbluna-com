@@ -321,8 +321,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </Button>
           )}
 
-          <PresenceAvatars cloudId={currentDiagramData.cloudId} />
-
           {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -438,6 +436,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             has always been justify-between; until now it had a single child,
             so the split did nothing. */}
         <div className="flex items-center gap-3">
+          {/* Collaborators first, you last — your own avatar anchors the far
+              right, so the stack beside it reads as "other people". */}
+          <PresenceAvatars cloudId={currentDiagramData.cloudId} />
           <UserMenu />
         </div>
       </header>

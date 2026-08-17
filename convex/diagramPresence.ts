@@ -33,7 +33,7 @@ export const heartbeat = mutation({
 export const listActive = query({
   args: { diagramId: v.id("diagrams") },
   handler: async (ctx, args) => {
-    await requireDiagramViewer(ctx, args.diagramId);
+    const { user: caller } = await requireDiagramViewer(ctx, args.diagramId);
 
     const rows = await ctx.db
       .query("diagramPresence")
@@ -53,6 +53,15 @@ export const listActive = query({
           firstName: u.firstName,
           lastName: u.lastName,
           imageUrl: u.imageUrl,
+          // Everyone here already passed requireDiagramViewer, so they're a
+          // member of this diagram — and members are invited by email in the
+          // first place (see diagramInvites). Surfacing it is what makes two
+          // people with the same first name tellable apart on hover.
+          email: u.email,
+          // The heartbeat writes a row for the caller too; the UI drops it
+          // rather than the server, so a future "N people here" count can
+          // still include you.
+          isSelf: r.userId === caller._id,
         };
       })
       .filter((u): u is NonNullable<typeof u> => u !== null);
