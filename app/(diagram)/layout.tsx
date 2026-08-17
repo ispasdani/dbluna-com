@@ -7,8 +7,12 @@ export default function DiagramLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // afterSignOutUrl is set here rather than on <UserButton> (deprecated
+  // there): without it, signing out from /d/[id] immediately re-enters
+  // proxy.ts's auth.protect() and bounces to Clerk's hosted sign-in, which
+  // reads as a crash. Land on marketing instead.
   return (
-    <ClerkProvider>
+    <ClerkProvider afterSignOutUrl="/">
       <ConvexClientProvider>
         <PlatformPaletteProvider>
           <div className="">{children}</div>

@@ -32,6 +32,7 @@ import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dial
 import { InviteDialog } from "@/components/diagram-sections/top-navbar/invite-dialog";
 import { HistoryDialog } from "@/components/diagram-sections/top-navbar/history-dialog";
 import { PresenceAvatars } from "@/components/diagram-sections/top-navbar/presence-avatars";
+import { UserMenu } from "@/components/diagram-sections/top-navbar/user-menu";
 import {
   ImportSchemaDialog,
   type ImportSchemaTab,
@@ -431,6 +432,13 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           )}
 
           <SavingIndicator />
+        </div>
+
+        {/* Right cluster — identity lives here, opposite the logo. The header
+            has always been justify-between; until now it had a single child,
+            so the split did nothing. */}
+        <div className="flex items-center gap-3">
+          <UserMenu />
         </div>
       </header>
 
