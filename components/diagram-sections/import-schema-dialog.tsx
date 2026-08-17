@@ -29,9 +29,15 @@ import {
 /* ─────────────────────────────────────────────────────────────────────────────
    Types
 ───────────────────────────────────────────────────────────────────────────── */
+/** Every tab the dialog can open on. Callers (the Import menu in TopNavbar)
+    pick one so a menu item lands the user straight on the right source. */
+export type ImportSchemaTab = "postgresql" | "sqlserver" | "csv" | "bacpac";
+
 interface ImportSchemaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Tab to show when the dialog opens. Defaults to PostgreSQL. */
+  defaultTab?: ImportSchemaTab;
 }
 
 type DbEngine = "postgresql" | "sqlserver";
@@ -801,7 +807,24 @@ function EngineBadge({ engine }: { engine: DbEngine }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    Main Dialog
 ───────────────────────────────────────────────────────────────────────────── */
-export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogProps) {
+export function ImportSchemaDialog({
+  open,
+  onOpenChange,
+  defaultTab = "postgresql",
+}: ImportSchemaDialogProps) {
+  // Controlled rather than `defaultValue` so reopening from a different menu
+  // item lands on that item's tab instead of whichever one was last viewed.
+  const [tab, setTab] = useState<ImportSchemaTab>(defaultTab);
+  const [wasOpen, setWasOpen] = useState(open);
+
+  // Adjust-state-during-render rather than an effect: resets the tab on each
+  // closed→open transition, so picking "Import from CSV" always lands on CSV
+  // even if the user last switched tabs by hand inside the dialog.
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setTab(defaultTab);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] bg-sidebar border-border text-foreground p-0 overflow-hidden flex flex-col max-h-[90vh]">
@@ -822,7 +845,7 @@ export function ImportSchemaDialog({ open, onOpenChange }: ImportSchemaDialogPro
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
-          <Tabs defaultValue="postgresql">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as ImportSchemaTab)}>
             <TabsList className="mb-5 h-9 w-full grid grid-cols-4 bg-background border border-border rounded-lg p-0.5">
               {(["postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
                 <TabsTrigger

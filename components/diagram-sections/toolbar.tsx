@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square, Table, Database, FolderInput } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square, Table } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +17,6 @@ import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
-import { ImportSchemaDialog } from "./import-schema-dialog";
 
 interface TabLauncherBarProps {
   readOnly?: boolean;
@@ -33,7 +31,6 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
   } = useViewStore();
   const { background, setBackground, snapToGrid, toggleSnapToGrid, addTable, addNote, addArea } =
     useCanvasStore();
-  const [showImportDialog, setShowImportDialog] = useState(false);
 
   return (
     <div className="h-12 border-b border-border bg-dock-header flex items-center justify-start px-3 gap-2">
@@ -157,17 +154,6 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
               <Square className="h-4 w-4" />
               Add Area
             </Button>
-
-            {/* Import Schema Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-white hover:text-white border-teal-500/50 bg-teal-500/10 hover:bg-teal-500/20 gap-2 ml-1 transition-colors"
-              onClick={() => setShowImportDialog(true)}
-            >
-              <FolderInput className="h-4 w-4 text-teal-400" />
-              Import
-            </Button>
           </>
         )}
       </div>
@@ -181,8 +167,6 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
 
       {/* Right side: optional area (future) */}
       <div className="w-[48px]" />
-      
-      <ImportSchemaDialog open={showImportDialog} onOpenChange={setShowImportDialog} />
     </div>
   );
 }

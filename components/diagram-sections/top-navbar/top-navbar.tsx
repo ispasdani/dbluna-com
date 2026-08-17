@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,6 +33,10 @@ import { InviteDialog } from "@/components/diagram-sections/top-navbar/invite-di
 import { HistoryDialog } from "@/components/diagram-sections/top-navbar/history-dialog";
 import { PresenceAvatars } from "@/components/diagram-sections/top-navbar/presence-avatars";
 import {
+  ImportSchemaDialog,
+  type ImportSchemaTab,
+} from "@/components/diagram-sections/import-schema-dialog";
+import {
   exportDiagramAsJson,
   exportDiagramAsDbml,
   exportDiagramAsSql,
@@ -56,6 +60,10 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [newDiagramName, setNewDiagramName] = useState("");
+  // Schema import (DB / CSV / BACPAC) — the tab is chosen by the Import menu
+  // item the user picked, so each item opens straight onto its own source.
+  const [isImportSchemaOpen, setIsImportSchemaOpen] = useState(false);
+  const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
 
@@ -168,6 +176,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
+
+  const handleImportSchemaClick = (tab: ImportSchemaTab) => {
+    setImportSchemaTab(tab);
+    setIsImportSchemaOpen(true);
+  };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -317,7 +330,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                   <span className="hidden sm:inline">Export</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+              {/* Width matches the Import menu beside it — see the note there
+                  on the inherited trigger-width clamp. */}
+              <DropdownMenuContent align="start" className="w-60">
                 <DropdownMenuItem onClick={handleExportJson} className="gap-2">
                   <FileText className="w-4 h-4" />
                   Export as JSON
@@ -331,7 +346,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                     <Database className="w-4 h-4" />
                     Export as SQL
                   </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
+                  <DropdownMenuSubContent className="min-w-40">
                     {SQL_DIALECTS.map((d) => (
                       <DropdownMenuItem key={d.value} onClick={() => handleExportSql(d.value)}>
                         {d.label}
@@ -349,10 +364,54 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           )}
 
           {!readOnly && (
-            <Button variant="ghost" size="sm" className="gap-2" onClick={handleImportClick}>
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Import</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  <span className="hidden sm:inline">Import</span>
+                </Button>
+              </DropdownMenuTrigger>
+              {/* Explicit width: DropdownMenuContent otherwise inherits
+                  w-(--radix-dropdown-menu-trigger-width), which clamps the menu
+                  to the narrow "Import" ghost button and wraps the labels. */}
+              <DropdownMenuContent align="start" className="w-60">
+                {/* Diagram-level: opens a dbluna export as a brand-new diagram. */}
+                <DropdownMenuItem onClick={handleImportClick} className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  Import from JSON
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {/* Canvas-level: appends tables/relationships to this diagram. */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <Database className="w-4 h-4" />
+                    Import from Database
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="min-w-40">
+                    <DropdownMenuItem onClick={() => handleImportSchemaClick("postgresql")}>
+                      PostgreSQL
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleImportSchemaClick("sqlserver")}>
+                      SQL Server
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuItem
+                  onClick={() => handleImportSchemaClick("csv")}
+                  className="gap-2"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Import from CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleImportSchemaClick("bacpac")}
+                  className="gap-2"
+                >
+                  <FileArchive className="w-4 h-4" />
+                  Import from BACPAC
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <input
             ref={fileInputRef}
@@ -413,6 +472,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
       <InviteDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} localId={activeDiagramId} />
       <HistoryDialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen} localId={activeDiagramId} />
+      <ImportSchemaDialog
+        open={isImportSchemaOpen}
+        onOpenChange={setIsImportSchemaOpen}
+        defaultTab={importSchemaTab}
+      />
     </>
   );
 }
