@@ -17,11 +17,11 @@ export function DockTabsHeader<T>({ tabs, renderTab }: Props<T>) {
   };
 
   return (
-    <div className="h-11 border-b border-border bg-dock-header px-2 flex items-center gap-2">
+    <div className="h-14 shrink-0 border-b border-border bg-dock-header px-2 flex items-center gap-2">
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-8 w-8 shrink-0"
         onClick={() => scrollBy(-180)}
       >
         <ChevronLeft className="h-4 w-4" />
@@ -29,7 +29,7 @@ export function DockTabsHeader<T>({ tabs, renderTab }: Props<T>) {
 
       <div
         ref={scrollerRef}
-        className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-none"
+        className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto overflow-y-hidden scrollbar-thin pt-1 pb-1"
       >
         {tabs.map(renderTab)}
       </div>
@@ -37,7 +37,7 @@ export function DockTabsHeader<T>({ tabs, renderTab }: Props<T>) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8"
+        className="h-8 w-8 shrink-0"
         onClick={() => scrollBy(180)}
       >
         <ChevronRight className="h-4 w-4" />

@@ -42,8 +42,8 @@ export function DraggableTabClient({
         setActiveTab(side, tabId);
       }}
     >
-      <GripVertical className="w-3 h-3 text-muted-foreground/50" />
-      <span className="select-none">{tab.label}</span>
+      <GripVertical className="w-3 h-3 shrink-0 text-muted-foreground/50" />
+      <span className="select-none truncate">{tab.label}</span>
 
       {isOpen && (
         <button
@@ -53,7 +53,7 @@ export function DraggableTabClient({
             closeTab(tabId, side);
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="w-4 h-4 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+          className="w-4 h-4 shrink-0 rounded-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
         >
           <X className="w-3 h-3" />
         </button>
