@@ -11,6 +11,7 @@ import {
   Link,
   StickyNote,
   Square,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const iconMap = {
   Link,
   StickyNote,
   Square,
+  Sparkles,
 };
 
 export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {

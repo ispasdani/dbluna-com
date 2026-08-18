@@ -51,7 +51,7 @@ export function UserMenu() {
             the guard for when the navbar gets reused somewhere public. Modal
             rather than a link to /sign-in, since no such page exists yet. */}
         <SignInButton mode="modal">
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" className="cursor-pointer">
             Sign in
           </Button>
         </SignInButton>

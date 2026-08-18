@@ -236,7 +236,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="gap-2 min-w-[180px] justify-between font-mono text-sm"
+                className="gap-2 min-w-[180px] justify-between font-mono text-sm cursor-pointer"
               >
                 <span className="truncate">{currentDiagramName}</span>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -268,7 +268,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           <Button
             variant={workspaceMode === "docs" ? "secondary" : "ghost"}
             size="sm"
-            className="gap-2"
+            className="gap-2 cursor-pointer"
             onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
           >
             <FileText className="w-4 h-4" />
@@ -278,7 +278,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2"
+            className="gap-2 cursor-pointer"
             onClick={() => setIsMyDiagramsOpen(true)}
           >
             <FolderOpen className="w-4 h-4" />
@@ -289,7 +289,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2"
+              className="gap-2 cursor-pointer"
               onClick={handleShareClick}
             >
               <Share2 className="w-4 h-4" />
@@ -301,7 +301,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2"
+              className="gap-2 cursor-pointer"
               onClick={handleInviteClick}
             >
               <UserPlus className="w-4 h-4" />
@@ -313,7 +313,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="gap-2"
+              className="gap-2 cursor-pointer"
               onClick={handleHistoryClick}
             >
               <History className="w-4 h-4" />
@@ -324,7 +324,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-2 cursor-pointer">
                   <Download className="w-4 h-4" />
                   <span className="hidden sm:inline">Export</span>
                 </Button>
@@ -365,7 +365,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           {!readOnly && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="gap-2 cursor-pointer">
                   <Upload className="w-4 h-4" />
                   <span className="hidden sm:inline">Import</span>
                 </Button>
@@ -421,7 +421,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           />
 
           {readOnly && (
-            <Button asChild size="sm" variant="outline" className="gap-2">
+            <Button asChild size="sm" variant="outline" className="gap-2 cursor-pointer">
               <Link href="/pricing">
                 <Sparkles className="w-4 h-4" />
                 <span className="hidden sm:inline">Upgrade to edit</span>
