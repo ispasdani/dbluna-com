@@ -42,7 +42,7 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="text-foreground hover:bg-panel-hover gap-2"
+              className="gap-2 cursor-pointer"
             >
               <Eye className="h-4 w-4" />
               View
@@ -127,7 +127,7 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="text-foreground hover:bg-panel-hover gap-2"
+              className="gap-2 cursor-pointer"
               onClick={addTable}
             >
               <Table className="h-4 w-4" />
@@ -137,7 +137,7 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="text-foreground hover:bg-panel-hover gap-2"
+              className="gap-2 cursor-pointer"
               onClick={addNote}
             >
               <StickyNote className="h-4 w-4" />
@@ -148,7 +148,7 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="text-foreground hover:bg-panel-hover gap-2"
+              className="gap-2 cursor-pointer"
               onClick={addArea}
             >
               <Square className="h-4 w-4" />
