@@ -20,10 +20,12 @@ import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
 import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
+import { OnboardingModal } from "@/components/diagram-general/onboarding-modal";
 import {
   CapabilitiesProvider,
   type DiagramCapabilities,
 } from "@/components/diagram-general/capabilities-context";
+import { useOnboardingStore, ONBOARDING_SEEN_KEY } from "@/store/useOnboardingStore";
 import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
 import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "@/lib/plan-limits";
 
@@ -81,6 +83,22 @@ export default function DiagramPage({ params }: PageProps) {
     setCodeReadOnly(!capabilities.canEditCode);
     return () => setCodeReadOnly(false);
   }, [capabilities.canEditCode, setCodeReadOnly]);
+
+  // Onboarding modal: auto-show once per browser, after the plan resolves so
+  // the right variant (Free vs Pro) renders. The TopNavbar help icon reopens
+  // it anytime regardless of this flag. See
+  // free-tier-code-only-editing-plan.md §8.
+  const openOnboarding = useOnboardingStore((s) => s.open);
+  useEffect(() => {
+    if (!planResolved) return;
+    try {
+      if (localStorage.getItem(ONBOARDING_SEEN_KEY)) return;
+      localStorage.setItem(ONBOARDING_SEEN_KEY, "1");
+      openOnboarding();
+    } catch {
+      // localStorage unavailable (private mode / blocked) — skip the auto-show.
+    }
+  }, [planResolved, openOnboarding]);
 
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
@@ -180,6 +198,7 @@ export default function DiagramPage({ params }: PageProps) {
 
         <UpgradeToast />
         <ConflictBanner />
+        <OnboardingModal />
       </div>
     </CapabilitiesProvider>
   );

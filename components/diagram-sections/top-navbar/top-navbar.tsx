@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -46,6 +46,7 @@ import {
 } from "@/lib/diagram-io";
 import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useCapabilities } from "@/components/diagram-general/capabilities-context";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
@@ -457,6 +458,15 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             has always been justify-between; until now it had a single child,
             so the split did nothing. */}
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 cursor-pointer"
+            onClick={() => useOnboardingStore.getState().open()}
+            title="How this works"
+          >
+            <CircleHelp className="w-4 h-4" />
+          </Button>
           {/* Collaborators first, you last — your own avatar anchors the far
               right, so the stack beside it reads as "other people". */}
           <PresenceAvatars cloudId={currentDiagramData.cloudId} />
