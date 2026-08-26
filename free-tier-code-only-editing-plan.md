@@ -385,3 +385,19 @@ directly, so the behavior doesn't silently depend on a dashboard setting nobody 
 - `/d/view` (anonymous share viewer): untouched, still fully read-only, unaffected by any of this.
 - Pro owner invites a Free-plan collaborator as "editor": collaborator can now actually save edits
   (Phase 0 fix), where today they'd hit a silent `CONFLICT`/error on save.
+
+## Manual deploy steps (not in the code diff)
+
+These can't be expressed as a code change and must be done by hand:
+
+1. **Clerk Dashboard — "after sign-up" redirect URL → `/d`** (§9a). The app's sign-up entry points
+   now link to `/d` (footer "Start building", pricing Free "Get started"), and `proxy.ts`'s
+   `auth.protect()` bounce carries a return URL, so sign-*in* already comes back to `/d`. Clerk's
+   hosted sign-*up* completion can still fall back to the dashboard-level default instead — set that
+   default to `/d` (Paths / "Redirect URLs" in the Clerk Dashboard for this application) so a
+   brand-new sign-up also lands in a freshly created diagram. There is no rendered `/sign-up` route
+   in this repo (Clerk-hosted Account Portal), so a `?redirect_url=` param on an in-app link has
+   nothing to attach to — the dashboard setting is the mechanism.
+2. **`npx convex run plans:seed`** after deploying the `convex/plans.ts` change (Phase 6) so the
+   stored Free-plan `features` row matches `lib/plan-limits.ts` (10 tables / 5 diagrams). Still
+   unread by any query today — accuracy only, sets up future server-side enforcement.

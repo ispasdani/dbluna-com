@@ -15,7 +15,7 @@ export const tiers = [
     yearly: 0,
     note: "View only. Browse and explore diagrams shared with you, and upgrade to create, edit, and export your own.",
     ctaText: "Get started",
-    ctaLink: "/w",
+    ctaLink: "/d",
     features: [
       "View diagrams shared with you",
       "Browse auto-generated documentation",

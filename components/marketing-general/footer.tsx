@@ -27,8 +27,11 @@ export const Footer = () => {
 
   const company = [
     {
+      // /sign-in isn't a rendered route (Clerk-hosted). /d bounces a
+      // logged-out visitor to Clerk sign-in and returns them to a diagram;
+      // a logged-in visitor lands straight in one.
       title: "Sign In",
-      href: "/sign-in",
+      href: "/d",
     },
     {
       title: "About",
@@ -66,7 +69,10 @@ export const Footer = () => {
           <SubHeading as="p" className="mt-4 max-w-lg text-left">
             Design, document, and share database schemas visually or in DBML
           </SubHeading>
-          <Button className="mt-4 mb-8 lg:mb-0" as={Link} href="/sign-up">
+          {/* /d is the real entry point: proxy.ts bounces a logged-out
+              visitor to Clerk sign-up/in and returns them here, where a
+              diagram is auto-created (see app/(diagram)/d/page.tsx). */}
+          <Button className="mt-4 mb-8 lg:mb-0" as={Link} href="/d">
             Start building
           </Button>
         </div>
