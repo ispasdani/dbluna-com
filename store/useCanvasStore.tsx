@@ -336,10 +336,10 @@ export const useCanvasStore = create<CanvasState>()(
         });
       },
       createDiagram: (name) => {
-        if (get().readOnly) {
-          useUpgradeToastStore.getState().trigger();
-          return "";
-        }
+        // Plan-agnostic on purpose — the diagram-count cap lives in the
+        // callers (they know the plan), so both tiers can create local
+        // diagrams up to their own limit. See
+        // free-tier-code-only-editing-plan.md §4.
         const newId = crypto.randomUUID();
         const trimmed = name.trim() || "Untitled diagram";
         set((s) => ({

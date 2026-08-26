@@ -68,7 +68,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
-  const { canUseDocsMode } = useCapabilities();
+  const { canUseDocsMode, diagramCap } = useCapabilities();
 
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
@@ -87,6 +87,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
   const currentDiagramName =
     (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) || "Untitled diagram";
+
+  // Diagram-count cap (Free only; diagramCap is null for Pro). The open
+  // diagram is always in the record, so this count includes it.
+  const diagramCount = Object.keys(canvasDiagrams).length;
+  const atDiagramCap = diagramCap != null && diagramCount >= diagramCap;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -204,7 +209,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   };
 
   const handleCreateNew = () => {
-    if (readOnly) {
+    // Free can create diagrams now (up to diagramCap) — only the cap blocks it,
+    // not the canvas-readOnly gate.
+    if (atDiagramCap) {
       useUpgradeToastStore.getState().trigger();
       return;
     }
@@ -214,6 +221,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
   const handleCreateSubmit = () => {
     if (!newDiagramName.trim()) return;
+    if (atDiagramCap) {
+      useUpgradeToastStore.getState().trigger();
+      setIsCreateOpen(false);
+      return;
+    }
     const newId = createDiagram(newDiagramName.trim());
     setIsCreateOpen(false);
     setNewDiagramName("");
@@ -245,15 +257,20 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-[220px]">
-              {!readOnly && (
-                <>
-                  <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Create new diagram
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
+              <DropdownMenuItem
+                onClick={handleCreateNew}
+                disabled={atDiagramCap}
+                className="gap-2"
+                title={
+                  atDiagramCap
+                    ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited`
+                    : undefined
+                }
+              >
+                <Plus className="w-4 h-4" />
+                Create new diagram
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {Object.entries(canvasDiagrams).map(([id, diagram]) => (
                 <DropdownMenuItem
                   key={id}
