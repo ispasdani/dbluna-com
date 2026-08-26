@@ -174,6 +174,13 @@ type CanvasState = {
   // security boundary — see that plan's "Hardening note".
   readOnly: boolean;
   setReadOnly: (v: boolean) => void;
+  // Separate kill-switch for the DBML Code tab's apply path (setTables /
+  // setEnums / setTableGroups / setProject / setRelationships). Free-plan users
+  // run with readOnly === true (canvas frozen) but codeReadOnly === false
+  // (Code-tab edits still commit). Both flip true together only for a
+  // lapsed-Pro cloud session. Set from app/(diagram)/d/[id]/page.tsx.
+  codeReadOnly: boolean;
+  setCodeReadOnly: (v: boolean) => void;
   activeDiagramId: string | null;
   diagrams: Record<string, DiagramData>;
   setDiagramId: (id: string) => void;
@@ -222,6 +229,9 @@ type CanvasState = {
   updateRelationship: (id: string, updates: Partial<Relationship>) => void;
   deleteRelationship: (id: string) => void;
   setTables: (tables: Table[]) => void;
+  // Bulk replace — used by the DBML Code tab's apply path when it reconstructs
+  // relationships from `Ref:` lines. Gated by codeReadOnly, not readOnly.
+  setRelationships: (relationships: Relationship[]) => void;
 
   // Documentation schema metadata (authored via the DBML code editor)
   enums: CanvasEnum[];
@@ -278,6 +288,8 @@ export const useCanvasStore = create<CanvasState>()(
       setHasHydrated: (v) => set({ hasHydrated: v }),
       readOnly: false,
       setReadOnly: (v) => set({ readOnly: v }),
+      codeReadOnly: false,
+      setCodeReadOnly: (v) => set({ codeReadOnly: v }),
       activeDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
@@ -701,11 +713,18 @@ export const useCanvasStore = create<CanvasState>()(
         }));
       },
       setTables: (tables) => {
-        if (get().readOnly) {
+        if (get().codeReadOnly) {
           useUpgradeToastStore.getState().trigger();
           return;
         }
         set({ tables });
+      },
+      setRelationships: (relationships) => {
+        if (get().codeReadOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
+        set({ relationships });
       },
 
       // Documentation schema metadata
@@ -713,21 +732,21 @@ export const useCanvasStore = create<CanvasState>()(
       tableGroups: [],
       project: null,
       setEnums: (enums) => {
-        if (get().readOnly) {
+        if (get().codeReadOnly) {
           useUpgradeToastStore.getState().trigger();
           return;
         }
         set({ enums });
       },
       setTableGroups: (tableGroups) => {
-        if (get().readOnly) {
+        if (get().codeReadOnly) {
           useUpgradeToastStore.getState().trigger();
           return;
         }
         set({ tableGroups });
       },
       setProject: (project) => {
-        if (get().readOnly) {
+        if (get().codeReadOnly) {
           useUpgradeToastStore.getState().trigger();
           return;
         }
@@ -930,8 +949,8 @@ export const useCanvasStore = create<CanvasState>()(
             lastSyncedAt: existing?.lastSyncedAt ?? null,
           };
         }
-        // savingStatus/hasHydrated/readOnly/cloudSyncStatus/cloudSyncErrorReason
-        // are intentionally NOT here — runtime-only.
+        // savingStatus/hasHydrated/readOnly/codeReadOnly/cloudSyncStatus/
+        // cloudSyncErrorReason are intentionally NOT here — runtime-only.
         return { diagrams: newDiagrams };
       },
     }

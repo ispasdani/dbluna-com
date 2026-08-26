@@ -1,12 +1,12 @@
 // app/(whatever)/diagram/page.tsx
 "use client";
 
-import { useRef, use } from "react";
+import { useRef, use, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useCanvasStore } from "@/store/useCanvasStore";
-import { useDockStore } from "@/store/useDockStore";
+import { useDockStore, TABS, type TabId } from "@/store/useDockStore";
 import { useViewStore } from "@/store/useViewStore";
 import { TopNavbar } from "@/components/diagram-sections/top-navbar/top-navbar";
 import { DockPanel } from "@/components/diagram-general/dock-panel";
@@ -20,11 +20,21 @@ import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
 import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
+import {
+  CapabilitiesProvider,
+  type DiagramCapabilities,
+} from "@/components/diagram-general/capabilities-context";
 import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
+import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "@/lib/plan-limits";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
+
+const ALL_TAB_IDS = TABS.map((t) => t.id) as TabId[];
+// Free plan sees only the DBML Code tab. Everything else is hidden, not just
+// disabled — see free-tier-code-only-editing-plan.md Goals.
+const FREE_TAB_IDS: TabId[] = ["code"];
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,13 +48,40 @@ export default function DiagramPage({ params }: PageProps) {
   useCloudAutoSave();
   usePresence(useCanvasStore((s) => s.diagrams[id]?.cloudId));
 
-  // Off while EDITING_GATE_ENABLED is false (default) — see lib/feature-flags.ts.
-  // While loading (or if the flag is off), default to "not pro" so a
-  // free-tier user is never briefly shown edit affordances before the real
-  // plan resolves.
+  // While EDITING_GATE_ENABLED is false, the whole plan gate is off and every
+  // signed-in user gets the full (Pro) capability set — same escape hatch the
+  // old `editingReadOnly` computation had. `getCurrentUserPlan` is undefined
+  // until it resolves; treat that (and pre-hydration) as "not Pro" so a Free
+  // user is never briefly shown Pro affordances. See
+  // free-tier-code-only-editing-plan.md §2.
   const planQuery = useQuery(api.users.getCurrentUserPlan);
+  const gateActive = EDITING_GATE_ENABLED;
+  const planResolved = planQuery !== undefined;
   const isPro = planQuery?.isPro ?? false;
-  const editingReadOnly = EDITING_GATE_ENABLED && !isPro;
+  const effectivePro = !gateActive || (planResolved && isPro);
+
+  const capabilities = useMemo<DiagramCapabilities>(
+    () => ({
+      isPro: effectivePro,
+      canEditCanvas: effectivePro,
+      // Both tiers may type in the Code tab and commit parsed DBML.
+      canEditCode: true,
+      tableCap: effectivePro ? null : FREE_MAX_TABLES_PER_DIAGRAM,
+      diagramCap: effectivePro ? null : FREE_MAX_DIAGRAMS,
+      visibleTabs: effectivePro ? ALL_TAB_IDS : FREE_TAB_IDS,
+      canUseDocsMode: effectivePro,
+    }),
+    [effectivePro]
+  );
+
+  // Mirror canEditCode into the store's Code-tab kill-switch. CanvasStage
+  // separately mirrors `readOnly` (canvas gestures) from its own prop below.
+  const setCodeReadOnly = useCanvasStore((s) => s.setCodeReadOnly);
+  useEffect(() => {
+    setCodeReadOnly(!capabilities.canEditCode);
+    return () => setCodeReadOnly(false);
+  }, [capabilities.canEditCode, setCodeReadOnly]);
+
   const { leftTabs, activeLeftTab } = useDockStore();
   const {
     isTopNavbarVisible,
@@ -88,55 +125,62 @@ export default function DiagramPage({ params }: PageProps) {
     );
   }
 
+  // Canvas mutation affordances (drag, Add Table/Note/Area, drag-to-connect)
+  // stay gated exactly as before — Free is still `true` here.
+  const canvasReadOnly = !capabilities.canEditCanvas;
+  const showDocs = workspaceMode === "docs" && capabilities.canUseDocsMode;
+
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
-      {isTopNavbarVisible && <TopNavbar readOnly={editingReadOnly} />}
-      <TabLauncherBar readOnly={editingReadOnly} />
+    <CapabilitiesProvider value={capabilities}>
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
+        {isTopNavbarVisible && <TopNavbar readOnly={canvasReadOnly} />}
+        <TabLauncherBar readOnly={canvasReadOnly} />
 
-      {/* Work area */}
-      <div className="relative flex-1 overflow-hidden w-full flex">
-        {workspaceMode === "diagram" && (
-          <>
-            {/* Canvas is ALWAYS full size (fixed) */}
-            <div className="absolute inset-0">
-              <CanvasStage diagramId={id} readOnly={editingReadOnly} />
-            </div>
-
-            {/* Left dock overlays the canvas */}
-            {isLeftDockVisible && (
-              <div
-                className="absolute inset-y-0 left-0 z-20 min-w-[260px] max-w-[720px]"
-                style={{ width: leftDockWidth }}
-              >
-                <div className="h-full bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-r">
-                  <DockPanel
-                    side="left"
-                    tabs={leftTabs}
-                    activeTab={activeLeftTab}
-                    readOnly={editingReadOnly}
-                  />
-                </div>
-
-                {/* Drag handle */}
-                <div
-                  className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
-                  onPointerDown={onHandlePointerDown}
-                  onPointerMove={onHandlePointerMove}
-                  onPointerUp={onHandlePointerUp}
-                  title="Resize"
-                >
-                  {/* optional visible grip */}
-                  <div className="mx-auto h-full w-[1px] bg-border/70" />
-                </div>
+        {/* Work area */}
+        <div className="relative flex-1 overflow-hidden w-full flex">
+          {!showDocs && (
+            <>
+              {/* Canvas is ALWAYS full size (fixed) */}
+              <div className="absolute inset-0">
+                <CanvasStage diagramId={id} readOnly={canvasReadOnly} />
               </div>
-            )}
-          </>
-        )}
-        {workspaceMode === "docs" && <DocsLayout readOnly={editingReadOnly} />}
-      </div>
 
-      <UpgradeToast />
-      <ConflictBanner />
-    </div>
+              {/* Left dock overlays the canvas */}
+              {isLeftDockVisible && (
+                <div
+                  className="absolute inset-y-0 left-0 z-20 min-w-[260px] max-w-[720px]"
+                  style={{ width: leftDockWidth }}
+                >
+                  <div className="h-full bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-r">
+                    <DockPanel
+                      side="left"
+                      tabs={leftTabs}
+                      activeTab={activeLeftTab}
+                      readOnly={canvasReadOnly}
+                    />
+                  </div>
+
+                  {/* Drag handle */}
+                  <div
+                    className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
+                    onPointerDown={onHandlePointerDown}
+                    onPointerMove={onHandlePointerMove}
+                    onPointerUp={onHandlePointerUp}
+                    title="Resize"
+                  >
+                    {/* optional visible grip */}
+                    <div className="mx-auto h-full w-[1px] bg-border/70" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          {showDocs && <DocsLayout readOnly={canvasReadOnly} />}
+        </div>
+
+        <UpgradeToast />
+        <ConflictBanner />
+      </div>
+    </CapabilitiesProvider>
   );
 }

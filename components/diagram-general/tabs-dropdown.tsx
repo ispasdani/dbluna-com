@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { TABS, useDockStore } from "@/store/useDockStore";
+import { useCapabilities } from "./capabilities-context";
 
 const iconMap = {
   Code,
@@ -39,10 +40,16 @@ const iconMap = {
 
 export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
   const { leftTabs, rightTabs, openTab } = useDockStore();
+  const { visibleTabs } = useCapabilities();
 
   const openSet = useMemo(
     () => new Set([...leftTabs, ...rightTabs]),
     [leftTabs, rightTabs]
+  );
+
+  const tabs = useMemo(
+    () => TABS.filter((t) => visibleTabs.includes(t.id)),
+    [visibleTabs]
   );
 
   return (
@@ -59,7 +66,7 @@ export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
           Open a tab
         </DropdownMenuLabel>
 
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = iconMap[tab.icon as keyof typeof iconMap];
           const isOpen = openSet.has(tab.id);
 

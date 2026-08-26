@@ -46,6 +46,7 @@ import {
 } from "@/lib/diagram-io";
 import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useCapabilities } from "@/components/diagram-general/capabilities-context";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 interface TopNavbarProps {
@@ -67,6 +68,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
+  const { canUseDocsMode } = useCapabilities();
 
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
@@ -265,15 +267,17 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant={workspaceMode === "docs" ? "secondary" : "ghost"}
-            size="sm"
-            className="gap-2 cursor-pointer"
-            onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
-          >
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">DBML Docs</span>
-          </Button>
+          {canUseDocsMode && (
+            <Button
+              variant={workspaceMode === "docs" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-2 cursor-pointer"
+              onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">DBML Docs</span>
+            </Button>
+          )}
 
           <Button
             variant="ghost"

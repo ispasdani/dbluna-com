@@ -76,8 +76,10 @@ async function doPush() {
 
   if (result.reason === "not-pro") {
     // Pro lapsed mid-session — reuse the exact read-only guard + toast the
-    // paid-editing gate already built, rather than inventing new UI.
+    // paid-editing gate already built, rather than inventing new UI. Freeze
+    // both surfaces: a lapsed Pro is not a Free user (no Code-tab carve-out).
     useCanvasStore.getState().setReadOnly(true);
+    useCanvasStore.getState().setCodeReadOnly(true);
     useUpgradeToastStore.getState().trigger();
   }
 

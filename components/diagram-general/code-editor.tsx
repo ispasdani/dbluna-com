@@ -12,7 +12,12 @@ import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
-import { parseDbml, parsedTablesToCanvasTables, parsedToCanvasSchemaMeta } from "@/lib/parser/dsl-parser";
+import {
+  parseDbml,
+  parsedTablesToCanvasTables,
+  parsedToCanvasSchemaMeta,
+  parsedRefsToCanvasRelationships,
+} from "@/lib/parser/dsl-parser";
 import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
@@ -39,6 +44,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     tableGroups,
     project,
     setTables,
+    setRelationships,
     setEnums,
     setTableGroups,
     setProject,
@@ -158,6 +164,16 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         originY: worldCenterY,
       });
 
+      // Relationships authored as `Ref:` lines, resolved against the tables we
+      // just parsed (so ids line up) and matched to existing relationships by
+      // endpoint so ids/manual names survive the round-trip.
+      const currentRelationships = useCanvasStore.getState().relationships;
+      const newRelationships = parsedRefsToCanvasRelationships(
+        parsed.refs,
+        newTables,
+        currentRelationships
+      );
+
       // Documentation metadata authored in the editor (enums, table groups,
       // project note) is stored on the canvas so it persists and re-generates.
       const meta = parsedToCanvasSchemaMeta(parsed);
@@ -166,6 +182,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       // doesn't immediately overwrite the editor on the next render.
       isTypingRef.current = false;
       setTables(newTables);
+      setRelationships(newRelationships);
       setEnums(meta.enums);
       setTableGroups(meta.tableGroups);
       setProject(meta.project);
@@ -173,7 +190,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }
-  }, [debouncedCode, setTables, setEnums, setTableGroups, setProject, language]);
+  }, [debouncedCode, setTables, setRelationships, setEnums, setTableGroups, setProject, language]);
 
   const handleChange = useCallback((val: string) => {
     if (readOnly) return;
