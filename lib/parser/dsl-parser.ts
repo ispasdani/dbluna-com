@@ -1,6 +1,7 @@
 import { Parser } from "@dbml/core";
 import type {
   Table,
+  Relationship,
   CanvasEnum,
   CanvasTableGroup,
   CanvasProject,
@@ -55,12 +56,28 @@ export interface ParsedProject {
   databaseType?: string;
 }
 
+export interface ParsedRefEndpoint {
+  tableName: string;
+  schemaName?: string | null;
+  fieldNames: string[];
+  // "1" (one) or "*" (many) — the cardinality marker on this side of the Ref.
+  relation: "1" | "*";
+}
+
+export interface ParsedRef {
+  name: string | null;
+  onDelete?: string;
+  onUpdate?: string;
+  endpoints: ParsedRefEndpoint[];
+}
+
 export interface ParsedDbmlResult {
   raw: any; // the full database AST from @dbml/core
   project: ParsedProject | null;
   tables: ParsedTable[];
   enums: ParsedEnum[];
   tableGroups: ParsedTableGroup[];
+  refs: ParsedRef[];
 }
 
 // ─────────────────────────────────────────────────────
@@ -137,15 +154,55 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
       });
     }
 
+    // ── Refs / relationships (flattened across all schemas) ───
+    const refs: ParsedRef[] = [];
+    if (database.schemas) {
+      database.schemas.forEach((schema: any) => {
+        if (schema.refs) {
+          schema.refs.forEach((r: any) => {
+            const endpoints: ParsedRefEndpoint[] = (r.endpoints || []).map((e: any) => ({
+              tableName: e.tableName ?? e.fields?.[0]?.table?.name,
+              schemaName: e.schemaName ?? e.fields?.[0]?.table?.schema?.name ?? null,
+              fieldNames:
+                e.fieldNames && e.fieldNames.length
+                  ? e.fieldNames
+                  : (e.fields || []).map((f: any) => f?.name).filter(Boolean),
+              relation: e.relation === "*" ? "*" : "1",
+            }));
+            if (endpoints.length === 2 && endpoints.every((ep) => ep.tableName && ep.fieldNames.length)) {
+              refs.push({
+                name: r.name ?? null,
+                onDelete: r.onDelete ?? undefined,
+                onUpdate: r.onUpdate ?? undefined,
+                endpoints,
+              });
+            }
+          });
+        }
+      });
+    }
+
     return {
       raw: database,
       project,
       tables,
       enums,
       tableGroups,
+      refs,
     };
   } catch (error) {
-    console.error("Failed to parse DBML:", error);
+    // A syntax error here is expected: while the user types in the Code tab the
+    // DBML is transiently invalid on almost every keystroke. @dbml/core throws a
+    // `CompilerError` (carrying a `diags` array) for those, and the CodeMirror
+    // linter already surfaces them in the editor gutter — so swallow them
+    // silently. Never use `console.error`: Next.js's dev overlay promotes it to
+    // a full-screen "Console Error" popup. Only warn on genuinely unexpected
+    // failures (e.g. a bug in our own AST walking above).
+    const isSyntaxError =
+      error != null && typeof error === "object" && "diags" in error;
+    if (!isSyntaxError) {
+      console.warn("Unexpected error while parsing DBML:", error);
+    }
     return null;
   }
 };
@@ -222,6 +279,91 @@ export const parsedTablesToCanvasTables = (
       columns,
     };
   });
+};
+
+// ─────────────────────────────────────────────────────
+//  Parsed refs → Canvas relationships
+// ─────────────────────────────────────────────────────
+
+const qualifiedNameFromParts = (tableName: string, schemaName?: string | null): string =>
+  schemaName && schemaName !== DEFAULT_PARSE_SCHEMA ? `${schemaName}.${tableName}` : tableName;
+
+const REF_ACTION_MAP: Record<string, Relationship["onDelete"]> = {
+  cascade: "Cascade",
+  restrict: "Restrict",
+  "set null": "Set null",
+  "set default": "Set default",
+  "no action": "No action",
+};
+
+const mapRefAction = (value?: string): Relationship["onDelete"] =>
+  REF_ACTION_MAP[(value ?? "").toLowerCase()] ?? "No action";
+
+const relKey = (r: Pick<Relationship, "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId">) =>
+  `${r.sourceTableId}:${r.sourceColumnId}->${r.targetTableId}:${r.targetColumnId}`;
+
+/**
+ * Maps parsed DBML `Ref:` lines onto canvas `Relationship[]`, resolving each
+ * endpoint's table/column against `canvasTables` (which must already be the
+ * freshly-parsed set, so ids line up). Existing relationships are matched by
+ * their four endpoint ids so ids and manual names survive a round-trip; refs
+ * that don't resolve to real columns are dropped (the linter surfaces the
+ * underlying DBML error separately).
+ */
+export const parsedRefsToCanvasRelationships = (
+  parsedRefs: ParsedRef[],
+  canvasTables: Table[],
+  existingRelationships: Relationship[]
+): Relationship[] => {
+  const tablesByName = new Map(canvasTables.map((t) => [t.name, t]));
+  const existingByKey = new Map(existingRelationships.map((r) => [relKey(r), r]));
+
+  const resolve = (ep: ParsedRefEndpoint) => {
+    const table = tablesByName.get(qualifiedNameFromParts(ep.tableName, ep.schemaName));
+    if (!table) return null;
+    const column = table.columns.find((c) => c.name === ep.fieldNames[0]);
+    if (!column) return null;
+    return { tableId: table.id, columnId: column.id };
+  };
+
+  const out: Relationship[] = [];
+  const seen = new Set<string>();
+
+  for (const ref of parsedRefs) {
+    const [srcEp, tgtEp] = ref.endpoints;
+    const src = resolve(srcEp);
+    const tgt = resolve(tgtEp);
+    if (!src || !tgt) continue;
+
+    const endpointIds = {
+      sourceTableId: src.tableId,
+      sourceColumnId: src.columnId,
+      targetTableId: tgt.tableId,
+      targetColumnId: tgt.columnId,
+    };
+    const key = relKey(endpointIds);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    // "*" on the source side + "1" on the target = "One to many"; the mirror
+    // is "Many to one"; "1"/"1" is "One to one". "*"/"*" has no canvas
+    // equivalent — fall back to "One to many".
+    let cardinality: Relationship["cardinality"] = "One to many";
+    if (srcEp.relation === "1" && tgtEp.relation === "*") cardinality = "Many to one";
+    else if (srcEp.relation === "1" && tgtEp.relation === "1") cardinality = "One to one";
+
+    const existing = existingByKey.get(key);
+    out.push({
+      id: existing?.id ?? crypto.randomUUID(),
+      name: ref.name ?? existing?.name ?? "",
+      ...endpointIds,
+      cardinality,
+      onUpdate: mapRefAction(ref.onUpdate),
+      onDelete: mapRefAction(ref.onDelete),
+    });
+  }
+
+  return out;
 };
 
 export interface CanvasSchemaMeta {

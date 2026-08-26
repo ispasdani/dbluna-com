@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -46,6 +46,8 @@ import {
 } from "@/lib/diagram-io";
 import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useOnboardingStore } from "@/store/useOnboardingStore";
+import { useCapabilities } from "@/components/diagram-general/capabilities-context";
 import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 
 interface TopNavbarProps {
@@ -67,6 +69,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
+  const { canUseDocsMode, diagramCap } = useCapabilities();
 
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
@@ -85,6 +88,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
   const currentDiagramName =
     (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) || "Untitled diagram";
+
+  // Diagram-count cap (Free only; diagramCap is null for Pro). The open
+  // diagram is always in the record, so this count includes it.
+  const diagramCount = Object.keys(canvasDiagrams).length;
+  const atDiagramCap = diagramCap != null && diagramCount >= diagramCap;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -202,7 +210,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   };
 
   const handleCreateNew = () => {
-    if (readOnly) {
+    // Free can create diagrams now (up to diagramCap) — only the cap blocks it,
+    // not the canvas-readOnly gate.
+    if (atDiagramCap) {
       useUpgradeToastStore.getState().trigger();
       return;
     }
@@ -212,6 +222,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
   const handleCreateSubmit = () => {
     if (!newDiagramName.trim()) return;
+    if (atDiagramCap) {
+      useUpgradeToastStore.getState().trigger();
+      setIsCreateOpen(false);
+      return;
+    }
     const newId = createDiagram(newDiagramName.trim());
     setIsCreateOpen(false);
     setNewDiagramName("");
@@ -243,15 +258,20 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-[220px]">
-              {!readOnly && (
-                <>
-                  <DropdownMenuItem onClick={handleCreateNew} className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Create new diagram
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
+              <DropdownMenuItem
+                onClick={handleCreateNew}
+                disabled={atDiagramCap}
+                className="gap-2"
+                title={
+                  atDiagramCap
+                    ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited`
+                    : undefined
+                }
+              >
+                <Plus className="w-4 h-4" />
+                Create new diagram
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {Object.entries(canvasDiagrams).map(([id, diagram]) => (
                 <DropdownMenuItem
                   key={id}
@@ -265,15 +285,17 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
-            variant={workspaceMode === "docs" ? "secondary" : "ghost"}
-            size="sm"
-            className="gap-2 cursor-pointer"
-            onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
-          >
-            <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">DBML Docs</span>
-          </Button>
+          {canUseDocsMode && (
+            <Button
+              variant={workspaceMode === "docs" ? "secondary" : "ghost"}
+              size="sm"
+              className="gap-2 cursor-pointer"
+              onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
+            >
+              <FileText className="w-4 h-4" />
+              <span className="hidden sm:inline">DBML Docs</span>
+            </Button>
+          )}
 
           <Button
             variant="ghost"
@@ -436,6 +458,15 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             has always been justify-between; until now it had a single child,
             so the split did nothing. */}
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 cursor-pointer"
+            onClick={() => useOnboardingStore.getState().open()}
+            title="How this works"
+          >
+            <CircleHelp className="w-4 h-4" />
+          </Button>
           {/* Collaborators first, you last — your own avatar anchors the far
               right, so the stack beside it reads as "other people". */}
           <PresenceAvatars cloudId={currentDiagramData.cloudId} />

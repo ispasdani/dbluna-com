@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS } from "@/store/useDockStore";
+import { useCapabilities } from "./capabilities-context";
 import { DockTabsHeader } from "./dock-tabs-header";
 import { TablesPanel } from "./tables-panel";
 import { NotesPanel } from "./notes-panel";
@@ -35,11 +36,23 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
       data: { side },
     });
 
-    const activeTabInfo = TABS.find((t) => t.id === activeTab);
-    const openSet = new Set(tabs);
+    const { visibleTabs, canEditCode } = useCapabilities();
+
+    // Render-time gate only: the dock store still tracks open/closed/side for
+    // every tab (so drag/drop and persistence are untouched), but a tab the
+    // current plan can't see is never rendered. See
+    // free-tier-code-only-editing-plan.md §2.
+    const filteredTabs = tabs.filter((t) => visibleTabs.includes(t));
+    const effectiveActiveTab =
+      activeTab && filteredTabs.includes(activeTab)
+        ? activeTab
+        : (filteredTabs[0] ?? null);
+
+    const activeTabInfo = TABS.find((t) => t.id === effectiveActiveTab);
+    const openSet = new Set(filteredTabs);
 
     // Header shows tabs docked on this side
-    const headerTabIds: TabId[] = tabs;
+    const headerTabIds: TabId[] = filteredTabs;
 
     return (
       <div
@@ -61,7 +74,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <DraggableTab
               key={tabId}
               tabId={tabId}
-              isActive={tabId === activeTab}
+              isActive={tabId === effectiveActiveTab}
               side={side}
               isOpen={openSet.has(tabId)}
             />
@@ -70,21 +83,21 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
 
         {/* Tab Content */}
         <div className="flex-1 min-h-0 p-4 overflow-auto">
-          {activeTab === "tables" ? (
+          {effectiveActiveTab === "tables" ? (
             <TablesPanel />
-          ) : activeTab === "relationships" ? (
+          ) : effectiveActiveTab === "relationships" ? (
             <RelationshipsPanel />
-          ) : activeTab === "notes" ? (
+          ) : effectiveActiveTab === "notes" ? (
             <NotesPanel />
-          ) : activeTab === "areas" ? (
+          ) : effectiveActiveTab === "areas" ? (
             <AreasPanel />
-          ) : activeTab === "code" ? (
-            <CodeEditor readOnly={readOnly} />
-          ) : activeTab === "issues" ? (
+          ) : effectiveActiveTab === "code" ? (
+            <CodeEditor readOnly={!canEditCode} />
+          ) : effectiveActiveTab === "issues" ? (
             <IssuesPanel />
-          ) : activeTab === "templates" ? (
+          ) : effectiveActiveTab === "templates" ? (
             <TemplatesPanel />
-          ) : activeTab === "ai-chat" ? (
+          ) : effectiveActiveTab === "ai-chat" ? (
             <AiChatPanel readOnly={readOnly} />
           ) : activeTabInfo ? (
             <div className="animate-fade-in">

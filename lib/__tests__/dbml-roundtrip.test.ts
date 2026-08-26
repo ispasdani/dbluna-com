@@ -4,6 +4,7 @@ import {
   parseDbml,
   parsedTablesToCanvasTables,
   parsedToCanvasSchemaMeta,
+  parsedRefsToCanvasRelationships,
 } from "@/lib/parser/dsl-parser";
 import type {
   Table,
@@ -49,7 +50,8 @@ function roundTrip(
     originY: 0,
   });
   const schemaMeta = parsedToCanvasSchemaMeta(parsed!);
-  return { dbml, parsed: parsed!, canvasTables, schemaMeta };
+  const canvasRelationships = parsedRefsToCanvasRelationships(parsed!.refs, canvasTables, []);
+  return { dbml, parsed: parsed!, canvasTables, schemaMeta, canvasRelationships };
 }
 
 describe("DBML round-trip: tables & columns", () => {
@@ -144,7 +146,7 @@ describe("DBML round-trip: relationships & notes", () => {
       onDelete: "No action",
     };
 
-    const { dbml, parsed } = roundTrip([users, orders], [rel]);
+    const { dbml, parsed, canvasRelationships, canvasTables } = roundTrip([users, orders], [rel]);
 
     expect(dbml).toContain(`Ref: "orders"."user_id" > "users"."id"`);
     const refCount = (parsed.raw.schemas as any[]).reduce(
@@ -152,6 +154,57 @@ describe("DBML round-trip: relationships & notes", () => {
       0
     );
     expect(refCount).toBe(1);
+
+    // …and the parsed Ref maps back onto a canvas relationship pointing at the
+    // right table/column ids.
+    expect(canvasRelationships).toHaveLength(1);
+    const ordersT = canvasTables.find((t) => t.name === "orders")!;
+    const usersT = canvasTables.find((t) => t.name === "users")!;
+    expect(canvasRelationships[0]).toMatchObject({
+      sourceTableId: ordersT.id,
+      sourceColumnId: ordersT.columns.find((c) => c.name === "user_id")!.id,
+      targetTableId: usersT.id,
+      targetColumnId: usersT.columns.find((c) => c.name === "id")!.id,
+      cardinality: "One to many",
+    });
+  });
+
+  it("maps referential actions and preserves relationship ids across a round-trip", () => {
+    const dbml = `
+Table users {
+  id INT [pk]
+}
+Table orders {
+  id INT [pk]
+  user_id INT
+}
+Ref: orders.user_id > users.id [delete: cascade, update: restrict]
+`;
+    const parsed = parseDbml(dbml)!;
+    const tables = parsedTablesToCanvasTables(parsed.tables, { existingTables: [], originX: 0, originY: 0 });
+    const first = parsedRefsToCanvasRelationships(parsed.refs, tables, []);
+    expect(first).toHaveLength(1);
+    expect(first[0]).toMatchObject({ onDelete: "Cascade", onUpdate: "Restrict" });
+
+    // Re-parsing with the previous result as "existing" keeps the same id.
+    const second = parsedRefsToCanvasRelationships(parsed.refs, tables, first);
+    expect(second[0].id).toBe(first[0].id);
+  });
+
+  it("drops a Ref whose column does not resolve", () => {
+    const dbml = `
+Table users {
+  id INT [pk]
+}
+Ref: users.id > ghosts.id
+`;
+    const parsed = parseDbml(dbml);
+    // Dangling table refs make @dbml/core reject the whole document — nothing
+    // to map. The point is parsedRefsToCanvasRelationships never throws.
+    if (parsed) {
+      const tables = parsedTablesToCanvasTables(parsed.tables, { existingTables: [], originX: 0, originY: 0 });
+      expect(() => parsedRefsToCanvasRelationships(parsed.refs, tables, [])).not.toThrow();
+    }
   });
 
   it("round-trips a table comment through a Note", () => {

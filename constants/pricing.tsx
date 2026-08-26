@@ -1,5 +1,6 @@
 import { CheckIcon } from "@/components/uiJsxAssets/check-icon";
 import { CloseIcon } from "@/components/uiJsxAssets/close-icon";
+import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "@/lib/plan-limits";
 
 export enum TierName {
   TIER_1 = "Free",
@@ -10,17 +11,17 @@ export enum TierName {
 export const tiers = [
   {
     title: TierName.TIER_1,
-    subtitle: "For viewing shared work",
+    subtitle: "For solo drafting in code",
     monthly: 0,
     yearly: 0,
-    note: "View only. Browse and explore diagrams shared with you, and upgrade to create, edit, and export your own.",
+    note: `Create up to ${FREE_MAX_DIAGRAMS} diagrams and edit their schema in the DBML code editor. Upgrade for the full visual canvas, imports, and cloud sync.`,
     ctaText: "Get started",
-    ctaLink: "/w",
+    ctaLink: "/d",
     features: [
-      "View diagrams shared with you",
-      "Browse auto-generated documentation",
+      `Up to ${FREE_MAX_DIAGRAMS} diagrams, ${FREE_MAX_TABLES_PER_DIAGRAM} tables each`,
+      "Edit tables, columns & relationships in the DBML code editor",
+      "View-only visual canvas",
       "Open no-account share links",
-      "Read-only canvas & DBML view",
       "Community support",
     ],
   },
@@ -69,7 +70,7 @@ export const pricingTable = [
   {
     title: "Diagrams",
     tiers: [
-      { title: TierName.TIER_1, value: "View only" },
+      { title: TierName.TIER_1, value: `Up to ${FREE_MAX_DIAGRAMS}` },
       { title: TierName.TIER_2, value: "Unlimited" },
       { title: TierName.TIER_3, value: "Unlimited" },
     ],
@@ -77,7 +78,7 @@ export const pricingTable = [
   {
     title: "Tables per diagram",
     tiers: [
-      { title: TierName.TIER_1, value: "20" },
+      { title: TierName.TIER_1, value: String(FREE_MAX_TABLES_PER_DIAGRAM) },
       { title: TierName.TIER_2, value: "Unlimited" },
       { title: TierName.TIER_3, value: "Unlimited" },
     ],
@@ -237,7 +238,7 @@ export const pricingTable = [
   {
     title: "Schema validation",
     tiers: [
-      { title: TierName.TIER_1, value: "Basic" },
+      { title: TierName.TIER_1, value: "—" },
       { title: TierName.TIER_2, value: "Advanced" },
       { title: TierName.TIER_3, value: "Advanced" },
     ],
@@ -245,7 +246,7 @@ export const pricingTable = [
   {
     title: "Templates",
     tiers: [
-      { title: TierName.TIER_1, value: "Basic" },
+      { title: TierName.TIER_1, value: "—" },
       { title: TierName.TIER_2, value: "Full library" },
       { title: TierName.TIER_3, value: "Full library + Custom" },
     ],

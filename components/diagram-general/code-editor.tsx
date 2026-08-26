@@ -12,9 +12,15 @@ import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
-import { parseDbml, parsedTablesToCanvasTables, parsedToCanvasSchemaMeta } from "@/lib/parser/dsl-parser";
+import {
+  parseDbml,
+  parsedTablesToCanvasTables,
+  parsedToCanvasSchemaMeta,
+  parsedRefsToCanvasRelationships,
+} from "@/lib/parser/dsl-parser";
 import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useCapabilities } from "./capabilities-context";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -39,13 +45,19 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     tableGroups,
     project,
     setTables,
+    setRelationships,
     setEnums,
     setTableGroups,
     setProject,
   } = useCanvasStore();
+  const { tableCap } = useCapabilities();
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState<EditorLanguage>("dbml");
   const [copied, setCopied] = useState(false);
+  // Set when a parsed edit would push the table count past the plan cap — the
+  // edit is not committed to the store, but the typed text is kept so nothing
+  // is lost. See free-tier-code-only-editing-plan.md §3.
+  const [capError, setCapError] = useState<string | null>(null);
 
   const debouncedCode = useDebounce(code, 400);
   const isTypingRef = useRef(false);
@@ -124,9 +136,25 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       return;
     }
 
+    // Block an edit that would push the table count over the plan cap, unless
+    // it's already over (grandfathered / downgraded) and this edit doesn't add
+    // more — so a capped user can still fix columns and delete tables to get
+    // back under, just not add new ones.
+    const overCap = (proposedCount: number) => {
+      const current = useCanvasStore.getState().tables.length;
+      return tableCap != null && proposedCount > tableCap && proposedCount > current;
+    };
+
     try {
       if (language === "json") {
         const newTables = jsonToTables(debouncedCode);
+        if (overCap(newTables.length)) {
+          setCapError(
+            `The Free plan is capped at ${tableCap} tables per diagram. This schema defines ${newTables.length} — remove some or upgrade to Pro.`
+          );
+          return;
+        }
+        setCapError(null);
         isTypingRef.current = false;
         setTables(newTables);
         return;
@@ -141,6 +169,14 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       // linter surfaces the errors, so we keep the editor authoritative.
       const parsed = parseDbml(debouncedCode);
       if (!parsed) return;
+
+      if (overCap(parsed.tables.length)) {
+        setCapError(
+          `The Free plan is capped at ${tableCap} tables per diagram. This DBML defines ${parsed.tables.length} — remove some tables or upgrade to Pro.`
+        );
+        return;
+      }
+      setCapError(null);
 
       // Read tables fresh from the store (not stale closure) to get current positions
       const currentTables = useCanvasStore.getState().tables;
@@ -158,6 +194,16 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         originY: worldCenterY,
       });
 
+      // Relationships authored as `Ref:` lines, resolved against the tables we
+      // just parsed (so ids line up) and matched to existing relationships by
+      // endpoint so ids/manual names survive the round-trip.
+      const currentRelationships = useCanvasStore.getState().relationships;
+      const newRelationships = parsedRefsToCanvasRelationships(
+        parsed.refs,
+        newTables,
+        currentRelationships
+      );
+
       // Documentation metadata authored in the editor (enums, table groups,
       // project note) is stored on the canvas so it persists and re-generates.
       const meta = parsedToCanvasSchemaMeta(parsed);
@@ -166,6 +212,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       // doesn't immediately overwrite the editor on the next render.
       isTypingRef.current = false;
       setTables(newTables);
+      setRelationships(newRelationships);
       setEnums(meta.enums);
       setTableGroups(meta.tableGroups);
       setProject(meta.project);
@@ -173,7 +220,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }
-  }, [debouncedCode, setTables, setEnums, setTableGroups, setProject, language]);
+  }, [debouncedCode, setTables, setRelationships, setEnums, setTableGroups, setProject, language, tableCap]);
 
   const handleChange = useCallback((val: string) => {
     if (readOnly) return;
@@ -264,6 +311,15 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
           )}
         </div>
       </div>
+
+      {capError && (
+        <div
+          role="alert"
+          className="flex-none px-3 py-2 text-xs leading-relaxed border-b border-destructive/40 bg-destructive/10 text-destructive"
+        >
+          {capError}
+        </div>
+      )}
 
       {/* Editor */}
       <div className="flex-1 overflow-auto relative">

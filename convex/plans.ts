@@ -1,5 +1,8 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+// Shared with the client-side enforcement + marketing copy so the seeded
+// Free-plan metadata can't drift from what's actually enforced (gap #3).
+import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "../lib/plan-limits";
 
 export const getBySlug = internalQuery({
   args: { slug: v.string() },
@@ -24,8 +27,8 @@ export const seed = internalMutation({
         slug: "free",
         name: "FREE",
         features: {
-          diagramLimit: 5,
-          tablesPerDiagram: 20,
+          diagramLimit: FREE_MAX_DIAGRAMS,
+          tablesPerDiagram: FREE_MAX_TABLES_PER_DIAGRAM,
           collaborators: 0,
         },
       },
