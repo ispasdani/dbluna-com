@@ -132,12 +132,22 @@ export async function requireProDiagramViewer(
   return { ...result, plan };
 }
 
+// Unlike requireProDiagramViewer, this gates on the *diagram owner's* plan, not
+// the requesting collaborator's — the diagram is entitled by whoever owns it
+// (the same way Figma/Notion/Linear scope billing to the file/workspace owner),
+// which is what makes the invite dialog's "editor"/"admin" roles actually work
+// for a Free-plan collaborator on a Pro owner's diagram. See
+// free-tier-code-only-editing-plan.md §7. Consequence: if an owner's Pro lapses,
+// every collaborator (owner included) loses edit rights on that diagram until
+// it's renewed.
 export async function requireProDiagramEditor(
   ctx: MutationCtx | QueryCtx,
   diagramId: Id<"diagrams">
 ) {
   const result = await requireDiagramEditor(ctx, diagramId);
-  const plan = result.user.planId ? await ctx.db.get(result.user.planId) : null;
-  requirePro(result.user, plan);
+  const owner = await ctx.db.get(result.diagram.ownerId);
+  if (!owner) throw new ConvexError("Diagram owner not found.");
+  const plan = owner.planId ? await ctx.db.get(owner.planId) : null;
+  requirePro(owner, plan);
   return { ...result, plan };
 }
