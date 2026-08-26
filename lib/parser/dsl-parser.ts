@@ -191,7 +191,18 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
       refs,
     };
   } catch (error) {
-    console.error("Failed to parse DBML:", error);
+    // A syntax error here is expected: while the user types in the Code tab the
+    // DBML is transiently invalid on almost every keystroke. @dbml/core throws a
+    // `CompilerError` (carrying a `diags` array) for those, and the CodeMirror
+    // linter already surfaces them in the editor gutter — so swallow them
+    // silently. Never use `console.error`: Next.js's dev overlay promotes it to
+    // a full-screen "Console Error" popup. Only warn on genuinely unexpected
+    // failures (e.g. a bug in our own AST walking above).
+    const isSyntaxError =
+      error != null && typeof error === "object" && "diags" in error;
+    if (!isSyntaxError) {
+      console.warn("Unexpected error while parsing DBML:", error);
+    }
     return null;
   }
 };
