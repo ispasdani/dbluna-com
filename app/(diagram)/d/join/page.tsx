@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ConvexError } from "convex/values";
@@ -13,7 +13,25 @@ import { api } from "@/convex/_generated/api";
 // access to on a new device; this route is the one place a *token* turns into
 // real `diagramMembers` access, then hands off to the same bootstrap flow to
 // get a local id and land in the real editor.
+function LoadingScreen() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+// useSearchParams() forces this subtree to client-render; Next 16 requires the
+// Suspense boundary for it during static generation of /d/join.
 export default function JoinInvitePage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <JoinInviteInner />
+    </Suspense>
+  );
+}
+
+function JoinInviteInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
