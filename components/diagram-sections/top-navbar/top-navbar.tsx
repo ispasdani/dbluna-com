@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp } from "lucide-react";
+import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -417,6 +417,13 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                <DropdownMenuItem
+                  onClick={() => handleImportSchemaClick("sql")}
+                  className="gap-2"
+                >
+                  <Terminal className="w-4 h-4" />
+                  Paste SQL Script
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleImportSchemaClick("csv")}
                   className="gap-2"

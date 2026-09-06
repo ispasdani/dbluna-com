@@ -23,11 +23,22 @@ export interface ParsedColumn {
   note?: { value: string };
 }
 
+/**
+ * A key or index declared at table level rather than on a column — DBML`s
+ * `indexes { }` block, and every SQL `CONSTRAINT ... PRIMARY KEY (...)`.
+ */
+export interface ParsedIndex {
+  pk?: boolean;
+  unique?: boolean;
+  columns?: Array<{ value?: string; name?: string; type?: string }>;
+}
+
 export interface ParsedTable {
   id: number;
   name: string;
   schema?: { name: string };
   fields: ParsedColumn[];
+  indexes?: ParsedIndex[];
   note?: { value: string };
 }
 
@@ -71,6 +82,18 @@ export interface ParsedRef {
   endpoints: ParsedRefEndpoint[];
 }
 
+/**
+ * Grammars `@dbml/core` can parse into the same `Database` AST. "dbml" backs
+ * the Code tab; the rest back the SQL DDL importer.
+ */
+export type SchemaSourceFormat =
+  | "dbml"
+  | "postgres"
+  | "mysql"
+  | "mssql"
+  | "oracle"
+  | "snowflake";
+
 export interface ParsedDbmlResult {
   raw: any; // the full database AST from @dbml/core
   project: ParsedProject | null;
@@ -85,6 +108,116 @@ export interface ParsedDbmlResult {
 // ─────────────────────────────────────────────────────
 
 /**
+ * Walks a `@dbml/core` `Database` AST into our strongly-typed shape and
+ * throws on syntax errors. `format` selects the front-end grammar: "dbml" for
+ * the Code tab, or a SQL dialect for the DDL importer — both produce the same
+ * AST, so everything downstream (canvas mapping, docs) is shared.
+ */
+export const parseSchemaSource = (
+  source: string,
+  format: SchemaSourceFormat = "dbml"
+): ParsedDbmlResult => {
+  const database = Parser.parse(source, format);
+
+  // ── Project ──────────────────────────────────────
+  let project: ParsedProject | null = null;
+  // @dbml/core flattens the `Project { ... }` block onto the database root as
+  // `name` / `databaseType` / `note` (there is no `db.project`). `note` may be
+  // a bare string or a `{ value }` object depending on version.
+  const db = database as any;
+  if (db.name || db.note || db.databaseType) {
+    const note = typeof db.note === "string" ? db.note : db.note?.value;
+    project = {
+      name: db.name || "Database Documentation",
+      note: note || undefined,
+      databaseType: db.databaseType || undefined,
+    };
+  }
+
+  // ── Tables (flattened across all schemas) ─────────
+  const tables: ParsedTable[] = [];
+  if (database.schemas) {
+    database.schemas.forEach((schema: any) => {
+      if (schema.tables) {
+        schema.tables.forEach((t: any) => {
+          tables.push(t);
+        });
+      }
+    });
+  }
+
+  // ── Enums (flattened across all schemas) ──────────
+  const enums: ParsedEnum[] = [];
+  if (database.schemas) {
+    database.schemas.forEach((schema: any) => {
+      if (schema.enums) {
+        schema.enums.forEach((e: any) => {
+          enums.push(e);
+        });
+      }
+    });
+  }
+
+  // ── TableGroups ───────────────────────────────────
+  const tableGroups: ParsedTableGroup[] = [];
+  if (database.schemas) {
+    database.schemas.forEach((schema: any) => {
+      if (schema.tableGroups) {
+        schema.tableGroups.forEach((tg: any) => {
+          tableGroups.push({
+            id: tg.id,
+            name: tg.name,
+            // @dbml/core resolves group members to Table objects, so the
+            // schema lives on `t.schema.name` (not `t.schemaName`).
+            tables: (tg.tables || []).map((t: any) => ({
+              tableName: t.tableName || t.name,
+              schemaName: t.schemaName || t.schema?.name,
+            })),
+          });
+        });
+      }
+    });
+  }
+
+  // ── Refs / relationships (flattened across all schemas) ───
+  const refs: ParsedRef[] = [];
+  if (database.schemas) {
+    database.schemas.forEach((schema: any) => {
+      if (schema.refs) {
+        schema.refs.forEach((r: any) => {
+          const endpoints: ParsedRefEndpoint[] = (r.endpoints || []).map((e: any) => ({
+            tableName: e.tableName ?? e.fields?.[0]?.table?.name,
+            schemaName: e.schemaName ?? e.fields?.[0]?.table?.schema?.name ?? null,
+            fieldNames:
+              e.fieldNames && e.fieldNames.length
+                ? e.fieldNames
+                : (e.fields || []).map((f: any) => f?.name).filter(Boolean),
+            relation: e.relation === "*" ? "*" : "1",
+          }));
+          if (endpoints.length === 2 && endpoints.every((ep) => ep.tableName && ep.fieldNames.length)) {
+            refs.push({
+              name: r.name ?? null,
+              onDelete: r.onDelete ?? undefined,
+              onUpdate: r.onUpdate ?? undefined,
+              endpoints,
+            });
+          }
+        });
+      }
+    });
+  }
+
+  return {
+    raw: database,
+    project,
+    tables,
+    enums,
+    tableGroups,
+    refs,
+  };
+};
+
+/**
  * Parses a DBML string and returns a strongly-typed, enriched result.
  * Handles errors gracefully and returns null if parsing fails.
  */
@@ -92,104 +225,7 @@ export const parseDbml = (dbmlString: string): ParsedDbmlResult | null => {
   if (!dbmlString || dbmlString.trim() === "") return null;
 
   try {
-    const database = Parser.parse(dbmlString, "dbml");
-
-    // ── Project ──────────────────────────────────────
-    let project: ParsedProject | null = null;
-    // @dbml/core flattens the `Project { ... }` block onto the database root as
-    // `name` / `databaseType` / `note` (there is no `db.project`). `note` may be
-    // a bare string or a `{ value }` object depending on version.
-    const db = database as any;
-    if (db.name || db.note || db.databaseType) {
-      const note = typeof db.note === "string" ? db.note : db.note?.value;
-      project = {
-        name: db.name || "Database Documentation",
-        note: note || undefined,
-        databaseType: db.databaseType || undefined,
-      };
-    }
-
-    // ── Tables (flattened across all schemas) ─────────
-    const tables: ParsedTable[] = [];
-    if (database.schemas) {
-      database.schemas.forEach((schema: any) => {
-        if (schema.tables) {
-          schema.tables.forEach((t: any) => {
-            tables.push(t);
-          });
-        }
-      });
-    }
-
-    // ── Enums (flattened across all schemas) ──────────
-    const enums: ParsedEnum[] = [];
-    if (database.schemas) {
-      database.schemas.forEach((schema: any) => {
-        if (schema.enums) {
-          schema.enums.forEach((e: any) => {
-            enums.push(e);
-          });
-        }
-      });
-    }
-
-    // ── TableGroups ───────────────────────────────────
-    const tableGroups: ParsedTableGroup[] = [];
-    if (database.schemas) {
-      database.schemas.forEach((schema: any) => {
-        if (schema.tableGroups) {
-          schema.tableGroups.forEach((tg: any) => {
-            tableGroups.push({
-              id: tg.id,
-              name: tg.name,
-              // @dbml/core resolves group members to Table objects, so the
-              // schema lives on `t.schema.name` (not `t.schemaName`).
-              tables: (tg.tables || []).map((t: any) => ({
-                tableName: t.tableName || t.name,
-                schemaName: t.schemaName || t.schema?.name,
-              })),
-            });
-          });
-        }
-      });
-    }
-
-    // ── Refs / relationships (flattened across all schemas) ───
-    const refs: ParsedRef[] = [];
-    if (database.schemas) {
-      database.schemas.forEach((schema: any) => {
-        if (schema.refs) {
-          schema.refs.forEach((r: any) => {
-            const endpoints: ParsedRefEndpoint[] = (r.endpoints || []).map((e: any) => ({
-              tableName: e.tableName ?? e.fields?.[0]?.table?.name,
-              schemaName: e.schemaName ?? e.fields?.[0]?.table?.schema?.name ?? null,
-              fieldNames:
-                e.fieldNames && e.fieldNames.length
-                  ? e.fieldNames
-                  : (e.fields || []).map((f: any) => f?.name).filter(Boolean),
-              relation: e.relation === "*" ? "*" : "1",
-            }));
-            if (endpoints.length === 2 && endpoints.every((ep) => ep.tableName && ep.fieldNames.length)) {
-              refs.push({
-                name: r.name ?? null,
-                onDelete: r.onDelete ?? undefined,
-                onUpdate: r.onUpdate ?? undefined,
-                endpoints,
-              });
-            }
-          });
-        }
-      });
-    }
-
-    return {
-      raw: database,
-      project,
-      tables,
-      enums,
-      tableGroups,
-      refs,
-    };
+    return parseSchemaSource(dbmlString, "dbml");
   } catch (error) {
     // A syntax error here is expected: while the user types in the Code tab the
     // DBML is transiently invalid on almost every keystroke. @dbml/core throws a
