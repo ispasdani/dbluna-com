@@ -23,7 +23,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 // import { ScrollArea } from "@/components/ui/scroll-area"; // Removed as file not found
 // If ScrollArea doesn't exist, I'll use div with overflow-auto. I didn't see scroll-area.tsx in components/ui list (Step 48).
@@ -47,6 +47,18 @@ export function TablesPanel() {
   const selectedTableId = isSingleSelection ? selectedTableIds[0] : null;
   const selectedTable = selectedTableId ? tables.find((t) => t.id === selectedTableId) : null;
 
+  // Expansion is tracked separately from selection so a table's details can be
+  // collapsed by clicking its header again without losing the canvas selection.
+  const [expandedTableId, setExpandedTableId] = useState<string | null>(selectedTableId);
+  const selectionKey = selectedTableIds.join(",");
+
+  useEffect(() => {
+    setExpandedTableId(selectedTableIds.length === 1 ? selectedTableIds[0] : null);
+    // Only react to an actual change of selection, not to unrelated store updates,
+    // so a manual collapse isn't immediately undone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionKey]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -67,6 +79,7 @@ export function TablesPanel() {
       <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         {tables.map((table) => {
            const isSelected = selectedTableIds.includes(table.id);
+           const isExpanded = expandedTableId === table.id;
 
            return (
              <div 
@@ -86,19 +99,26 @@ export function TablesPanel() {
                       } else {
                         setSelectedTableIds([...selectedTableIds, table.id]);
                       }
+                      return;
+                    }
+
+                    if (isSelected && isSingleSelection) {
+                      // Already the active table: toggle its details open/closed.
+                      setExpandedTableId(isExpanded ? null : table.id);
                     } else {
                       setSelectedTableIds([table.id]);
+                      setExpandedTableId(table.id);
                     }
                   }}
                 >
-                  {isSelected ? (
+                  {isExpanded ? (
                     <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
                   ) : (
                     <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
                   )}
                   
                   <div className="h-3 w-3 rounded-full mr-2 shrink-0" style={{ backgroundColor: table.color }} />
-                  <span className="font-medium text-sm truncate flex-1">{table.name}</span>
+                  <span className="font-medium text-sm truncate flex-1" title={table.name}>{table.name}</span>
                   
                   <div className="flex items-center gap-1">
                     {table.comment && (
@@ -147,7 +167,7 @@ export function TablesPanel() {
                 </div>
 
                {/* Expanded Details */}
-               {isSelected && isSingleSelection && (
+               {isExpanded && isSingleSelection && (
                  <div className="px-3 pb-3 pt-0 animate-in slide-in-from-top-2 fade-in duration-200">
                     <div className="mb-3 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Table Name</label>
