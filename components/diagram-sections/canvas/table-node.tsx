@@ -13,7 +13,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-import React, { memo } from "react";
+import React, { memo, useSyncExternalStore } from "react";
+import {
+  getCanvasFontFamily,
+  getFontsReadyServerSnapshot,
+  getFontsReadySnapshot,
+  measureTextWidth,
+  subscribeFontsReady,
+  truncateTextToWidth,
+} from "@/lib/svg-text";
 
 interface TableNodeProps {
   table: Table;
@@ -28,10 +36,37 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
   const ROW_HEIGHT = 30;
   const WIDTH = 220;
   const STRIP_HEIGHT = 4;
+  const PAD_X = 12;
+  const ACTIONS_WIDTH = 76;
+  /** Keeps a very long type from squeezing the column name down to nothing. */
+  const MAX_TYPE_WIDTH = 88;
+  /** Breathing room between a column name and its right-aligned type. */
+  const NAME_TYPE_GAP = 8;
+
   const updateTable = useCanvasStore((s) => s.updateTable);
   const deleteTable = useCanvasStore((s) => s.deleteTable);
 
+  // Re-render once when web fonts settle so measurements stop using fallback
+  // metrics. After that first flip this is a constant and costs nothing.
+  useSyncExternalStore(
+    subscribeFontsReady,
+    getFontsReadySnapshot,
+    getFontsReadyServerSnapshot
+  );
+
+  const bodyFamily = getCanvasFontFamily();
+  const titleFont = "600 14px sans-serif";
+  const columnFont = `13px ${bodyFamily}`;
+  const typeFont = "11px monospace";
+
   const totalHeight = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
+
+  // The header action buttons only exist in edit mode, so read-only cards get
+  // the full width for the name.
+  const nameMaxWidth = readOnly
+    ? WIDTH - PAD_X * 2
+    : WIDTH - ACTIONS_WIDTH - PAD_X - 6;
+  const tableName = truncateTextToWidth(table.name, titleFont, nameMaxWidth);
 
   return (
     <g className={cn("transition-opacity duration-300", isDimmed && "opacity-30 pointer-events-none grayscale")}>
@@ -79,17 +114,30 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
          fill="transparent" 
       />
 
-      {/* Table Name */}
+      {/* Table Name — shortened to fit the card; full value shown on hover */}
       <text
-        x={12}
+        x={PAD_X}
         y={STRIP_HEIGHT + 20}
         fill="var(--foreground)"
         fontWeight="600"
         fontSize={14}
         style={{ pointerEvents: "none", userSelect: "none", fontFamily: "sans-serif" }}
       >
-        {table.name}
+        {tableName.text}
       </text>
+      {tableName.truncated && (
+        // Transparent hit area carrying a native <title>. Pointer events still
+        // bubble to the parent group, so dragging the table is unaffected.
+        <rect
+          x={PAD_X}
+          y={STRIP_HEIGHT}
+          width={nameMaxWidth}
+          height={HEADER_HEIGHT - STRIP_HEIGHT}
+          fill="transparent"
+        >
+          <title>{table.name}</title>
+        </rect>
+      )}
 
       {/* Header Actions using foreignObject for Shadcn UI — hidden in read-only mode */}
       {!readOnly && (
@@ -177,7 +225,19 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
       {/* Columns List */}
       {table.columns.map((col, i) => {
         const rowY = HEADER_HEIGHT + i * ROW_HEIGHT;
-        
+        const nameX = col.isPrimaryKey ? 28 : PAD_X;
+
+        // The type is right-aligned, so it claims its space first and the name
+        // gets whatever is left — that way neither can spill past the card edge.
+        const columnType = truncateTextToWidth(col.type, typeFont, MAX_TYPE_WIDTH);
+        const typeWidth = measureTextWidth(columnType.text, typeFont);
+        const columnName = truncateTextToWidth(
+          col.name,
+          columnFont,
+          WIDTH - PAD_X - typeWidth - NAME_TYPE_GAP - nameX
+        );
+        const showFullRow = columnName.truncated || columnType.truncated;
+
         return (
           <g key={col.name} transform={`translate(0, ${rowY})`}>
             {/* Row Hover Zone (invisible rect for events) */}
@@ -188,7 +248,9 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
               height={ROW_HEIGHT}
               fill="transparent"
               className="hover:fill-muted/50 transition-colors"
-            />
+            >
+              {showFullRow && <title>{`${col.name} ${col.type}`}</title>}
+            </rect>
 
             {/* PK Indicator */}
             {col.isPrimaryKey && (
@@ -201,13 +263,13 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
 
             {/* Column Name */}
             <text
-              x={col.isPrimaryKey ? 28 : 12}
+              x={nameX}
               y={20}
               fill="var(--foreground)"
               fontSize={13}
               style={{ pointerEvents: "none", userSelect: "none" }}
             >
-              {col.name}
+              {columnName.text}
             </text>
 
             {/* Column Type */}
@@ -219,7 +281,7 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
               fontSize={11}
               style={{ pointerEvents: "none", userSelect: "none", fontFamily: "monospace" }}
             >
-              {col.type}
+              {columnType.text}
             </text>
 
             {/* Connection Grips — hidden in read-only mode (no relationship creation) */}
