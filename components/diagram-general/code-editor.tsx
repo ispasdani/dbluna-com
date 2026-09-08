@@ -206,7 +206,12 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
       // Documentation metadata authored in the editor (enums, table groups,
       // project note) is stored on the canvas so it persists and re-generates.
-      const meta = parsedToCanvasSchemaMeta(parsed);
+      // Pass the current values (fresh from the store, same as above) so ids
+      // survive the re-parse instead of being reminted on every keystroke.
+      const meta = parsedToCanvasSchemaMeta(parsed, {
+        existingEnums: useCanvasStore.getState().enums,
+        existingTableGroups: useCanvasStore.getState().tableGroups,
+      });
 
       // Clear the typing flag BEFORE the store writes so the Canvas->Code effect
       // doesn't immediately overwrite the editor on the next render.

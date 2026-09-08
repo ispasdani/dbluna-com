@@ -293,3 +293,84 @@ describe("DBML round-trip: docs metadata (enums, groups, project)", () => {
     expect(schemaMeta.tableGroups).toEqual([]);
   });
 });
+
+describe("parsedToCanvasSchemaMeta: id stability across re-parses", () => {
+  // The Code tab re-parses on every keystroke (400ms debounce). Without id
+  // preservation each parse minted fresh uuids, which changed the cloud-autosave
+  // payload signature and pushed a semantically-identical schema to Convex.
+  const metaFixture = () => {
+    const enums: CanvasEnum[] = [
+      { id: crypto.randomUUID(), name: "order_status", values: [{ name: "pending" }] },
+      { id: crypto.randomUUID(), name: "role", values: [{ name: "admin" }] },
+    ];
+    const tableGroups: CanvasTableGroup[] = [
+      { id: crypto.randomUUID(), name: "Core", tableNames: ["users"] },
+    ];
+    const tables = [
+      table({ name: "users", columns: [col({ name: "id", type: "INT", isPrimaryKey: true })] }),
+    ];
+    const dbml = generateDbmlFromCanvas(tables, [], { enums, tableGroups });
+    const parsed = parseDbml(dbml);
+    expect(parsed).not.toBeNull();
+    return { enums, tableGroups, parsed: parsed! };
+  };
+
+  it("preserves enum ids by name when existing enums are supplied", () => {
+    const { enums, parsed } = metaFixture();
+
+    const meta = parsedToCanvasSchemaMeta(parsed, { existingEnums: enums });
+
+    expect(meta.enums.map((e) => e.id)).toEqual(enums.map((e) => e.id));
+  });
+
+  it("preserves table group ids by name when existing groups are supplied", () => {
+    const { tableGroups, parsed } = metaFixture();
+
+    const meta = parsedToCanvasSchemaMeta(parsed, { existingTableGroups: tableGroups });
+
+    expect(meta.tableGroups[0].id).toBe(tableGroups[0].id);
+  });
+
+  it("is stable across repeated parses, so the autosave signature does not churn", () => {
+    const { enums, tableGroups, parsed } = metaFixture();
+
+    const first = parsedToCanvasSchemaMeta(parsed, {
+      existingEnums: enums,
+      existingTableGroups: tableGroups,
+    });
+    const second = parsedToCanvasSchemaMeta(parsed, {
+      existingEnums: first.enums,
+      existingTableGroups: first.tableGroups,
+    });
+
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+  });
+
+  it("mints a new id for a renamed enum but keeps the untouched one", () => {
+    const { enums, parsed } = metaFixture();
+    // Simulate the store still holding the pre-rename name for the first enum.
+    const stale: CanvasEnum[] = [
+      { ...enums[0], name: "old_status" },
+      enums[1],
+    ];
+
+    const meta = parsedToCanvasSchemaMeta(parsed, { existingEnums: stale });
+
+    const renamed = meta.enums.find((e) => e.name === "order_status")!;
+    const untouched = meta.enums.find((e) => e.name === "role")!;
+    expect(renamed.id).not.toBe(enums[0].id);
+    expect(untouched.id).toBe(enums[1].id);
+  });
+
+  it("mints fresh ids when the options argument is omitted (unchanged legacy behavior)", () => {
+    const { parsed } = metaFixture();
+
+    const a = parsedToCanvasSchemaMeta(parsed);
+    const b = parsedToCanvasSchemaMeta(parsed);
+
+    expect(a.enums.map((e) => e.id)).not.toEqual(b.enums.map((e) => e.id));
+    // Everything except the ids still matches.
+    expect(a.enums.map((e) => e.name)).toEqual(b.enums.map((e) => e.name));
+    expect(a.tableGroups.map((g) => g.name)).toEqual(b.tableGroups.map((g) => g.name));
+  });
+});

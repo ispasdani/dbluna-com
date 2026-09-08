@@ -423,22 +423,39 @@ const noteText = (note: unknown): string | undefined => {
   return undefined;
 };
 
+export interface ParsedToCanvasMetaOptions {
+  /** Current canvas enums — used to preserve ids by name across a re-parse. */
+  existingEnums?: CanvasEnum[];
+  /** Current canvas table groups — used to preserve ids by name across a re-parse. */
+  existingTableGroups?: CanvasTableGroup[];
+}
+
 /**
  * Maps the documentation-oriented parts of a parsed DBML result (enums, table
  * groups, project note) onto the canvas model shapes so they can be stored and
  * re-generated. Table/group names use the same schema-qualification rules as
  * `parsedTablesToCanvasTables`.
+ *
+ * Enum and table-group ids are preserved by name when the caller passes the
+ * current canvas values, mirroring how `parsedTablesToCanvasTables` preserves
+ * table/column ids. Without that, every re-parse (the Code tab re-parses on a
+ * 400ms debounce) minted fresh uuids, which churned the cloud-autosave payload
+ * signature into pushing semantically-identical schemas. Omitting the options
+ * keeps the original always-fresh-id behavior.
  */
-export const parsedToCanvasSchemaMeta = (parsed: ParsedDbmlResult): CanvasSchemaMeta => {
+export const parsedToCanvasSchemaMeta = (
+  parsed: ParsedDbmlResult,
+  { existingEnums = [], existingTableGroups = [] }: ParsedToCanvasMetaOptions = {}
+): CanvasSchemaMeta => {
   const enums: CanvasEnum[] = parsed.enums.map((en) => ({
-    id: crypto.randomUUID(),
+    id: existingEnums.find((e) => e.name === en.name)?.id ?? crypto.randomUUID(),
     name: en.name,
     note: noteText(en.note),
     values: en.values.map((val) => ({ name: val.name, note: noteText(val.note) })),
   }));
 
   const tableGroups: CanvasTableGroup[] = parsed.tableGroups.map((group) => ({
-    id: crypto.randomUUID(),
+    id: existingTableGroups.find((g) => g.name === group.name)?.id ?? crypto.randomUUID(),
     name: group.name,
     tableNames: group.tables.map(qualifiedGroupRef),
   }));
