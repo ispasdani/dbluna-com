@@ -107,6 +107,64 @@ export interface ParsedDbmlResult {
 //  Parser
 // ─────────────────────────────────────────────────────
 
+/** How antlr4's console listener writes a diagnostic: `line 16:2 <message>`. */
+const LEXER_ERROR_RE = /^line (\d+):(\d+) (.+)$/;
+
+/** A `@dbml/core` CompilerError diagnostic, as its consumers read them. */
+interface RawDiagnostic {
+  message: string;
+  location: { start: { line: number; column: number } };
+}
+
+/**
+ * `@dbml/core` builds its SQL grammars on ANTLR and strips the default error
+ * listeners off the *parsers* — but not off the lexers. So a character the
+ * grammar has no token for (a "•" or a smart quote pasted in from a document)
+ * is only ever reported as `token recognition error at: '•'` on the console:
+ * it never reaches the thrown error, so callers can't tell the user where the
+ * bad character is, and in dev that bare `console.error` surfaces as a Next.js
+ * error overlay for a failure the importer already handles.
+ *
+ * Nothing in the public API lets us hand those lexers a listener, so we catch
+ * the lines at the console for the duration of the (synchronous) parse and
+ * fold them into the error's `diags` alongside the parser's own diagnostics.
+ */
+const parseCapturingLexerErrors = (source: string, format: SchemaSourceFormat) => {
+  const captured: RawDiagnostic[] = [];
+  const consoleError = console.error;
+
+  console.error = (...args: unknown[]) => {
+    const match =
+      args.length === 1 && typeof args[0] === "string" ? LEXER_ERROR_RE.exec(args[0]) : null;
+    if (!match) {
+      consoleError(...args);
+      return;
+    }
+    // antlr4 numbers lines from 1 and columns from 0, which is how the
+    // parser's own diagnostics arrive too — pass them through unchanged.
+    captured.push({
+      message: match[3],
+      location: { start: { line: Number(match[1]), column: Number(match[2]) } },
+    });
+  };
+
+  try {
+    return Parser.parse(source, format);
+  } catch (error) {
+    // A lexer error usually trips the parser as well, so these go first: they
+    // name the actual offending character, where the parser only reports the
+    // token it tripped over afterwards.
+    if (captured.length > 0) {
+      const diags = (error as { diags?: unknown }).diags;
+      if (Array.isArray(diags)) diags.unshift(...captured);
+      else (error as { diags?: unknown }).diags = captured;
+    }
+    throw error;
+  } finally {
+    console.error = consoleError;
+  }
+};
+
 /**
  * Walks a `@dbml/core` `Database` AST into our strongly-typed shape and
  * throws on syntax errors. `format` selects the front-end grammar: "dbml" for
@@ -117,7 +175,7 @@ export const parseSchemaSource = (
   source: string,
   format: SchemaSourceFormat = "dbml"
 ): ParsedDbmlResult => {
-  const database = Parser.parse(source, format);
+  const database = parseCapturingLexerErrors(source, format);
 
   // ── Project ──────────────────────────────────────
   let project: ParsedProject | null = null;

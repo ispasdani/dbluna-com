@@ -134,11 +134,19 @@ function Section({ title, description, defaultOpen = true, children }: SectionPr
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-border">
+    // `bg-card` rather than no background: the dock ground is a faint grey
+    // (--dock-bg), so an unpainted section blended into it instead of reading
+    // as a distinct card. Same surface token TablesPanel gives its rows, so it
+    // is white in the light palettes and the dark surface in Tokyo Night.
+    <div className="bg-card border border-border">
+      {/* --muted and --accent resolve to the same value in the light palettes,
+          so the previous `bg-muted/50` was that colour at half strength and
+          barely registered against the card. `bg-accent` is what the rest of
+          the app uses for an interactive row (dropdown items, issue rows). */}
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="w-full flex items-center gap-2 p-3 text-left select-none hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center gap-2 p-3 text-left select-none hover:bg-accent transition-colors"
       >
         {isOpen ? (
           <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -675,7 +683,7 @@ function EnumsSection() {
 // table names. So the "no schema" bucket needs a key that can't collide with a
 // real schema name, and a freshly created empty schema lives in local state
 // until a table is actually moved into it.
-const NO_SCHEMA_KEY = " none";
+const NO_SCHEMA_KEY = "\u0000none";
 const schemaKey = (schema: string | null) => schema ?? NO_SCHEMA_KEY;
 
 function NamespacesSection() {
@@ -758,12 +766,17 @@ function NamespacesSection() {
         <select
           value={schema ?? ""}
           onChange={(e) => handleMove(t.id, e.target.value || null)}
-          className="h-6 text-[11px] bg-transparent border border-border px-1 max-w-32"
+          className="h-6 text-[11px] bg-popover text-popover-foreground border border-border px-1 max-w-32"
           aria-label={`Schema for ${t.name}`}
         >
-          <option value="">(no schema)</option>
+          {/* Native selects inherit the OS popup background unless the options
+              carry one too, which reads as a stray dark strip in light mode.
+              Same treatment code-editor.tsx gives its language picker. */}
+          <option value="" className="bg-popover text-popover-foreground">
+            (no schema)
+          </option>
           {allSchemaNames.map((name) => (
-            <option key={name} value={name}>
+            <option key={name} value={name} className="bg-popover text-popover-foreground">
               {name}
             </option>
           ))}

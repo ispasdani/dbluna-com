@@ -264,6 +264,22 @@ interface CompilerDiagnostic {
   location?: { start?: { line?: number; column?: number } };
 }
 
+const MAX_EXPECTED_TOKENS = 6;
+
+/**
+ * ANTLR spells out every token that would have been legal at the failure
+ * point, which for the T-SQL grammar is a few thousand keywords — far too
+ * long to show, and it buries the part of the message that matters. Keep the
+ * first few so the issue still says what the grammar wanted.
+ */
+const condenseExpectedTokens = (message: string): string =>
+  message.replace(/expecting \{([^}]*)\}/, (whole, list: string) => {
+    const tokens = list.split(", ");
+    if (tokens.length <= MAX_EXPECTED_TOKENS) return whole;
+    const shown = tokens.slice(0, MAX_EXPECTED_TOKENS).join(", ");
+    return `expecting {${shown}, +${tokens.length - MAX_EXPECTED_TOKENS} more}`;
+  });
+
 /** Normalizes a `@dbml/core` CompilerError into flat, displayable issues. */
 const toIssues = (error: unknown): SqlImportIssue[] => {
   const diags = (error as { diags?: unknown })?.diags;
@@ -271,7 +287,7 @@ const toIssues = (error: unknown): SqlImportIssue[] => {
   return (diags as CompilerDiagnostic[]).slice(0, 20).map((d) => ({
     line: d?.location?.start?.line,
     column: d?.location?.start?.column,
-    message: d?.message || d?.error || "Syntax error",
+    message: condenseExpectedTokens(d?.message || d?.error || "Syntax error"),
   }));
 };
 

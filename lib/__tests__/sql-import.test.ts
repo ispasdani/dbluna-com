@@ -5,6 +5,7 @@ import {
   detectSqlDialect,
   findMissingReferences,
   SqlImportError,
+  type SqlImportIssue,
 } from "@/lib/parser/sql-import";
 import type { Table, Relationship } from "@/store/useCanvasStore";
 
@@ -248,6 +249,49 @@ describe("failures", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(SqlImportError);
       expect((err as SqlImportError).dialect).toBe("postgres");
+    }
+  });
+
+  // `@dbml/core` leaves antlr4's default listener on its SQL lexers, so a
+  // character no token covers is written straight to the console and left out
+  // of the thrown error — in dev that reads as a crash for a failure we handle.
+  it("locates a stray character instead of logging it to the console", () => {
+    const logged: unknown[][] = [];
+    const consoleError = console.error;
+    console.error = (...args: unknown[]) => void logged.push(args);
+
+    const script = `${SQL_SERVER}
+  • pasted bullet
+`;
+    let issues: SqlImportIssue[] = [];
+    try {
+      importSqlSchema(script, { dialect: "mssql" });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      issues = (err as SqlImportError).issues;
+    } finally {
+      console.error = consoleError;
+    }
+
+    const bulletLine = script.split("\n").findIndex((l) => l.includes("•")) + 1;
+    expect(logged).toEqual([]);
+    expect(issues[0]).toMatchObject({
+      line: bulletLine,
+      message: "token recognition error at: '•'",
+    });
+  });
+
+  it("condenses ANTLR's list of expected tokens", () => {
+    try {
+      importSqlSchema("CREATE TABLE [x] (", { dialect: "mssql" });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      const messages = (err as SqlImportError).issues.map((i) => i.message);
+      const expecting = messages.find((m) => m.includes("expecting {"));
+      expect(expecting).toBeDefined();
+      // The raw T-SQL message spells out a few thousand keywords here.
+      expect(expecting!.length).toBeLessThan(200);
+      expect(expecting).toMatch(/\+\d+ more\}/);
     }
   });
 });
