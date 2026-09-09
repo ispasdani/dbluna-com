@@ -21,7 +21,7 @@ import { AiChatPanel } from "./ai-chat-panel";
 
 const DraggableTab = dynamic(
   () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
-  { ssr: false }
+  { ssr: false },
 );
 
 interface DockPanelProps {
@@ -66,7 +66,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         className={cn(
           "h-full min-h-0 min-w-0 bg-dock-bg flex flex-col transition-all duration-200",
           side === "left" ? "border-r border-border" : "border-l border-border",
-          isOver && "ring-2 ring-primary/50 ring-inset bg-primary/5"
+          isOver && "ring-2 ring-primary/50 ring-inset bg-primary/5",
         )}
       >
         {/* Tab Headers */}
@@ -123,7 +123,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         </div>
       </div>
     );
-  }
+  },
 );
 
 DockPanel.displayName = "DockPanel";
@@ -146,7 +146,7 @@ export function DropZone({ side }: DropZoneProps) {
         side === "left" ? "left-0" : "right-0",
         isOver
           ? "bg-primary/15 border-primary"
-          : "bg-background/80 backdrop-blur-sm"
+          : "bg-background/80 backdrop-blur-sm",
       )}
       style={{
         borderLeft: side === "right" ? "2px dashed" : undefined,
@@ -159,7 +159,7 @@ export function DropZone({ side }: DropZoneProps) {
       <div
         className={cn(
           "flex flex-col items-center gap-2 transition-all duration-200",
-          isOver ? "text-primary scale-110" : "text-muted-foreground"
+          isOver ? "text-primary scale-110" : "text-muted-foreground",
         )}
       >
         <div
@@ -167,7 +167,7 @@ export function DropZone({ side }: DropZoneProps) {
             "w-14 h-14 rounded-xl border-2 border-dashed flex items-center justify-center transition-all",
             isOver
               ? "border-primary bg-primary/20"
-              : "border-muted-foreground/40"
+              : "border-muted-foreground/40",
           )}
         >
           <span className="text-2xl font-light">+</span>

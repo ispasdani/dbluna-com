@@ -21,7 +21,7 @@ export const useViewStore = create<ViewState>((set, get) => ({
   isLeftDockVisible: true,
   toggleTopNavbar: () =>
     set((s) => ({ isTopNavbarVisible: !s.isTopNavbarVisible })),
-  leftDockWidth: 320,
+  leftDockWidth: 430,
   setLeftDockWidth: (w) => set({ leftDockWidth: clamp(w, 260, 720) }),
 
   toggleLeftDock: () => set({ isLeftDockVisible: !get().isLeftDockVisible }),
