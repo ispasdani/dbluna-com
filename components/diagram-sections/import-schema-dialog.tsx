@@ -186,10 +186,14 @@ function parseCsv(text: string): { headers: string[]; rowCount: number } {
 /* ─────────────────────────────────────────────────────────────────────────────
    Shared presentation
    Every source tab is the same shape — a scrolling body over a pinned action
-   bar — and speaks in the diagram page's own tokens (primary / muted / border
-   / destructive) so the dialog re-colours with the palette switcher instead of
-   staying blue on every theme.
+   bar. The accent is deliberately monochrome: `foreground` on `background`
+   reads as black-on-white in the light palettes and white-on-black in the dark
+   ones, so the dialog stays neutral instead of picking up the palette's hue.
+   Only the semantic colours — destructive, success, placeholder — keep a tint.
 ───────────────────────────────────────────────────────────────────────────── */
+
+/** The monochrome primary action, shared by all four import buttons. */
+const IMPORT_ACTION = "gap-2 bg-foreground text-background hover:bg-foreground/85";
 
 /** Scrolling body + the action bar that stays pinned to the bottom edge. */
 function TabShell({
@@ -309,7 +313,7 @@ function ResultRow({
 }) {
   return (
     <div className="flex items-start gap-2.5 px-3 py-2">
-      <Icon className={cn("mt-0.5 size-3.5 shrink-0 text-primary", iconClassName)} />
+      <Icon className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", iconClassName)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-xs font-medium text-foreground">{name}</span>
@@ -366,11 +370,11 @@ function DropZone({
         "flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed px-4 py-9 text-center outline-none transition-colors",
         "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
         isDragging
-          ? "border-primary bg-primary/10"
-          : "border-border bg-muted/40 hover:border-primary/50 hover:bg-muted"
+          ? "border-foreground bg-foreground/5"
+          : "border-border bg-muted/40 hover:border-foreground/40 hover:bg-muted"
       )}
     >
-      <span className="flex size-10 items-center justify-center border border-border bg-background text-primary">
+      <span className="flex size-10 items-center justify-center border border-border bg-background text-foreground">
         <Icon className="size-5" />
       </span>
       <p className="text-xs font-medium text-foreground">{title}</p>
@@ -536,7 +540,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
             onClick={handleImport}
             disabled={status !== "success" || !preview?.length}
             size="lg"
-            className="gap-2"
+            className={IMPORT_ACTION}
           >
             <Upload className="size-3.5" />
             Import to canvas
@@ -697,7 +701,7 @@ function CsvImportTab() {
           onClick={handleImport}
           disabled={files.length === 0 || status === "loading" || status === "success"}
           size="lg"
-          className="gap-2"
+          className={IMPORT_ACTION}
         >
           {status === "loading" ? (
             <>
@@ -927,7 +931,7 @@ function BacpacImportTab() {
             onClick={handleImport}
             disabled={status !== "success" || !preview?.length}
             size="lg"
-            className="gap-2"
+            className={IMPORT_ACTION}
           >
             <Upload className="size-3.5" />
             Import to canvas
@@ -1019,7 +1023,7 @@ function CheckToggle({
         className={cn(
           "mt-px flex size-4 shrink-0 items-center justify-center border transition-colors",
           checked
-            ? "border-primary bg-primary text-primary-foreground"
+            ? "border-foreground bg-foreground text-background"
             : "border-input bg-background group-hover:border-ring"
         )}
       >
@@ -1154,7 +1158,7 @@ function SqlScriptImportTab() {
             onClick={handleImport}
             disabled={preview.length === 0}
             size="lg"
-            className="gap-2"
+            className={IMPORT_ACTION}
           >
             <Upload className="size-3.5" />
             Import to canvas
@@ -1188,7 +1192,7 @@ function SqlScriptImportTab() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="text-[11px] font-medium text-primary underline-offset-2 transition-colors hover:underline"
+            className="text-[11px] font-medium text-foreground underline underline-offset-2 decoration-foreground/30 transition-colors hover:decoration-foreground"
           >
             Load .sql file
           </button>
@@ -1224,12 +1228,12 @@ function SqlScriptImportTab() {
             // otherwise grow the box to the full height of a long dump.
             className={cn(
               "h-56 resize-y bg-background font-mono text-[11px] leading-relaxed field-sizing-fixed",
-              isDragging && "border-primary ring-1 ring-primary"
+              isDragging && "border-foreground ring-1 ring-foreground"
             )}
           />
           {isDragging && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/10">
-              <span className="border border-primary/40 bg-background px-2 py-1 text-[11px] font-medium text-primary">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-foreground/5">
+              <span className="border border-foreground bg-foreground px-2 py-1 text-[11px] font-medium text-background">
                 Drop .sql file to load
               </span>
             </div>
@@ -1332,7 +1336,7 @@ export function ImportSchemaDialog({
       <DialogContent className="flex max-h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 gap-0 border-b border-border bg-sidebar px-5 py-3.5">
           <div className="flex items-center gap-3 pr-8">
-            <span className="flex size-8 shrink-0 items-center justify-center border border-primary/25 bg-primary/10 text-primary">
+            <span className="flex size-8 shrink-0 items-center justify-center bg-foreground text-background">
               <Upload className="size-4" />
             </span>
             <div className="min-w-0">
@@ -1367,7 +1371,7 @@ export function ImportSchemaDialog({
                   className={cn(
                     "h-auto min-h-9 flex-none justify-center gap-2.5 px-0 py-2 text-xs sm:justify-start sm:px-2.5",
                     "data-active:bg-background data-active:font-medium data-active:text-foreground",
-                    "data-active:shadow-[inset_2px_0_0_var(--primary)]"
+                    "data-active:shadow-[inset_2px_0_0_var(--foreground)]"
                   )}
                 >
                   <Icon className="size-4 shrink-0" />

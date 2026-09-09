@@ -107,8 +107,19 @@ export interface ParsedDbmlResult {
 //  Parser
 // ─────────────────────────────────────────────────────
 
-/** How antlr4's console listener writes a diagnostic: `line 16:2 <message>`. */
-const LEXER_ERROR_RE = /^line (\d+):(\d+) (.+)$/;
+/**
+ * How antlr4's console listener writes a diagnostic: `line 16:2 <message>`.
+ *
+ * The message quotes the offending input verbatim, and the run of characters
+ * the lexer choked on can carry that line's newline along with it — a stray
+ * "|" is reported as `token recognition error at: '|⏎'`. So the message has
+ * to match across lines, or the diagnostic falls through to the real console
+ * and resurfaces as the overlay this whole shim exists to prevent.
+ */
+const LEXER_ERROR_RE = /^line (\d+):(\d+) ([\s\S]+)$/;
+
+/** Control characters spelled out, so a quoted newline stays on one line. */
+const ESCAPED: Record<string, string> = { "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 
 /** A `@dbml/core` CompilerError diagnostic, as its consumers read them. */
 interface RawDiagnostic {
@@ -143,7 +154,9 @@ const parseCapturingLexerErrors = (source: string, format: SchemaSourceFormat) =
     // antlr4 numbers lines from 1 and columns from 0, which is how the
     // parser's own diagnostics arrive too — pass them through unchanged.
     captured.push({
-      message: match[3],
+      // The quoted text lands in a single-line issue list, so keep any control
+      // characters it swept up visible instead of letting them break the row.
+      message: match[3].replace(/[\n\r\t]/g, (c) => ESCAPED[c]),
       location: { start: { line: Number(match[1]), column: Number(match[2]) } },
     });
   };

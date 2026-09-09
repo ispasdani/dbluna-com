@@ -281,6 +281,38 @@ describe("failures", () => {
     });
   });
 
+  // The lexer quotes the whole run it failed on, so a stray character sitting
+  // at the end of a line sweeps that line's newline into the message with it.
+  it("locates a stray character that runs to the end of its line", () => {
+    const logged: unknown[][] = [];
+    const consoleError = console.error;
+    console.error = (...args: unknown[]) => void logged.push(args);
+
+    const script = `CREATE OR REPLACE TABLE customer (
+  id NUMBER NOT NULL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL
+);
+
+  a |
+`;
+    let issues: SqlImportIssue[] = [];
+    try {
+      importSqlSchema(script, { dialect: "snowflake" });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      issues = (err as SqlImportError).issues;
+    } finally {
+      console.error = consoleError;
+    }
+
+    expect(logged).toEqual([]);
+    expect(issues[0]).toMatchObject({
+      line: script.split("\n").findIndex((l) => l.includes("|")) + 1,
+      // The swept-up newline is spelled out rather than breaking the row.
+      message: "token recognition error at: '|\\n'",
+    });
+  });
+
   it("condenses ANTLR's list of expected tokens", () => {
     try {
       importSqlSchema("CREATE TABLE [x] (", { dialect: "mssql" });
