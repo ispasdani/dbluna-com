@@ -188,10 +188,15 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       const worldCenterX = (viewCenterX - camera.x) / camera.zoom;
       const worldCenterY = (viewCenterY - camera.y) / camera.zoom;
 
+      // Build the set of enum names from the parse result so `parsedTablesToCanvasTables`
+      // can preserve their casing instead of uppercasing them like primitive types.
+      const knownEnumNames = new Set(parsed.enums.map((e) => e.name.toLowerCase()));
+
       const newTables = parsedTablesToCanvasTables(parsed.tables, {
         existingTables: currentTables,
         originX: worldCenterX,
         originY: worldCenterY,
+        knownEnumNames,
       });
 
       // Relationships authored as `Ref:` lines, resolved against the tables we

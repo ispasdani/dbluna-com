@@ -331,6 +331,14 @@ export interface ParsedToCanvasOptions {
   /** World-space anchor for laying out brand-new tables (typically the viewport center). */
   originX: number;
   originY: number;
+  /**
+   * Lowercased names of enums declared in the same DBML document.
+   * When a column type matches an enum name (case-insensitively) its authored
+   * casing is preserved rather than uppercased, so `order_status` round-trips
+   * as `order_status` instead of `ORDER_STATUS`. Build this from the
+   * `parsed.enums` array and pass it alongside `existingTables`.
+   */
+  knownEnumNames?: Set<string>;
 }
 
 /**
@@ -351,7 +359,7 @@ const qualifiedTableName = (table: ParsedTable): string => {
  */
 export const parsedTablesToCanvasTables = (
   parsedTables: ParsedTable[],
-  { existingTables, originX, originY }: ParsedToCanvasOptions
+  { existingTables, originX, originY, knownEnumNames }: ParsedToCanvasOptions
 ): Table[] => {
   return parsedTables.map((dbTable, index) => {
     const name = qualifiedTableName(dbTable);
@@ -362,7 +370,12 @@ export const parsedTablesToCanvasTables = (
       return {
         id: existingCol?.id ?? crypto.randomUUID(),
         name: field.name,
-        type: field.type.type_name.toUpperCase(),
+        // Enum types must preserve their authored casing so a column typed
+        // `order_status` matches the enum of the same name after a round-trip.
+        // Standard SQL primitive types are uppercased for consistency.
+        type: knownEnumNames?.has(field.type.type_name.toLowerCase())
+          ? field.type.type_name
+          : field.type.type_name.toUpperCase(),
         isPrimaryKey: field.pk || false,
         isNotNull: field.not_null || false,
         isUnique: field.unique || false,

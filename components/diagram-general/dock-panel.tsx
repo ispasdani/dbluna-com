@@ -14,6 +14,7 @@ import { AreasPanel } from "./areas-panel";
 import { RelationshipsPanel } from "./relationships-panel";
 import { CodeEditor } from "./code-editor";
 import { SchemaPanel } from "./schema-panel";
+import { EnumsPanel } from "./enums-panel";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { AiChatPanel } from "./ai-chat-panel";
@@ -96,6 +97,8 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <CodeEditor readOnly={!canEditCode} />
           ) : effectiveActiveTab === "schema" ? (
             <SchemaPanel />
+          ) : effectiveActiveTab === "enums" ? (
+            <EnumsPanel />
           ) : effectiveActiveTab === "issues" ? (
             <IssuesPanel />
           ) : effectiveActiveTab === "templates" ? (

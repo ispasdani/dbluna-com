@@ -1,6 +1,7 @@
 "use client";
 
 import { useCanvasStore, TABLE_COLORS } from "@/store/useCanvasStore";
+import { useDockStore } from "@/store/useDockStore";
 import { 
   Plus, 
   Trash2, 
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 export function TablesPanel() {
   const {
     tables,
+    enums,
     selectedTableIds,
     addTable,
     updateTable,
@@ -42,6 +44,8 @@ export function TablesPanel() {
     deleteField,
     deleteTables,
   } = useCanvasStore();
+
+  const openTab = useDockStore((s) => s.openTab);
 
   const isSingleSelection = selectedTableIds.length === 1;
   const selectedTableId = isSingleSelection ? selectedTableIds[0] : null;
@@ -201,21 +205,41 @@ export function TablesPanel() {
                                       className="h-7 px-2 text-xs flex-1"
                                       placeholder="Column name"
                                    />
-                                   <div className="w-[80px]">
+                                   <div className="w-[110px]">
                                       <select
                                         className="h-7 w-full rounded border bg-background px-2 py-0 text-xs focus:ring-1 focus:ring-primary"
                                         value={col.type}
-                                        onChange={(e) => updateField(table.id, col.id, { type: e.target.value })}
+                                        onChange={(e) => {
+                                          if (e.target.value === "__new_enum__") {
+                                            openTab("enums");
+                                            return;
+                                          }
+                                          updateField(table.id, col.id, { type: e.target.value });
+                                        }}
                                       >
-                                        <option value="INT">INT</option>
-                                        <option value="VARCHAR">VARCHAR</option>
-                                        <option value="TEXT">TEXT</option>
-                                        <option value="BOOLEAN">BOOL</option>
-                                        <option value="TIMESTAMP">TIME</option>
-                                        <option value="DATE">DATE</option>
-                                        <option value="FLOAT">FLOAT</option>
-                                        <option value="UUID">UUID</option>
-                                        <option value="JSON">JSON</option>
+                                        <optgroup label="Primitives">
+                                          <option value="INT">INT</option>
+                                          <option value="VARCHAR">VARCHAR</option>
+                                          <option value="TEXT">TEXT</option>
+                                          <option value="BOOLEAN">BOOL</option>
+                                          <option value="TIMESTAMP">TIME</option>
+                                          <option value="DATE">DATE</option>
+                                          <option value="FLOAT">FLOAT</option>
+                                          <option value="UUID">UUID</option>
+                                          <option value="JSON">JSON</option>
+                                        </optgroup>
+                                        {enums.length > 0 && (
+                                          <optgroup label="Enums">
+                                            {enums.map((e) => (
+                                              <option key={e.id} value={e.name}>
+                                                {e.name}
+                                              </option>
+                                            ))}
+                                          </optgroup>
+                                        )}
+                                        <optgroup label="">
+                                          <option value="__new_enum__">＋ New enum…</option>
+                                        </optgroup>
                                       </select>
                                    </div>
                                     <Button
