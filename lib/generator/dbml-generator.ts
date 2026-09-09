@@ -5,6 +5,7 @@ import {
     CanvasTableGroup,
     CanvasProject,
 } from "@/store/useCanvasStore";
+import { splitSchemaName } from "@/lib/schema-namespace";
 
 export interface DbmlSchemaMeta {
     project?: CanvasProject | null;
@@ -13,14 +14,10 @@ export interface DbmlSchemaMeta {
 }
 
 // Splits a canvas table name like "dbo.Users" / "[Ncr].Orders" into its parts.
-function splitSchema(name: string): { schema: string | null; table: string } {
-    const dotIdx = name.indexOf(".");
-    if (dotIdx <= 0) return { schema: null, table: name };
-    return {
-        schema: name.slice(0, dotIdx).replace(/[\[\]]/g, ""),
-        table: name.slice(dotIdx + 1).replace(/[\[\]]/g, ""),
-    };
-}
+// Lives in lib/schema-namespace.ts now that the Schema tab needs the same rule;
+// re-exported here so existing importers of this module keep working.
+export { splitSchemaName };
+const splitSchema = splitSchemaName;
 
 // Emits a schema-qualified, quoted table reference: "schema"."table" or "table".
 function tableRef(name: string): string {
