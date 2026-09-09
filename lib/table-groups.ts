@@ -1,4 +1,4 @@
-import type { CanvasTableGroup, Table } from "@/store/useCanvasStore";
+import type { Table } from "@/store/useCanvasStore";
 
 export interface ResolvedGroupMember {
   /** The stored `tableNames` entry, verbatim. */
@@ -19,8 +19,9 @@ export interface ResolvedGroupMember {
  *   - `parsedToCanvasSchemaMeta` rebuilds the member ref via `qualifiedGroupRef`
  *
  * `components/documentation/docs-sidebar.tsx` resolves the same references with
- * the same exact compare, so loosening it here would make the Schema tab and
- * Docs disagree about what a group contains.
+ * the same exact compare; this function is the canonical statement of that rule,
+ * so loosening it here would make the two surfaces disagree about what a group
+ * contains.
  *
  * Unresolvable entries are returned with `table: null` rather than dropped —
  * hand-written DBML can reference a table that doesn't exist, and silently
@@ -39,24 +40,4 @@ export function resolveGroupMembers(
   }
 
   return tableNames.map((name) => ({ name, table: byName.get(name) ?? null }));
-}
-
-/** Adds or removes a table name from a group's member list, preserving order. */
-export function toggleGroupMember(tableNames: string[], name: string): string[] {
-  return tableNames.includes(name)
-    ? tableNames.filter((n) => n !== name)
-    : [...tableNames, name];
-}
-
-/**
- * Every table name currently claimed by some group, so the picker can show
- * which tables already belong elsewhere. Groups may legitimately overlap; this
- * is for display, not enforcement.
- */
-export function claimedTableNames(groups: CanvasTableGroup[]): Set<string> {
-  const claimed = new Set<string>();
-  for (const group of groups) {
-    for (const name of group.tableNames) claimed.add(name);
-  }
-  return claimed;
 }

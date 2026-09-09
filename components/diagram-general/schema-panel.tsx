@@ -28,7 +28,6 @@ import {
   useCanvasStore,
   type CanvasEnum,
   type CanvasProject,
-  type CanvasTableGroup,
   type EnumValue,
   type Table,
 } from "@/store/useCanvasStore";
@@ -38,7 +37,6 @@ import {
   tablesStructureSignature,
   type EnumUsageSite,
 } from "@/lib/enum-usage";
-import { resolveGroupMembers, toggleGroupMember } from "@/lib/table-groups";
 import {
   DEFAULT_SCHEMA,
   groupTablesBySchema,
@@ -900,262 +898,11 @@ function NamespacesSection() {
   );
 }
 
-// ─── Table groups section ────────────────────────────────────────────────────
-
-function TableGroupCard({
-  group,
-  tables,
-  isExpanded,
-  onToggle,
-  onRename,
-  onPatchMembers,
-  onDelete,
-  onSelectTable,
-}: {
-  group: CanvasTableGroup;
-  tables: Table[];
-  isExpanded: boolean;
-  onToggle: () => void;
-  onRename: (name: string) => void;
-  onPatchMembers: (updater: (prev: string[]) => string[]) => void;
-  onDelete: () => void;
-  onSelectTable: (tableId: string) => void;
-}) {
-  const members = useMemo(
-    () => resolveGroupMembers(group.tableNames, tables),
-    [group.tableNames, tables]
-  );
-  const missing = members.filter((m) => m.table === null);
-  const memberNames = new Set(group.tableNames);
-
-  return (
-    <div className="border border-border">
-      <div className="flex items-center p-2 gap-1">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex items-center gap-2 min-w-0 flex-1 text-left select-none"
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-sm truncate" title={group.name}>
-            {group.name}
-          </span>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {group.tableNames.length} table{group.tableNames.length === 1 ? "" : "s"}
-          </span>
-        </button>
-
-        {missing.length > 0 && (
-          <span
-            className="text-[11px] text-yellow-600 dark:text-yellow-500 shrink-0"
-            title={`Not on this canvas: ${missing.map((m) => m.name).join(", ")}`}
-          >
-            {missing.length} missing
-          </span>
-        )}
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground/60 hover:text-destructive"
-          onClick={onDelete}
-          title="Delete group"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-
-      {isExpanded && (
-        <div className="px-3 pb-3 space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Name</label>
-            <CommittedInput
-              value={group.name}
-              onCommit={onRename}
-              placeholder="Group name"
-              className="h-8 text-sm"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Tables</label>
-            {tables.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No tables on this canvas yet.</p>
-            ) : (
-              <div className="max-h-56 overflow-y-auto border border-border divide-y divide-border">
-                {tables.map((t) => (
-                  <label
-                    key={t.id}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-accent/50"
-                  >
-                    <input
-                      type="checkbox"
-                      className="shrink-0"
-                      checked={memberNames.has(t.name)}
-                      // Stores `table.name` verbatim, schema prefix included:
-                      // docs-sidebar.tsx resolves members with an exact compare,
-                      // so a stripped or normalized name would silently empty
-                      // the group in Docs. See schema-tab-plan.md §3.
-                      onChange={() => onPatchMembers((prev) => toggleGroupMember(prev, t.name))}
-                    />
-                    <span className="font-mono truncate" title={t.name}>
-                      {t.name}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {missing.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-yellow-600 dark:text-yellow-500">
-                Not on this canvas
-              </label>
-              <p className="text-[11px] text-muted-foreground">
-                Kept as written so the generated DBML still matches your source. Remove one
-                if it is no longer wanted.
-              </p>
-              <div className="space-y-1">
-                {missing.map((m) => (
-                  <div key={m.name} className="flex items-center gap-1">
-                    <span className="font-mono text-xs truncate flex-1" title={m.name}>
-                      {m.name}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => onPatchMembers((prev) => prev.filter((n) => n !== m.name))}
-                      title="Remove from group"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {members.some((m) => m.table) && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Members</label>
-              <div className="flex flex-wrap gap-1">
-                {members
-                  .filter((m) => m.table)
-                  .map((m) => (
-                    <button
-                      key={m.name}
-                      type="button"
-                      onClick={() => onSelectTable(m.table!.id)}
-                      className="text-[11px] font-mono px-1.5 py-0.5 border border-border hover:bg-accent transition-colors"
-                      title={`Select ${m.name}`}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TableGroupsSection() {
-  const tableGroups = useCanvasStore((s) => s.tableGroups);
-  const tables = useCanvasStore((s) => s.tables);
-  const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
-
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Same drag-path guard as the enum scan: `tables` is replaced on every
-  // pointermove, so the member resolution keys on a structural fingerprint.
-  // See release-1-0/schema-tab-plan.md §6.
-  //
-  // `stableTables` keeps its identity across a drag, so the per-card
-  // `resolveGroupMembers` memo below doesn't re-run. It can therefore hold
-  // positions one drag behind — harmless, because this section reads only
-  // `id` and `name`, both of which are part of the signature.
-  const signature = useMemo(() => tablesStructureSignature(tables), [tables]);
-  const stableTables = useMemo(
-    () => tables,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [signature]
-  );
-
-  // Reads fresh from the store for the same reason the enum section does: a
-  // field committing on blur writes between mousedown and click.
-  const mutate = (next: (current: CanvasTableGroup[]) => CanvasTableGroup[]) => {
-    const store = useCanvasStore.getState();
-    store.setTableGroups(next(store.tableGroups));
-  };
-
-  const addGroup = () => {
-    const created: CanvasTableGroup = {
-      id: crypto.randomUUID(),
-      name: uniqueName("New group", useCanvasStore.getState().tableGroups.map((g) => g.name)),
-      tableNames: [],
-    };
-    mutate((current) => [...current, created]);
-    setExpandedId(created.id);
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Named sets of tables. Docs groups its sidebar by these when any exist.
-        </p>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={addGroup}>
-          <Plus className="w-3 h-3" /> Group
-        </Button>
-      </div>
-
-      {tableGroups.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">
-          No groups yet. Without them, Docs falls back to grouping by schema prefix.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {tableGroups.map((g) => (
-            <TableGroupCard
-              key={g.id}
-              group={g}
-              tables={stableTables}
-              isExpanded={expandedId === g.id}
-              onToggle={() => setExpandedId(expandedId === g.id ? null : g.id)}
-              onRename={(name) =>
-                mutate((current) => current.map((x) => (x.id === g.id ? { ...x, name } : x)))
-              }
-              onPatchMembers={(updater) =>
-                mutate((current) =>
-                  current.map((x) =>
-                    x.id === g.id ? { ...x, tableNames: updater(x.tableNames) } : x
-                  )
-                )
-              }
-              onDelete={() => mutate((current) => current.filter((x) => x.id !== g.id))}
-              onSelectTable={(tableId) => setSelectedTableIds([tableId])}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Panel ───────────────────────────────────────────────────────────────────
 
 export function SchemaPanel() {
   const project = useCanvasStore((s) => s.project);
   const enumCount = useCanvasStore((s) => s.enums.length);
-  const groupCount = useCanvasStore((s) => s.tableGroups.length);
   // Counts only distinct named prefixes — cheap enough to run on any store
   // change, and returning a number means a canvas drag never re-renders the
   // header (the selector's result is unchanged).
@@ -1200,14 +947,6 @@ export function SchemaPanel() {
           defaultOpen={false}
         >
           <EnumsSection />
-        </Section>
-
-        <Section
-          title="Table groups"
-          description={groupCount === 0 ? "None" : `${groupCount} defined`}
-          defaultOpen={false}
-        >
-          <TableGroupsSection />
         </Section>
       </div>
     </div>

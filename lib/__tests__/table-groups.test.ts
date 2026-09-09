@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  claimedTableNames,
-  resolveGroupMembers,
-  toggleGroupMember,
-} from "@/lib/table-groups";
-import type { CanvasTableGroup, Table } from "@/store/useCanvasStore";
+import { resolveGroupMembers } from "@/lib/table-groups";
+import type { Table } from "@/store/useCanvasStore";
 
 const table = (name: string, id = crypto.randomUUID()): Table => ({
   id,
@@ -58,36 +54,5 @@ describe("resolveGroupMembers", () => {
     const resolved = resolveGroupMembers(["orders"], [first, second]);
 
     expect(resolved[0].table?.id).toBe("first");
-  });
-});
-
-describe("toggleGroupMember", () => {
-  it("adds a name that is not present, appending it", () => {
-    expect(toggleGroupMember(["a"], "b")).toEqual(["a", "b"]);
-  });
-
-  it("removes a name that is present", () => {
-    expect(toggleGroupMember(["a", "b", "c"], "b")).toEqual(["a", "c"]);
-  });
-
-  it("does not mutate the input", () => {
-    const input = ["a"];
-    toggleGroupMember(input, "b");
-    expect(input).toEqual(["a"]);
-  });
-});
-
-describe("claimedTableNames", () => {
-  it("collects names across every group, overlaps included", () => {
-    const groups: CanvasTableGroup[] = [
-      { id: "1", name: "Core", tableNames: ["users", "orders"] },
-      { id: "2", name: "Billing", tableNames: ["orders", "invoices"] },
-    ];
-
-    expect(claimedTableNames(groups)).toEqual(new Set(["users", "orders", "invoices"]));
-  });
-
-  it("is empty for no groups", () => {
-    expect(claimedTableNames([])).toEqual(new Set());
   });
 });
