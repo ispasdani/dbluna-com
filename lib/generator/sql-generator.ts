@@ -30,3 +30,32 @@ export function generateSqlFromCanvas(
         return null;
     }
 }
+
+/**
+ * Best-effort map from a DBML `database_type` string to an export dialect.
+ *
+ * `project.databaseType` is free text (DBML places no constraint on it, and the
+ * Schema tab offers the labels below only as suggestions), so this matches on
+ * substrings rather than exact labels — "Postgres 15" and "Microsoft SQL Server"
+ * should both resolve. Returns null when nothing matches; callers treat that as
+ * "no project default", never as an error.
+ */
+export function dialectFromDatabaseType(databaseType?: string | null): SqlDialect | null {
+    const value = (databaseType ?? "").toLowerCase();
+    if (!value.trim()) return null;
+
+    // Ordered most-specific first: several of these contain the substring "sql".
+    if (value.includes("postgres") || value.includes("pgsql")) return "postgres";
+    if (value.includes("mysql") || value.includes("maria")) return "mysql";
+    if (value.includes("oracle")) return "oracle";
+    if (
+        value.includes("sql server") ||
+        value.includes("sqlserver") ||
+        value.includes("mssql") ||
+        value.includes("t-sql") ||
+        value.includes("transact")
+    ) {
+        return "mssql";
+    }
+    return null;
+}

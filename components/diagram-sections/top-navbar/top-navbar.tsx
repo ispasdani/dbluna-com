@@ -44,7 +44,7 @@ import {
   exportDiagramAsSvg,
   parseImportedDiagramJson,
 } from "@/lib/diagram-io";
-import { SQL_DIALECTS, type SqlDialect } from "@/lib/generator/sql-generator";
+import { SQL_DIALECTS, dialectFromDatabaseType, type SqlDialect } from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useCapabilities } from "@/components/diagram-general/capabilities-context";
@@ -81,6 +81,10 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const enums = useCanvasStore((s) => s.enums);
   const tableGroups = useCanvasStore((s) => s.tableGroups);
   const project = useCanvasStore((s) => s.project);
+  // Which export dialect the diagram's declared database type corresponds to,
+  // or null when it is unset or unrecognized. Display only — every dialect
+  // stays selectable.
+  const projectDialect = dialectFromDatabaseType(project?.databaseType);
   const background = useCanvasStore((s) => s.background);
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
@@ -369,8 +373,18 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="min-w-40">
                     {SQL_DIALECTS.map((d) => (
-                      <DropdownMenuItem key={d.value} onClick={() => handleExportSql(d.value)}>
-                        {d.label}
+                      <DropdownMenuItem
+                        key={d.value}
+                        onClick={() => handleExportSql(d.value)}
+                        className="gap-2"
+                      >
+                        <span className="flex-1">{d.label}</span>
+                        {/* Marks the dialect matching the Schema tab's
+                            project database type, so the export menu reflects
+                            what the diagram says it targets. */}
+                        {d.value === projectDialect && (
+                          <span className="text-xs text-muted-foreground">✓</span>
+                        )}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuSubContent>

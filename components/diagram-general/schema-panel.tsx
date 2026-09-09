@@ -39,6 +39,15 @@ import {
   type EnumUsageSite,
 } from "@/lib/enum-usage";
 import { resolveGroupMembers, toggleGroupMember } from "@/lib/table-groups";
+import {
+  DEFAULT_SCHEMA,
+  groupTablesBySchema,
+  moveTableToSchema,
+  renameSchema,
+  splitSchemaName,
+  validateSchemaName,
+  type SchemaEditPlan,
+} from "@/lib/schema-namespace";
 
 // ─── Shared edit plumbing ────────────────────────────────────────────────────
 
@@ -660,6 +669,224 @@ function EnumsSection() {
   );
 }
 
+// ─── Namespaces section ──────────────────────────────────────────────────────
+
+// Schemas are not stored anywhere: they exist only as a `schema.` prefix inside
+// table names. So the "no schema" bucket needs a key that can't collide with a
+// real schema name, and a freshly created empty schema lives in local state
+// until a table is actually moved into it.
+const NO_SCHEMA_KEY = " none";
+const schemaKey = (schema: string | null) => schema ?? NO_SCHEMA_KEY;
+
+function NamespacesSection() {
+  const tables = useCanvasStore((s) => s.tables);
+  const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
+
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [draftSchemas, setDraftSchemas] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // Drag-path guard, same as the other sections: group by prefix only when the
+  // structure actually changed. See release-1-0/schema-tab-plan.md §6.
+  const signature = useMemo(() => tablesStructureSignature(tables), [tables]);
+  const groups = useMemo(
+    () => groupTablesBySchema(tables),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [signature]
+  );
+
+  // Named schemas that exist on the canvas, plus any created here that have no
+  // tables yet, so they can be picked as a move target.
+  const existingNames = groups.map((g) => g.schema).filter((s): s is string => s !== null);
+  const emptyDrafts = draftSchemas.filter((d) => !existingNames.includes(d));
+  const allSchemaNames = [...existingNames, ...emptyDrafts].sort((a, b) =>
+    a.toLowerCase().localeCompare(b.toLowerCase())
+  );
+
+  // Renames rewrite `tables` AND `tableGroups` together — group members are
+  // schema-qualified strings resolved by exact compare, so writing one without
+  // the other silently empties every affected group, in Docs too. React batches
+  // the two store writes into a single render. See schema-tab-plan.md §4.
+  const applyPlan = (plan: SchemaEditPlan) => {
+    if (!plan.ok) {
+      setError(plan.error);
+      return false;
+    }
+    setError(null);
+    const store = useCanvasStore.getState();
+    store.setTables(plan.result.tables);
+    // Identity-stable when untouched, so an unaffected schema edit doesn't
+    // trigger a second write (or a second upgrade toast when writes are gated).
+    if (plan.result.tableGroups !== store.tableGroups) {
+      store.setTableGroups(plan.result.tableGroups);
+    }
+    return true;
+  };
+
+  const handleRename = (from: string, to: string) => {
+    const store = useCanvasStore.getState();
+    if (applyPlan(renameSchema(from, to, store.tables, store.tableGroups))) {
+      setDraftSchemas((prev) => prev.filter((d) => d !== from));
+      setExpandedKey(schemaKey(to.trim()));
+    }
+  };
+
+  const handleMove = (tableId: string, to: string | null) => {
+    const store = useCanvasStore.getState();
+    applyPlan(moveTableToSchema(tableId, to, store.tables, store.tableGroups));
+  };
+
+  const addSchema = () => {
+    const created = uniqueName("new_schema", [...allSchemaNames]);
+    setDraftSchemas((prev) => [...prev, created]);
+    setExpandedKey(schemaKey(created));
+    setError(null);
+  };
+
+  const renderTableRow = (t: Table) => {
+    const { schema, table: bare } = splitSchemaName(t.name);
+    return (
+      <div key={t.id} className="flex items-center gap-1 px-2 py-1.5 text-xs">
+        <button
+          type="button"
+          onClick={() => setSelectedTableIds([t.id])}
+          className="font-mono truncate flex-1 text-left hover:underline"
+          title={`Select ${t.name}`}
+        >
+          {bare}
+        </button>
+        <select
+          value={schema ?? ""}
+          onChange={(e) => handleMove(t.id, e.target.value || null)}
+          className="h-6 text-[11px] bg-transparent border border-border px-1 max-w-32"
+          aria-label={`Schema for ${t.name}`}
+        >
+          <option value="">(no schema)</option>
+          {allSchemaNames.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
+
+  const sections: { schema: string | null; tables: Table[]; isDraft: boolean }[] = [
+    ...groups.map((g) => ({ ...g, isDraft: false })),
+    ...emptyDrafts.map((name) => ({ schema: name, tables: [] as Table[], isDraft: true })),
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          Derived from the <code className="font-mono">schema.</code> prefix on table names.
+        </p>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={addSchema}>
+          <Plus className="w-3 h-3" /> Schema
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive border border-destructive/30 px-2 py-1.5">
+          {error}
+        </p>
+      )}
+
+      {sections.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">
+          No tables yet. Add one, then give it a schema here.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {sections.map(({ schema, tables: schemaTables, isDraft }) => {
+            const key = schemaKey(schema);
+            const isExpanded = expandedKey === key;
+            const isReserved = schema?.toLowerCase() === DEFAULT_SCHEMA;
+
+            return (
+              <div key={key} className="border border-border">
+                <button
+                  type="button"
+                  onClick={() => setExpandedKey(isExpanded ? null : key)}
+                  className="w-full flex items-center gap-2 p-2 text-left select-none"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  )}
+                  <span className="font-mono text-sm truncate flex-1">
+                    {schema ?? "(no schema)"}
+                  </span>
+                  {isReserved && (
+                    <span
+                      className="text-[11px] text-yellow-600 dark:text-yellow-500 shrink-0"
+                      title="DBML drops a `public.` prefix on import, so it won't survive a round-trip."
+                    >
+                      reserved
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {isDraft ? "empty" : `${schemaTables.length}`}
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-2 pb-2 space-y-2">
+                    {schema !== null && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Schema name
+                        </label>
+                        <CommittedInput
+                          value={schema}
+                          onCommit={(next) => {
+                            if (isDraft) {
+                              const invalid = validateSchemaName(next);
+                              if (invalid) {
+                                setError(invalid);
+                                return;
+                              }
+                              setError(null);
+                              setDraftSchemas((prev) =>
+                                prev.map((d) => (d === schema ? next.trim() : d))
+                              );
+                              setExpandedKey(schemaKey(next.trim()));
+                              return;
+                            }
+                            handleRename(schema, next);
+                          }}
+                          className="h-8 text-sm font-mono"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Renaming rewrites every table in this schema and any table group
+                          that references them.
+                        </p>
+                      </div>
+                    )}
+
+                    {schemaTables.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-1">
+                        No tables. Assign one from another schema&apos;s list.
+                      </p>
+                    ) : (
+                      <div className="border border-border divide-y divide-border max-h-56 overflow-y-auto">
+                        {schemaTables.map(renderTableRow)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Table groups section ────────────────────────────────────────────────────
 
 function TableGroupCard({
@@ -916,9 +1143,22 @@ export function SchemaPanel() {
   const project = useCanvasStore((s) => s.project);
   const enumCount = useCanvasStore((s) => s.enums.length);
   const groupCount = useCanvasStore((s) => s.tableGroups.length);
+  // Counts only distinct named prefixes — cheap enough to run on any store
+  // change, and returning a number means a canvas drag never re-renders the
+  // header (the selector's result is unchanged).
+  const namedSchemaCount = useCanvasStore(
+    (s) =>
+      new Set(
+        s.tables
+          .map((t) => splitSchemaName(t.name).schema)
+          .filter((schema): schema is string => schema !== null)
+      ).size
+  );
 
   const projectSummary =
     [project?.name, project?.databaseType].filter(Boolean).join(" · ") || "Not set";
+  const namespaceSummary =
+    namedSchemaCount === 0 ? "None" : `${namedSchemaCount} schema${namedSchemaCount === 1 ? "" : "s"}`;
 
   return (
     <div className="h-full flex flex-col">
@@ -935,6 +1175,10 @@ export function SchemaPanel() {
       <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
         <Section title="Project" description={projectSummary}>
           <ProjectSection />
+        </Section>
+
+        <Section title="Namespaces" description={namespaceSummary} defaultOpen={false}>
+          <NamespacesSection />
         </Section>
 
         <Section

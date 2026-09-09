@@ -8,6 +8,13 @@ export function useDiagramAutoSave() {
     const notes = useCanvasStore((s) => s.notes);
     const areas = useCanvasStore((s) => s.areas);
     const relationships = useCanvasStore((s) => s.relationships);
+    // Schema-tab metadata. These already persist (zustand's persist middleware
+    // writes on every set, and all three are in CanvasFields) — without them
+    // here the write still lands, it just never shows "Saving". use-cloud-
+    // autosave.ts has always watched all three.
+    const enums = useCanvasStore((s) => s.enums);
+    const tableGroups = useCanvasStore((s) => s.tableGroups);
+    const project = useCanvasStore((s) => s.project);
     const setSavingStatus = useCanvasStore((s) => s.setSavingStatus);
 
     const isInitialMount = useRef(true);
@@ -24,5 +31,5 @@ export function useDiagramAutoSave() {
         // onWriteComplete callback once the IndexedDB write actually lands —
         // see the `storage:` option in useCanvasStore's persist config.
         setSavingStatus("saving");
-    }, [tables, notes, areas, relationships, setSavingStatus]);
+    }, [tables, notes, areas, relationships, enums, tableGroups, project, setSavingStatus]);
 }
