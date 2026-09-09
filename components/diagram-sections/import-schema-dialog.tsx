@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useCanvasStore, Table as CanvasTable, TABLE_COLORS } from "@/store/useCanvasStore";
 import {
   importSqlSchema,
@@ -35,16 +36,21 @@ import dagre from "@dagrejs/dagre";
 import JSZip from "jszip";
 import {
   Database,
-  FileText,
+  Server,
+  FileSpreadsheet,
+  FileArchive,
   Upload,
   CheckCircle2,
   AlertCircle,
+  Info,
   Loader2,
   Eye,
   EyeOff,
   Check,
   Link2,
   Terminal,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -81,10 +87,41 @@ const DEFAULT_PORTS: Record<DbEngine, string> = {
   sqlserver: "1433",
 };
 
-const ENGINE_LABELS: Record<DbEngine, string> = {
-  postgresql: "PostgreSQL",
-  sqlserver: "SQL Server",
-};
+/** The source rail, in the order it reads down the left edge of the dialog.
+    `blurb` doubles as the dialog's description, so the header explains
+    whichever source is selected instead of describing all five at once. */
+const SOURCES: { id: ImportSchemaTab; label: string; icon: LucideIcon; blurb: string }[] = [
+  {
+    id: "postgresql",
+    label: "PostgreSQL",
+    icon: Database,
+    blurb: "Connect to a live PostgreSQL database and pull its tables and foreign keys.",
+  },
+  {
+    id: "sqlserver",
+    label: "SQL Server",
+    icon: Server,
+    blurb: "Connect to a live SQL Server database and pull its tables and foreign keys.",
+  },
+  {
+    id: "sql",
+    label: "SQL Script",
+    icon: Terminal,
+    blurb: "Paste CREATE TABLE statements, or drop a .sql file, and parse it onto the canvas.",
+  },
+  {
+    id: "csv",
+    label: "CSV",
+    icon: FileSpreadsheet,
+    blurb: "Drop one or more CSV files — each file becomes a table, each header a column.",
+  },
+  {
+    id: "bacpac",
+    label: "BACPAC",
+    icon: FileArchive,
+    blurb: "Upload a SQL Server .bacpac export and read its schema from model.xml.",
+  },
+];
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Utility: layout tables with dagre and push to canvas
@@ -129,7 +166,7 @@ function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
        };
     });
 
-    return { 
+    return {
       tables: [...s.tables, ...positioned],
       relationships: [...s.relationships, ...newRelationships]
     };
@@ -144,6 +181,203 @@ function parseCsv(text: string): { headers: string[]; rowCount: number } {
   if (lines.length === 0) return { headers: [], rowCount: 0 };
   const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
   return { headers, rowCount: Math.max(0, lines.length - 1) };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shared presentation
+   Every source tab is the same shape — a scrolling body over a pinned action
+   bar — and speaks in the diagram page's own tokens (primary / muted / border
+   / destructive) so the dialog re-colours with the palette switcher instead of
+   staying blue on every theme.
+───────────────────────────────────────────────────────────────────────────── */
+
+/** Scrolling body + the action bar that stays pinned to the bottom edge. */
+function TabShell({
+  children,
+  actions,
+}: {
+  children: React.ReactNode;
+  actions: React.ReactNode;
+}) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex flex-col gap-4">{children}</div>
+      </div>
+      <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-sidebar px-5 py-3 sm:flex-row sm:items-center sm:justify-end">
+        {actions}
+      </div>
+    </div>
+  );
+}
+
+/** Uppercase micro-label used above inputs and on section headers. */
+function Field({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+/** Connection / parse feedback. `idle` carries plain informational copy. */
+function StatusBanner({
+  status,
+  message,
+  children,
+}: {
+  status: Status;
+  message: string;
+  children?: React.ReactNode;
+}) {
+  const tone =
+    status === "success" ? "success" : status === "error" ? "error" : "info";
+  const Icon = tone === "success" ? CheckCircle2 : tone === "error" ? AlertCircle : Info;
+
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2 border px-3 py-2.5 text-xs",
+        tone === "success" && "border-emerald-500/40 bg-emerald-500/10 text-foreground",
+        tone === "error" && "border-destructive/40 bg-destructive/10 text-destructive",
+        tone === "info" && "border-border bg-muted text-muted-foreground"
+      )}
+    >
+      <Icon
+        className={cn(
+          "mt-px size-3.5 shrink-0",
+          tone === "success" && "text-emerald-500"
+        )}
+      />
+      <div className="min-w-0 leading-relaxed">
+        <span>{message}</span>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Bordered list with a header strip — used for table previews and file lists. */
+function ResultPanel({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border border-border">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-muted px-3 py-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {title}
+        </span>
+        <span className="text-[10px] tabular-nums text-muted-foreground">{meta}</span>
+      </div>
+      <div className="max-h-44 divide-y divide-border overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+/** One table in a preview list: name, an optional badge, and a column summary. */
+function ResultRow({
+  icon: Icon = Database,
+  iconClassName,
+  name,
+  badge,
+  detail,
+  action,
+}: {
+  icon?: LucideIcon;
+  iconClassName?: string;
+  name: string;
+  badge?: string;
+  detail: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2">
+      <Icon className={cn("mt-0.5 size-3.5 shrink-0 text-primary", iconClassName)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-xs font-medium text-foreground">{name}</span>
+          {badge && (
+            <span className="shrink-0 border border-amber-500/50 bg-amber-500/15 px-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-foreground">
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{detail}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** Dashed drop target shared by the CSV and BACPAC tabs. */
+function DropZone({
+  icon: Icon,
+  title,
+  subtitle,
+  isDragging,
+  onClick,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  isDragging: boolean;
+  onClick: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={cn(
+        "flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed px-4 py-9 text-center outline-none transition-colors",
+        "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
+        isDragging
+          ? "border-primary bg-primary/10"
+          : "border-border bg-muted/40 hover:border-primary/50 hover:bg-muted"
+      )}
+    >
+      <span className="flex size-10 items-center justify-center border border-border bg-background text-primary">
+        <Icon className="size-5" />
+      </span>
+      <p className="text-xs font-medium text-foreground">{title}</p>
+      <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+      {children}
+    </div>
+  );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -244,7 +478,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
         const sTbl = tableMap.get(r.sourceTable);
         const tTbl = tableMap.get(r.targetTable);
         if (!sTbl || !tTbl) return null;
-        
+
         const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
         const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
 
@@ -263,8 +497,11 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       .filter(Boolean);
 
     layoutAndImport(canvasTables, canvasRelationships);
-    setStatus("idle");
-    setMessage(`✓ Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
+    // Keep `success` rather than dropping to `idle`: the preview is cleared on
+    // the next line, so both buttons disable themselves anyway, and the banner
+    // reads as a confirmation instead of a neutral note.
+    setStatus("success");
+    setMessage(`Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
     setPreview(null);
     pendingDataRef.current = { tables: [], relationships: [] };
   };
@@ -272,150 +509,120 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   const isReady = form.host && form.port && form.user && form.database;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Connection Fields */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 flex gap-3">
-          <div className="flex-1 flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Host</Label>
-            <Input
-              value={form.host}
-              onChange={(e) => handleField("host", e.target.value)}
-              placeholder="localhost"
-              className="h-9 bg-background border-border text-sm"
-            />
-          </div>
-          <div className="w-28 flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">Port</Label>
-            <Input
-              value={form.port}
-              onChange={(e) => handleField("port", e.target.value)}
-              placeholder={DEFAULT_PORTS[engine]}
-              className="h-9 bg-background border-border text-sm"
-            />
-          </div>
-        </div>
+    <TabShell
+      actions={
+        <>
+          <Button
+            onClick={handleConnect}
+            disabled={!isReady || status === "loading"}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            {status === "loading" ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Connecting…
+              </>
+            ) : (
+              <>
+                <Database className="size-3.5" />
+                Test &amp; fetch schema
+              </>
+            )}
+          </Button>
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-muted-foreground">Username</Label>
+          <Button
+            onClick={handleImport}
+            disabled={status !== "success" || !preview?.length}
+            size="lg"
+            className="gap-2"
+          >
+            <Upload className="size-3.5" />
+            Import to canvas
+          </Button>
+        </>
+      }
+    >
+      {/* Connection fields */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3.5">
+        <Field label="Host" className="col-span-2 sm:col-span-1">
+          <Input
+            value={form.host}
+            onChange={(e) => handleField("host", e.target.value)}
+            placeholder="localhost"
+          />
+        </Field>
+
+        <Field label="Port" className="col-span-2 sm:col-span-1">
+          <Input
+            value={form.port}
+            onChange={(e) => handleField("port", e.target.value)}
+            placeholder={DEFAULT_PORTS[engine]}
+            className="tabular-nums"
+          />
+        </Field>
+
+        <Field label="Username" className="col-span-2 sm:col-span-1">
           <Input
             value={form.user}
             onChange={(e) => handleField("user", e.target.value)}
             placeholder="root"
-            className="h-9 bg-background border-border text-sm"
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs text-muted-foreground">Password</Label>
+        <Field label="Password" className="col-span-2 sm:col-span-1">
           <div className="relative">
             <Input
               type={showPassword ? "text" : "password"}
               value={form.password}
               onChange={(e) => handleField("password", e.target.value)}
               placeholder="••••••••"
-              className="h-9 bg-background border-border text-sm pr-9"
+              className="pr-8"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
             </button>
           </div>
-        </div>
+        </Field>
 
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label className="text-xs text-muted-foreground">
-            Database Name
-          </Label>
+        <Field label="Database name" className="col-span-2">
           <Input
             value={form.database}
             onChange={(e) => handleField("database", e.target.value)}
             placeholder="my_database"
-            className="h-9 bg-background border-border text-sm"
           />
-        </div>
+        </Field>
       </div>
 
-      {/* Status Banner */}
-      {message && (
-        <div
-          className={`flex items-start gap-2.5 rounded-md px-3 py-2.5 text-sm border ${
-            status === "success"
-              ? "bg-green-500/10 border-green-500/30 text-green-400"
-              : status === "error"
-              ? "bg-red-500/10 border-red-500/30 text-red-400"
-              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
-          }`}
-        >
-          {status === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : status === "error" ? (
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : null}
-          <span>{message}</span>
-        </div>
-      )}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Credentials are sent to your own server to read the schema and are never stored.
+      </p>
 
-      {/* Preview */}
+      {message && <StatusBanner status={status} message={message} />}
+
       {preview && preview.length > 0 && (
-        <div className="rounded-md border border-border bg-background/60 overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-sidebar flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Tables Preview
-            </span>
-            <span className="text-xs text-muted-foreground">{preview.length} tables</span>
-          </div>
-          <div className="max-h-40 overflow-y-auto divide-y divide-border">
-            {preview.map((t) => (
-              <div key={t.tableName} className="px-3 py-2 flex items-start gap-2">
-                <Database className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-xs font-medium text-foreground">{t.tableName}</span>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {t.columns.slice(0, 5).join(", ")}
-                    {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ResultPanel title="Tables found" meta={`${preview.length} tables`}>
+          {preview.map((t) => (
+            <ResultRow
+              key={t.tableName}
+              name={t.tableName}
+              detail={
+                <>
+                  {t.columns.slice(0, 5).join(", ")}
+                  {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
+                </>
+              }
+            />
+          ))}
+        </ResultPanel>
       )}
-
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-1">
-        <Button
-          onClick={handleConnect}
-          disabled={!isReady || status === "loading"}
-          variant="secondary"
-          className="flex-1 h-9 gap-2"
-        >
-          {status === "loading" ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Connecting…
-            </>
-          ) : (
-            <>
-              <Database className="h-4 w-4" />
-              Test &amp; Fetch Schema
-            </>
-          )}
-        </Button>
-
-        <Button
-          onClick={handleImport}
-          disabled={status !== "success" || !preview?.length}
-          className="flex-1 h-9 gap-2 bg-blue-600 hover:bg-blue-500 text-white"
-        >
-          <Upload className="h-4 w-4" />
-          Import to Canvas
-        </Button>
-      </div>
-    </div>
+    </TabShell>
   );
 }
 
@@ -484,26 +691,41 @@ function CsvImportTab() {
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Drop Zone */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+    <TabShell
+      actions={
+        <Button
+          onClick={handleImport}
+          disabled={files.length === 0 || status === "loading" || status === "success"}
+          size="lg"
+          className="gap-2"
+        >
+          {status === "loading" ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              Importing…
+            </>
+          ) : (
+            <>
+              <Upload className="size-3.5" />
+              Import {files.length > 0 ? `${files.length} table(s)` : ""} to canvas
+            </>
+          )}
+        </Button>
+      }
+    >
+      <DropZone
+        icon={FileSpreadsheet}
+        title="Drop CSV files here"
+        subtitle="or click to browse — each file becomes a table"
+        isDragging={isDragging}
+        onClick={() => fileRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => fileRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed py-10 cursor-pointer transition-all ${
-          isDragging
-            ? "border-blue-500 bg-blue-500/10"
-            : "border-border bg-background/40 hover:border-muted-foreground/50 hover:bg-background/60"
-        }`}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/15 border border-blue-500/30">
-          <FileText className="h-6 w-6 text-blue-400" />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">Drop CSV files here</p>
-          <p className="text-xs text-muted-foreground mt-1">or click to browse — each file becomes a table</p>
-        </div>
         <input
           ref={fileRef}
           type="file"
@@ -512,70 +734,45 @@ function CsvImportTab() {
           className="sr-only"
           onChange={(e) => e.target.files && processFiles(e.target.files)}
         />
-      </div>
+      </DropZone>
 
-      {/* File List */}
       {files.length > 0 && (
-        <div className="rounded-md border border-border bg-background/60 overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-sidebar flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              CSV Files
-            </span>
-            <span className="text-xs text-muted-foreground">{files.length} file(s)</span>
-          </div>
-          <div className="max-h-44 overflow-y-auto divide-y divide-border">
-            {files.map((f) => (
-              <div key={f.name} className="px-3 py-2.5 flex items-center gap-3">
-                <FileText className="h-4 w-4 text-blue-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {f.headers.length} columns · {f.rowCount} rows
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/70 truncate">
-                    {f.headers.slice(0, 6).join(", ")}
-                    {f.headers.length > 6 ? ` +${f.headers.length - 6}` : ""}
-                  </p>
-                </div>
-                <button
+        <ResultPanel title="CSV files" meta={`${files.length} file(s)`}>
+          {files.map((f) => (
+            <ResultRow
+              key={f.name}
+              icon={FileSpreadsheet}
+              name={f.name}
+              detail={
+                <>
+                  {f.headers.length} columns · {f.rowCount} rows ·{" "}
+                  {f.headers.slice(0, 5).join(", ")}
+                  {f.headers.length > 5 ? ` +${f.headers.length - 5}` : ""}
+                </>
+              }
+              action={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => handleRemoveFile(f.name)}
-                  className="text-muted-foreground hover:text-red-400 transition-colors text-lg leading-none shrink-0"
-                  title="Remove"
+                  aria-label={`Remove ${f.name}`}
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
                 >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+                  <X />
+                </Button>
+              }
+            />
+          ))}
+        </ResultPanel>
       )}
 
-      {/* Success Message */}
       {status === "success" && (
-        <div className="flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm bg-green-500/10 border border-green-500/30 text-green-400">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>Imported {files.length} table(s) to canvas successfully.</span>
-        </div>
+        <StatusBanner
+          status="success"
+          message={`Imported ${files.length} table(s) to the canvas.`}
+        />
       )}
-
-      <Button
-        onClick={handleImport}
-        disabled={files.length === 0 || status === "loading" || status === "success"}
-        className="h-9 w-full gap-2 bg-blue-600 hover:bg-blue-500 text-white"
-      >
-        {status === "loading" ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Importing…
-          </>
-        ) : (
-          <>
-            <Upload className="h-4 w-4" />
-            Import {files.length > 0 ? `${files.length} Table(s)` : ""} to Canvas
-          </>
-        )}
-      </Button>
-    </div>
+    </TabShell>
   );
 }
 
@@ -588,7 +785,7 @@ function BacpacImportTab() {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-  
+
   const pendingDataRef = useRef<{ tables: any[]; relationships: any[] }>({ tables: [], relationships: [] });
   const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
 
@@ -615,11 +812,11 @@ function BacpacImportTab() {
       const zip = new JSZip();
       const loadedZip = await zip.loadAsync(file);
       const xmlFile = loadedZip.file("model.xml");
-      
+
       if (!xmlFile) {
         throw new Error("Could not find model.xml inside this BACPAC file");
       }
-      
+
       // We extract it strictly as a Blob to easily POST to backend
       const xmlBlob = await xmlFile.async("blob");
 
@@ -676,7 +873,7 @@ function BacpacImportTab() {
         const sTbl = tableMap.get(r.sourceTable);
         const tTbl = tableMap.get(r.targetTable);
         if (!sTbl || !tTbl) return null;
-        
+
         const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
         const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
 
@@ -695,34 +892,66 @@ function BacpacImportTab() {
       .filter(Boolean);
 
     layoutAndImport(canvasTables, canvasRelationships);
-    
-    setStatus("idle");
-    setMessage(`✓ Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
+
+    // Same as the DB tab: the preview is cleared below, so keeping `success`
+    // only affects the banner's tone, not what the buttons allow.
+    setStatus("success");
+    setMessage(`Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
     setPreview(null);
     pendingDataRef.current = { tables: [], relationships: [] };
     setFile(null);
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+    <TabShell
+      actions={
+        <>
+          <Button
+            onClick={handleConnect}
+            disabled={!file || status === "loading"}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            {status === "loading" ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Parsing…
+              </>
+            ) : (
+              <>
+                <FileArchive className="size-3.5" /> Parse schema
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={status !== "success" || !preview?.length}
+            size="lg"
+            className="gap-2"
+          >
+            <Upload className="size-3.5" />
+            Import to canvas
+          </Button>
+        </>
+      }
+    >
+      <DropZone
+        icon={FileArchive}
+        title={file ? file.name : "Drop a .bacpac file here"}
+        subtitle={
+          file
+            ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+            : "or click to select your SQL Server schema export"
+        }
+        isDragging={isDragging}
+        onClick={() => fileRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
+        }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => fileRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed py-10 cursor-pointer transition-all ${
-          isDragging
-            ? "border-indigo-500 bg-indigo-500/10"
-            : "border-border bg-background/40 hover:border-muted-foreground/50 hover:bg-background/60"
-        }`}
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/15 border border-indigo-500/30">
-          <Database className="h-6 w-6 text-indigo-400" />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">{file ? file.name : "Drop a .bacpac file here"}</p>
-          <p className="text-xs text-muted-foreground mt-1">{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "or click to select your SQL Server schema export"}</p>
-        </div>
         <input
           ref={fileRef}
           type="file"
@@ -738,75 +967,27 @@ function BacpacImportTab() {
             }
           }}
         />
-      </div>
+      </DropZone>
 
-      {message && (
-        <div
-          className={`flex items-start gap-2.5 rounded-md px-3 py-2.5 text-sm border ${
-            status === "success"
-              ? "bg-green-500/10 border-green-500/30 text-green-400"
-              : status === "error"
-              ? "bg-red-500/10 border-red-500/30 text-red-400"
-              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
-          }`}
-        >
-          {status === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : status === "error" ? (
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : null}
-          <span>{message}</span>
-        </div>
-      )}
+      {message && <StatusBanner status={status} message={message} />}
 
       {preview && preview.length > 0 && (
-        <div className="rounded-md border border-border bg-background/60 overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-sidebar flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Tables Preview
-            </span>
-            <span className="text-xs text-muted-foreground">{preview.length} tables</span>
-          </div>
-          <div className="max-h-40 overflow-y-auto divide-y divide-border">
-            {preview.map((t) => (
-              <div key={t.tableName} className="px-3 py-2 flex items-start gap-2">
-                <Database className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="text-xs font-medium text-foreground">{t.tableName}</span>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {t.columns.slice(0, 5).join(", ")}
-                    {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ResultPanel title="Tables found" meta={`${preview.length} tables`}>
+          {preview.map((t) => (
+            <ResultRow
+              key={t.tableName}
+              name={t.tableName}
+              detail={
+                <>
+                  {t.columns.slice(0, 5).join(", ")}
+                  {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
+                </>
+              }
+            />
+          ))}
+        </ResultPanel>
       )}
-
-      <div className="flex gap-3 pt-1">
-        <Button
-          onClick={handleConnect}
-          disabled={!file || status === "loading"}
-          variant="secondary"
-          className="flex-1 h-9 gap-2"
-        >
-          {status === "loading" ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Parsing…</>
-          ) : (
-            <><Database className="h-4 w-4" /> Parse Schema</>
-          )}
-        </Button>
-        <Button
-          onClick={handleImport}
-          disabled={status !== "success" || !preview?.length}
-          className="flex-1 h-9 gap-2 bg-indigo-600 hover:bg-indigo-500 text-white"
-        >
-          <Upload className="h-4 w-4" />
-          Import to Canvas
-        </Button>
-      </div>
-    </div>
+    </TabShell>
   );
 }
 
@@ -832,20 +1013,25 @@ function CheckToggle({
       role="checkbox"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-start gap-2.5 text-left group"
+      className="group flex items-start gap-2.5 text-left"
     >
       <span
-        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+        className={cn(
+          "mt-px flex size-4 shrink-0 items-center justify-center border transition-colors",
           checked
-            ? "bg-blue-600 border-blue-600 text-white"
-            : "border-border bg-background group-hover:border-muted-foreground/60"
-        }`}
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-input bg-background group-hover:border-ring"
+        )}
       >
-        {checked && <Check className="h-3 w-3" strokeWidth={3} />}
+        {checked && <Check className="size-3" strokeWidth={3} />}
       </span>
-      <span>
+      <span className="min-w-0">
         <span className="text-xs text-foreground">{label}</span>
-        {hint && <span className="block text-[11px] text-muted-foreground mt-0.5">{hint}</span>}
+        {hint && (
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+            {hint}
+          </span>
+        )}
       </span>
     </button>
   );
@@ -922,9 +1108,9 @@ function SqlScriptImportTab() {
     if (!selection) return;
     layoutAndImport(selection.tables, selection.relationships);
 
-    setStatus("idle");
+    setStatus("success");
     setMessage(
-      `✓ Imported ${selection.tables.length} table(s) and ${selection.relationships.length} relationship(s).`
+      `Imported ${selection.tables.length} table(s) and ${selection.relationships.length} relationship(s).`
     );
     setParsed(null);
     setSql("");
@@ -942,12 +1128,44 @@ function SqlScriptImportTab() {
     : message;
 
   return (
-    <div className="flex flex-col gap-4">
+    <TabShell
+      actions={
+        <>
+          <Button
+            onClick={handleParse}
+            disabled={!sql.trim() || status === "loading"}
+            variant="outline"
+            size="lg"
+            className="gap-2"
+          >
+            {status === "loading" ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Parsing…
+              </>
+            ) : (
+              <>
+                <Terminal className="size-3.5" />
+                Parse script
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={preview.length === 0}
+            size="lg"
+            className="gap-2"
+          >
+            <Upload className="size-3.5" />
+            Import to canvas
+          </Button>
+        </>
+      }
+    >
       {/* Dialect picker */}
-      <div className="flex items-center gap-3">
-        <Label className="text-xs text-muted-foreground shrink-0">Dialect</Label>
+      <Field label="Dialect">
         <Select value={dialect} onValueChange={handleDialectChange}>
-          <SelectTrigger className="h-9 flex-1 bg-background border-border text-sm">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -959,66 +1177,75 @@ function SqlScriptImportTab() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
       {/* Script box — paste, or drop a .sql file onto it */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className="relative"
-      >
-        <Textarea
-          value={sql}
-          onChange={(e) => handleSqlChange(e.target.value)}
-          spellCheck={false}
-          placeholder={"CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"}
-          // `field-sizing-fixed` overrides the Textarea default, which would
-          // otherwise grow the box to the full height of a long dump.
-          className={`h-64 resize-y font-mono text-[11px] leading-relaxed rounded-md field-sizing-fixed bg-background ${
-            isDragging ? "border-blue-500 ring-1 ring-blue-500" : "border-border"
-          }`}
-        />
-        {isDragging && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-md bg-blue-500/10 pointer-events-none">
-            <span className="text-xs font-medium text-blue-400">Drop .sql file to load</span>
-          </div>
-        )}
-      </div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Script
+          </Label>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="text-[11px] font-medium text-primary underline-offset-2 transition-colors hover:underline"
+          >
+            Load .sql file
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".sql,.ddl,.txt"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void loadFile(file);
+              // Allow re-picking the same file after an edit.
+              e.target.value = "";
+            }}
+          />
+        </div>
 
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className="relative"
+        >
+          <Textarea
+            value={sql}
+            onChange={(e) => handleSqlChange(e.target.value)}
+            spellCheck={false}
+            placeholder={"CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"}
+            // `field-sizing-fixed` overrides the Textarea default, which would
+            // otherwise grow the box to the full height of a long dump.
+            className={cn(
+              "h-56 resize-y bg-background font-mono text-[11px] leading-relaxed field-sizing-fixed",
+              isDragging && "border-primary ring-1 ring-primary"
+            )}
+          />
+          {isDragging && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/10">
+              <span className="border border-primary/40 bg-background px-2 py-1 text-[11px] font-medium text-primary">
+                Drop .sql file to load
+              </span>
+            </div>
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted-foreground">
           {sql.trim()
             ? `${sql.split(/\r?\n/).length} lines · ${(new Blob([sql]).size / 1024).toFixed(1)} KB`
             : "Paste your CREATE TABLE statements, or drop a .sql file here."}
-        </span>
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          Load .sql file
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".sql,.ddl,.txt"
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void loadFile(file);
-            // Allow re-picking the same file after an edit.
-            e.target.value = "";
-          }}
-        />
+        </p>
       </div>
 
       {/* Placeholder toggle — only meaningful once we know the script has dangling FKs */}
       {placeholderCount > 0 && (
-        <div className="rounded-md border border-border bg-background/60 px-3 py-2.5">
+        <div className="border border-border bg-muted/40 px-3 py-2.5">
           <CheckToggle
             checked={includePlaceholders}
             onChange={setIncludePlaceholders}
@@ -1028,126 +1255,52 @@ function SqlScriptImportTab() {
         </div>
       )}
 
-      {/* Status banner */}
       {banner && (
-        <div
-          className={`flex items-start gap-2.5 rounded-md px-3 py-2.5 text-sm border ${
-            status === "success"
-              ? "bg-green-500/10 border-green-500/30 text-green-400"
-              : status === "error"
-              ? "bg-red-500/10 border-red-500/30 text-red-400"
-              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
-          }`}
-        >
-          {status === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : status === "error" ? (
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          ) : null}
-          <div className="min-w-0">
-            <span>{banner}</span>
-            {issues.length > 0 && (
-              <ul className="mt-1.5 space-y-0.5 font-mono text-[11px] text-red-300/80">
-                {issues.slice(0, 5).map((issue, i) => (
-                  <li key={i} className="truncate">
-                    {issue.line ? `Line ${issue.line}: ` : ""}
-                    {issue.message}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {status === "error" && dialect === "auto" && (
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Try picking the dialect explicitly above.
-              </p>
-            )}
-          </div>
-        </div>
+        <StatusBanner status={status} message={banner}>
+          {issues.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5 font-mono text-[11px] opacity-80">
+              {issues.slice(0, 5).map((issue, i) => (
+                <li key={i} className="truncate">
+                  {issue.line ? `Line ${issue.line}: ` : ""}
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          {status === "error" && dialect === "auto" && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Try picking the dialect explicitly above.
+            </p>
+          )}
+        </StatusBanner>
       )}
 
-      {/* Preview */}
       {preview.length > 0 && (
-        <div className="rounded-md border border-border bg-background/60 overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-sidebar flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Tables Preview
-            </span>
-            <span className="text-xs text-muted-foreground">{preview.length} tables</span>
-          </div>
-          <div className="max-h-44 overflow-y-auto divide-y divide-border">
-            {preview.map((t) => (
-              <div key={t.id} className="px-3 py-2 flex items-start gap-2">
-                {placeholderIds.has(t.id) ? (
-                  <Link2 className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
-                ) : (
-                  <Database className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
-                )}
-                <div className="min-w-0">
-                  <span className="text-xs font-medium text-foreground">{t.name}</span>
-                  {placeholderIds.has(t.id) && (
-                    <span className="ml-2 text-[10px] uppercase tracking-wider text-amber-400">
-                      placeholder
-                    </span>
-                  )}
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+        <ResultPanel title="Tables found" meta={`${preview.length} tables`}>
+          {preview.map((t) => {
+            const isPlaceholder = placeholderIds.has(t.id);
+            return (
+              <ResultRow
+                key={t.id}
+                icon={isPlaceholder ? Link2 : Database}
+                iconClassName={isPlaceholder ? "text-amber-500" : undefined}
+                name={t.name}
+                badge={isPlaceholder ? "placeholder" : undefined}
+                detail={
+                  <>
                     {t.columns
                       .slice(0, 5)
                       .map((c) => c.name)
                       .join(", ")}
                     {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                  </>
+                }
+              />
+            );
+          })}
+        </ResultPanel>
       )}
-
-      {/* Action buttons */}
-      <div className="flex gap-3 pt-1">
-        <Button
-          onClick={handleParse}
-          disabled={!sql.trim() || status === "loading"}
-          variant="secondary"
-          className="flex-1 h-9 gap-2"
-        >
-          {status === "loading" ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Parsing…
-            </>
-          ) : (
-            <>
-              <Terminal className="h-4 w-4" />
-              Parse Script
-            </>
-          )}
-        </Button>
-        <Button
-          onClick={handleImport}
-          disabled={preview.length === 0}
-          className="flex-1 h-9 gap-2 bg-blue-600 hover:bg-blue-500 text-white"
-        >
-          <Upload className="h-4 w-4" />
-          Import to Canvas
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Engine icon badge
-───────────────────────────────────────────────────────────────────────────── */
-function EngineBadge({ engine }: { engine: DbEngine }) {
-  const colors: Record<DbEngine, string> = {
-    postgresql: "text-sky-400",
-    sqlserver: "text-indigo-400",
-  };
-  return (
-    <span className={`font-semibold text-[11px] uppercase tracking-wider ${colors[engine]}`}>
-      {ENGINE_LABELS[engine]}
-    </span>
+    </TabShell>
   );
 }
 
@@ -1172,99 +1325,78 @@ export function ImportSchemaDialog({
     if (open) setTab(defaultTab);
   }
 
+  const active = SOURCES.find((s) => s.id === tab) ?? SOURCES[0];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[640px] bg-sidebar border-border text-foreground p-0 overflow-hidden flex flex-col max-h-[90vh]">
-        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/15 border border-blue-500/30">
-              <Database className="h-5 w-5 text-blue-400" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-semibold text-foreground leading-tight">
-                Import Schema
+      <DialogContent className="flex max-h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 gap-0 border-b border-border bg-sidebar px-5 py-3.5">
+          <div className="flex items-center gap-3 pr-8">
+            <span className="flex size-8 shrink-0 items-center justify-center border border-primary/25 bg-primary/10 text-primary">
+              <Upload className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="text-sm font-semibold leading-tight text-foreground">
+                Import schema
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Connect to a database, paste a SQL script, or upload a file to generate
-                tables on canvas.
+              {/* The blurb follows the rail selection, so the header always
+                  describes the source the user is actually looking at. */}
+              <DialogDescription className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                {active.blurb}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-5">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as ImportSchemaTab)}>
-            <TabsList className="mb-5 h-9 w-full grid grid-cols-5 bg-background border border-border rounded-lg p-0.5">
-              {(["postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
+        {/* Vertical rail instead of five cramped top tabs: the sources have
+            unequal weight (two live connections, three file formats) and read
+            better as a list, and it leaves the full width for each form. */}
+        <Tabs
+          orientation="vertical"
+          value={tab}
+          onValueChange={(v) => setTab(v as ImportSchemaTab)}
+          className="flex min-h-0 flex-1 items-stretch gap-0"
+        >
+          <div className="flex w-13 shrink-0 flex-col border-r border-border bg-sidebar p-1.5 sm:w-52">
+            <TabsList className="h-auto w-full flex-col items-stretch justify-start gap-0.5 bg-transparent p-0">
+              {SOURCES.map(({ id, label, icon: Icon }) => (
                 <TabsTrigger
-                  key={engine}
-                  value={engine}
-                  className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
+                  key={id}
+                  value={id}
+                  title={label}
+                  className={cn(
+                    "h-auto min-h-9 flex-none justify-center gap-2.5 px-0 py-2 text-xs sm:justify-start sm:px-2.5",
+                    "data-active:bg-background data-active:font-medium data-active:text-foreground",
+                    "data-active:shadow-[inset_2px_0_0_var(--primary)]"
+                  )}
                 >
-                  {ENGINE_LABELS[engine]}
+                  <Icon className="size-4 shrink-0" />
+                  <span className="hidden truncate sm:inline">{label}</span>
                 </TabsTrigger>
               ))}
-              <TabsTrigger
-                value="sql"
-                className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
-              >
-                SQL
-              </TabsTrigger>
-              <TabsTrigger
-                value="csv"
-                className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
-              >
-                CSV
-              </TabsTrigger>
-              <TabsTrigger
-                value="bacpac"
-                className="text-[11px] font-semibold uppercase tracking-wide data-[state=active]:bg-sidebar data-[state=active]:shadow-sm rounded h-8"
-              >
-                BACPAC
-              </TabsTrigger>
             </TabsList>
+          </div>
 
+          <div className="flex min-w-0 flex-1 flex-col">
             {(["postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
-              <TabsContent key={engine} value={engine} className="mt-0 focus-visible:outline-none">
-                <div className="mb-4 flex items-center gap-2">
-                  <div className="h-px flex-1 bg-border" />
-                  <EngineBadge engine={engine} />
-                  <div className="h-px flex-1 bg-border" />
-                </div>
+              <TabsContent key={engine} value={engine} className="min-h-0 flex-1">
                 <DbConnectionTab engine={engine} />
               </TabsContent>
             ))}
 
-            <TabsContent value="sql" className="mt-0 focus-visible:outline-none">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="font-semibold text-[11px] uppercase tracking-wider text-blue-400">
-                  SQL Script
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
+            <TabsContent value="sql" className="min-h-0 flex-1">
               <SqlScriptImportTab />
             </TabsContent>
 
-            <TabsContent value="csv" className="mt-0 focus-visible:outline-none">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="font-semibold text-[11px] uppercase tracking-wider text-emerald-400">CSV</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
+            <TabsContent value="csv" className="min-h-0 flex-1">
               <CsvImportTab />
             </TabsContent>
 
-            <TabsContent value="bacpac" className="mt-0 focus-visible:outline-none">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="font-semibold text-[11px] uppercase tracking-wider text-indigo-500">BACPAC</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
+            <TabsContent value="bacpac" className="min-h-0 flex-1">
               <BacpacImportTab />
             </TabsContent>
-          </Tabs>
-        </div>
+          </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
