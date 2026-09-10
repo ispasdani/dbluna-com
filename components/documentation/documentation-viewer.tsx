@@ -4,10 +4,11 @@ import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { TableDocView } from "./table-view";
 import { RelationshipDocView } from "./relationship-view";
 import { ProjectOverview } from "./project-overview";
+import { EnumDocView } from "./enum-view";
 import { Table as TableIcon } from "lucide-react";
 
 export const DocumentationViewer = () => {
-    const { parsedDbml, tables, selectedTableId } = useDocumentationStore();
+    const { parsedDbml, tables, selectedTableId, selectedEnumId } = useDocumentationStore();
 
     // Docs reflect the canvas, which can't produce invalid DBML — so an empty
     // result means the canvas has no tables yet, not a syntax error.
@@ -19,6 +20,15 @@ export const DocumentationViewer = () => {
                 <div className="text-xs max-w-sm text-center opacity-70">
                     Add tables on the canvas and your documentation will appear here automatically.
                 </div>
+            </div>
+        );
+    }
+
+    // Enum selected
+    if (selectedEnumId) {
+        return (
+            <div className="max-w-4xl mx-auto">
+                <EnumDocView />
             </div>
         );
     }

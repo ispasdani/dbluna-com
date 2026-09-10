@@ -117,7 +117,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                             size="sm"
                             onClick={handleExport}
                             disabled={!parsedDbml || docTables.length === 0}
-                            className="h-6 text-xs text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 shrink-0"
+                            className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 shrink-0"
                         >
                             <Download className="w-3.5 h-3.5 mr-1" />
                             Export .md

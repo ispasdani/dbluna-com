@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
+import type { ParsedEnum, ParsedTable } from "@/lib/parser/dsl-parser";
 import {
     Search,
     Table as TableIcon,
@@ -12,11 +13,11 @@ import {
     ChevronDown,
     Layers,
     Box,
+    Tag,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ParsedTable } from "@/lib/parser/dsl-parser";
 
 const DEFAULT_SCHEMAS = new Set(["public", "dbo", ""]);
 
@@ -34,12 +35,35 @@ function TableButton({ table, isActive, onSelect, indent = false }: {
                 "w-full text-left py-1.5 text-[13px] rounded-md flex items-center transition-colors",
                 indent ? "pl-6 pr-2" : "px-2",
                 isActive
-                    ? "bg-blue-500/10 text-blue-500 font-medium"
+                    ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
         >
-            <TableIcon className={cn("w-3.5 h-3.5 mr-2 shrink-0", isActive ? "text-blue-500" : "opacity-50")} />
+            <TableIcon className={cn("w-3.5 h-3.5 mr-2 shrink-0", isActive ? "text-primary" : "opacity-50")} />
             {table.name}
+        </button>
+    );
+}
+
+// ─── Single Enum Row ─────────────────────────────────────────────────────────
+function EnumButton({ enumItem, isActive, onSelect }: {
+    enumItem: ParsedEnum;
+    isActive: boolean;
+    onSelect: (id: number) => void;
+}) {
+    return (
+        <button
+            onClick={() => onSelect(enumItem.id)}
+            className={cn(
+                "w-full text-left py-1.5 px-2 text-[13px] rounded-md flex items-center transition-colors",
+                isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+        >
+            <Tag className={cn("w-3.5 h-3.5 mr-2 shrink-0", isActive ? "text-primary" : "opacity-50")} />
+            {enumItem.name}
+            <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums">{enumItem.values.length}</span>
         </button>
     );
 }
@@ -99,7 +123,7 @@ function SidebarFolder({ name, icon: Icon, tables, selectedTableId, onSelect, ac
 
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 export const DocsSidebar = () => {
-    const { tables, tableGroups, selectedTableId, setSelectedTableId, searchQuery, setSearchQuery } = useDocumentationStore();
+    const { tables, enums, tableGroups, selectedTableId, setSelectedTableId, selectedEnumId, setSelectedEnumId, searchQuery, setSearchQuery } = useDocumentationStore();
 
     const query = searchQuery.toLowerCase();
     const isSearching = query.length > 0;
@@ -108,6 +132,11 @@ export const DocsSidebar = () => {
     const filteredTables = useMemo(() =>
         isSearching ? tables.filter((t) => t.name.toLowerCase().includes(query)) : [],
         [tables, query, isSearching]
+    );
+
+    const filteredEnums = useMemo(() =>
+        isSearching ? enums.filter((e) => e.name.toLowerCase().includes(query)) : [],
+        [enums, query, isSearching]
     );
 
     // ── Grouping Logic ────────────────────────────────────────────────────────
@@ -175,11 +204,11 @@ export const DocsSidebar = () => {
         <div className="flex flex-col h-full bg-sidebar">
             {/* Home button */}
             <button
-                onClick={() => setSelectedTableId(null)}
+                onClick={() => { setSelectedTableId(null); setSelectedEnumId(null); }}
                 className={cn(
                     "flex items-center gap-2 px-4 py-3 border-b border-border text-sm font-medium transition-colors w-full text-left shrink-0",
-                    !selectedTableId
-                        ? "bg-blue-500/10 text-blue-500"
+                    !selectedTableId && !selectedEnumId
+                        ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
             >
@@ -206,20 +235,35 @@ export const DocsSidebar = () => {
                     {/* ── Search Results ─────────────────────────────────── */}
                     {isSearching && (
                         <>
-                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1 mt-1">
-                                Results ({filteredTables.length})
-                            </div>
-                            {filteredTables.map((table) => (
-                                <TableButton
-                                    key={table.id}
-                                    table={table}
-                                    isActive={selectedTableId === table.id}
-                                    onSelect={setSelectedTableId}
-                                />
-                            ))}
-                            {filteredTables.length === 0 && (
+                            {filteredTables.length > 0 && (
+                                <>
+                                    <SectionHeader icon={<TableIcon className="w-3 h-3" />} label={`Tables (${filteredTables.length})`} />
+                                    {filteredTables.map((table) => (
+                                        <TableButton
+                                            key={table.id}
+                                            table={table}
+                                            isActive={selectedTableId === table.id}
+                                            onSelect={setSelectedTableId}
+                                        />
+                                    ))}
+                                </>
+                            )}
+                            {filteredEnums.length > 0 && (
+                                <>
+                                    <SectionHeader icon={<Tag className="w-3 h-3" />} label={`Enums (${filteredEnums.length})`} />
+                                    {filteredEnums.map((e) => (
+                                        <EnumButton
+                                            key={e.id}
+                                            enumItem={e}
+                                            isActive={selectedEnumId === e.id}
+                                            onSelect={setSelectedEnumId}
+                                        />
+                                    ))}
+                                </>
+                            )}
+                            {filteredTables.length === 0 && filteredEnums.length === 0 && (
                                 <div className="px-2 py-4 text-xs text-center text-muted-foreground italic">
-                                    No tables found.
+                                    No results found.
                                 </div>
                             )}
                         </>
@@ -280,7 +324,22 @@ export const DocsSidebar = () => {
                                 </>
                             )}
 
-                            {tables.length === 0 && (
+                            {/* Enums section */}
+                            {enums.length > 0 && (
+                                <>
+                                    <SectionHeader icon={<Tag className="w-3 h-3" />} label={`Enums (${enums.length})`} />
+                                    {enums.map((e) => (
+                                        <EnumButton
+                                            key={e.id}
+                                            enumItem={e}
+                                            isActive={selectedEnumId === e.id}
+                                            onSelect={setSelectedEnumId}
+                                        />
+                                    ))}
+                                </>
+                            )}
+
+                            {tables.length === 0 && enums.length === 0 && (
                                 <div className="px-2 py-6 text-xs text-center text-muted-foreground italic">
                                     No tables defined yet.
                                 </div>

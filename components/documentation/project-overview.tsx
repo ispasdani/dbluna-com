@@ -41,7 +41,7 @@ function TableIndexRow({ table, onSelect }: { table: ParsedTable; onSelect: (id:
             <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                     <TableIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <span className="font-mono text-[13px] font-semibold text-foreground group-hover:text-blue-500 transition-colors">
+                    <span className="font-mono text-[13px] font-semibold text-foreground group-hover:text-primary transition-colors">
                         {table.name}
                     </span>
                 </div>
@@ -133,7 +133,7 @@ export const ProjectOverview = () => {
                     icon={TableIcon}
                     label="Tables"
                     value={tables.length}
-                    color="bg-blue-500/10 text-blue-500"
+                    color="bg-primary/10 text-primary"
                 />
                 <StatCard
                     icon={Hash}

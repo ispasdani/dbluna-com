@@ -43,7 +43,7 @@ export const TableDocView = ({ table }: { table: any }) => {
                             return (
                                 <tr key={field.id} className="hover:bg-accent/50 transition-colors bg-background">
                                     <td className="px-4 py-3 flex items-center font-mono text-[13px]">
-                                        <span className={cn("font-medium", field.pk ? "text-blue-500" : "text-foreground")}>
+                                        <span className={cn("font-medium", field.pk ? "text-primary" : "text-foreground")}>
                                             {field.name}
                                         </span>
                                         {field.pk && <Key className="w-3.5 h-3.5 ml-2 text-yellow-500" />}
