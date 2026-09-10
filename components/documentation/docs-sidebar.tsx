@@ -14,6 +14,7 @@ import {
     Layers,
     Box,
     Tag,
+    Hash,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -139,6 +140,22 @@ export const DocsSidebar = () => {
         [enums, query, isSearching]
     );
 
+    // Column-level matches: fields whose name matches but whose parent table doesn't
+    const filteredColumns = useMemo(() => {
+        if (!isSearching) return [];
+        const tableNameMatches = new Set(filteredTables.map(t => t.id));
+        const hits: Array<{ tableId: number; tableName: string; fieldName: string }> = [];
+        for (const table of tables) {
+            if (tableNameMatches.has(table.id)) continue; // already shown under table match
+            for (const field of table.fields ?? []) {
+                if (field.name.toLowerCase().includes(query)) {
+                    hits.push({ tableId: table.id, tableName: table.name, fieldName: field.name });
+                }
+            }
+        }
+        return hits;
+    }, [tables, filteredTables, query, isSearching]);
+
     // ── Grouping Logic ────────────────────────────────────────────────────────
     const { explicitGroups, schemaGroups, orphans, groupingMode } = useMemo(() => {
         // Mode 1: Explicit TableGroups defined in DBML
@@ -221,7 +238,7 @@ export const DocsSidebar = () => {
                 <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                        placeholder="Search tables..."
+                        placeholder="Search tables, columns..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-9 bg-background h-8 text-xs"
@@ -261,7 +278,29 @@ export const DocsSidebar = () => {
                                     ))}
                                 </>
                             )}
-                            {filteredTables.length === 0 && filteredEnums.length === 0 && (
+                            {filteredColumns.length > 0 && (
+                                <>
+                                    <SectionHeader icon={<Hash className="w-3 h-3" />} label={`Columns (${filteredColumns.length})`} />
+                                    {filteredColumns.map((hit, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setSelectedTableId(hit.tableId)}
+                                            className={cn(
+                                                "w-full text-left py-1.5 px-2 text-[13px] rounded-md flex items-center gap-1.5 transition-colors",
+                                                selectedTableId === hit.tableId
+                                                    ? "bg-primary/10 text-primary font-medium"
+                                                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                                            )}
+                                        >
+                                            <TableIcon className="w-3 h-3 shrink-0 opacity-50" />
+                                            <span className="opacity-70 text-[12px]">{hit.tableName}</span>
+                                            <span className="opacity-40 text-[11px]">·</span>
+                                            <span className="font-mono text-[12px]">{hit.fieldName}</span>
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                            {filteredTables.length === 0 && filteredEnums.length === 0 && filteredColumns.length === 0 && (
                                 <div className="px-2 py-4 text-xs text-center text-muted-foreground italic">
                                     No results found.
                                 </div>

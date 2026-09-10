@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
-import { Eye, Download } from "lucide-react";
+import { Eye, Download, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
@@ -23,6 +23,8 @@ interface DocsLayoutProps {
 }
 
 export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
+    const [codeOpen, setCodeOpen] = useState(true);
+
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
     const parsedDbml = useDocumentationStore(s => s.parsedDbml);
     const docTables = useDocumentationStore(s => s.tables);
@@ -101,45 +103,63 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
 
     return (
         <div className="flex h-full w-full bg-background border-t border-border overflow-hidden">
-            {/* Editor Pane (Left) — read-only preview of the generated DBML */}
-            <div className="w-1/3 border-r border-border flex flex-col bg-[#1e1e1e]">
-                <div className="px-4 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <span>DBML</span>
-                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70 truncate" title="This DBML is generated from the canvas and cannot be edited here">
-                            <Eye className="w-3.5 h-3.5 shrink-0" />
-                            Read-only
-                        </span>
-                    </div>
-                    {!readOnly && (
+            {/* Editor Pane (Left) — collapsible read-only preview of the generated DBML */}
+            <div className={`${codeOpen ? "w-1/3" : "w-10"} border-r border-border flex flex-col bg-[#1e1e1e] shrink-0 transition-all duration-200`}>
+                <div className="px-2 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between gap-2">
+                    {codeOpen && (
+                        <div className="flex items-center gap-3 min-w-0">
+                            <span>DBML</span>
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70 truncate" title="This DBML is generated from the canvas and cannot be edited here">
+                                <Eye className="w-3.5 h-3.5 shrink-0" />
+                                Read-only
+                            </span>
+                        </div>
+                    )}
+                    <div className={`flex items-center gap-1 ${codeOpen ? "" : "w-full justify-center"}`}>
+                        {codeOpen && !readOnly && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleExport}
+                                disabled={!parsedDbml || docTables.length === 0}
+                                className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 shrink-0"
+                            >
+                                <Download className="w-3.5 h-3.5 mr-1" />
+                                Export .md
+                            </Button>
+                        )}
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={handleExport}
-                            disabled={!parsedDbml || docTables.length === 0}
-                            className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 shrink-0"
+                            onClick={() => setCodeOpen(o => !o)}
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                            title={codeOpen ? "Collapse DBML pane" : "Expand DBML pane"}
                         >
-                            <Download className="w-3.5 h-3.5 mr-1" />
-                            Export .md
+                            {codeOpen
+                                ? <PanelLeftClose className="w-3.5 h-3.5" />
+                                : <PanelLeftOpen className="w-3.5 h-3.5" />
+                            }
                         </Button>
-                    )}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-auto relative">
-                    <CodeMirror
-                        value={dslCode}
-                        height="100%"
-                        theme={dbmlCodeMirrorTheme}
-                        editable={false}
-                        extensions={[sql(), EditorView.lineWrapping]}
-                        className="h-full text-[13px]"
-                        basicSetup={{
-                            lineNumbers: true,
-                            foldGutter: true,
-                            highlightActiveLine: false,
-                            highlightActiveLineGutter: false,
-                        }}
-                    />
-                </div>
+                {codeOpen && (
+                    <div className="flex-1 overflow-auto relative">
+                        <CodeMirror
+                            value={dslCode}
+                            height="100%"
+                            theme={dbmlCodeMirrorTheme}
+                            editable={false}
+                            extensions={[sql(), EditorView.lineWrapping]}
+                            className="h-full text-[13px]"
+                            basicSetup={{
+                                lineNumbers: true,
+                                foldGutter: true,
+                                highlightActiveLine: false,
+                                highlightActiveLineGutter: false,
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Sidebar Pane (Middle) */}

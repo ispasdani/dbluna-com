@@ -289,17 +289,26 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {canUseDocsMode && (
-            <Button
-              variant={workspaceMode === "docs" ? "secondary" : "ghost"}
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={() => setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs")}
-            >
-              <FileText className="w-4 h-4" />
-              <span className="hidden sm:inline">DBML Docs</span>
-            </Button>
-          )}
+          <Button
+            variant={workspaceMode === "docs" && canUseDocsMode ? "secondary" : "ghost"}
+            size="sm"
+            className="gap-2 cursor-pointer relative"
+            onClick={() => {
+              if (!canUseDocsMode) {
+                useUpgradeToastStore.getState().trigger();
+                return;
+              }
+              setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs");
+            }}
+          >
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">DBML Docs</span>
+            {!canUseDocsMode && (
+              <span className="ml-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary px-1 py-0.5 rounded leading-none">
+                Pro
+              </span>
+            )}
+          </Button>
 
           <Button
             variant="ghost"
