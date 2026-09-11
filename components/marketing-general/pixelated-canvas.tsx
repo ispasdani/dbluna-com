@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 
 interface PixelatedCanvasProps {
   isActive: boolean;
@@ -20,121 +20,108 @@ export const PixelatedCanvas: React.FC<PixelatedCanvasProps> = ({
   backgroundColor = "var(--color-gray-200, white)",
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [filledSquares, setFilledSquares] = useState<Set<number>>(new Set());
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-  const SQUARE_SIZE = size;
+  const rafRef = useRef<number>(0);
+  const dimsRef = useRef({ width: 0, height: 0 });
 
   const resolveColor = (color: string): string => {
-    if (typeof window !== "undefined" && canvasRef.current) {
-      const div = document.createElement("div");
-      div.style.color = color;
-      document.body.appendChild(div);
-      const computedColor = window.getComputedStyle(div).color;
-      document.body.removeChild(div);
-      return computedColor;
-    }
-    return color;
+    if (typeof window === "undefined") return color;
+    const div = document.createElement("div");
+    div.style.color = color;
+    document.body.appendChild(div);
+    const resolved = window.getComputedStyle(div).color;
+    document.body.removeChild(div);
+    return resolved;
   };
 
+  // Track canvas size with a ResizeObserver — no React state involved
   useEffect(() => {
-    const updateDimensions = () => {
-      if (canvasRef.current && canvasRef.current.parentElement) {
-        const parent = canvasRef.current.parentElement;
-        const width = parent.clientWidth;
-        const height = parent.clientHeight;
-        setDimensions({ width, height });
-      }
+    const canvas = canvasRef.current;
+    if (!canvas?.parentElement) return;
+
+    const sync = () => {
+      const w = canvas.parentElement!.clientWidth;
+      const h = canvas.parentElement!.clientHeight;
+      canvas.width = w;
+      canvas.height = h;
+      dimsRef.current = { width: w, height: h };
     };
 
-    updateDimensions();
-    window.addEventListener("resize", updateDimensions);
-
-    return () => window.removeEventListener("resize", updateDimensions);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(canvas.parentElement!);
+    return () => ro.disconnect();
   }, []);
 
+  // Animation loop — never touches React state, draws directly to canvas
   useEffect(() => {
-    if (!isActive) {
-      return;
-    }
+    if (!isActive) return;
 
     const canvas = canvasRef.current;
-    if (!canvas || dimensions.width === 0 || dimensions.height === 0) return;
-
-    const cols = Math.floor(dimensions.width / SQUARE_SIZE);
-    const rows = Math.floor(dimensions.height / SQUARE_SIZE);
-    const totalSquares = cols * rows;
-
-    if (totalSquares === 0) return;
-
-    const allSquares = Array.from({ length: totalSquares }, (_, i) => i);
-    const shuffledSquares = [...allSquares].sort(() => Math.random() - 0.5);
-    const fillDuration = duration;
-    const startTime = Date.now();
-    let animationId: number;
-
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / fillDuration, 1);
-      const targetIndex = Math.floor(progress * shuffledSquares.length);
-
-      const newFilledSquares = new Set<number>();
-      for (let i = 0; i < targetIndex; i++) {
-        newFilledSquares.add(shuffledSquares[i]);
-      }
-
-      setFilledSquares(newFilledSquares);
-
-      if (progress < 1) {
-        animationId = requestAnimationFrame(animate);
-      }
-    };
-
-    animationId = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-      // Reset on cleanup when isActive becomes false
-      setFilledSquares(new Set());
-    };
-  }, [isActive, dimensions, duration, SQUARE_SIZE]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || dimensions.width === 0 || dimensions.height === 0) return;
-
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (
-      canvas.width !== dimensions.width ||
-      canvas.height !== dimensions.height
-    ) {
-      canvas.width = dimensions.width;
-      canvas.height = dimensions.height;
+    const SQUARE_SIZE = size;
+    const { width, height } = dimsRef.current;
+    if (width === 0 || height === 0) return;
+
+    const resolvedFill = resolveColor(fillColor);
+    const resolvedBg = resolveColor(backgroundColor);
+
+    const cols = Math.floor(width / SQUARE_SIZE);
+    const rows = Math.floor(height / SQUARE_SIZE);
+    const total = cols * rows;
+    if (total === 0) return;
+
+    // Fisher-Yates shuffle for random reveal order
+    const order = Array.from({ length: total }, (_, i) => i);
+    for (let i = total - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [order[i], order[j]] = [order[j], order[i]];
     }
 
-    const cols = Math.floor(dimensions.width / SQUARE_SIZE);
-    const rows = Math.floor(dimensions.height / SQUARE_SIZE);
+    ctx.fillStyle = resolvedBg;
+    ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = resolveColor(backgroundColor);
-    ctx.fillRect(0, 0, dimensions.width, dimensions.height);
+    let lastFilled = 0;
+    const startTime = performance.now();
 
-    ctx.fillStyle = resolveColor(fillColor);
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const squareIndex = row * cols + col;
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const target = (progress * total) | 0;
 
-        if (filledSquares.has(squareIndex)) {
-          const x = col * SQUARE_SIZE;
-          const y = row * SQUARE_SIZE;
-          ctx.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
+      // Incremental draw — only paint newly revealed squares
+      if (target > lastFilled) {
+        ctx.fillStyle = resolvedFill;
+        for (let i = lastFilled; i < target; i++) {
+          const sq = order[i];
+          const col = sq % cols;
+          const row = (sq / cols) | 0;
+          ctx.fillRect(
+            col * SQUARE_SIZE,
+            row * SQUARE_SIZE,
+            SQUARE_SIZE,
+            SQUARE_SIZE
+          );
         }
+        lastFilled = target;
       }
-    }
-  }, [filledSquares, dimensions, fillColor, backgroundColor, SQUARE_SIZE]);
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      const { width: w, height: h } = dimsRef.current;
+      ctx.fillStyle = resolvedBg;
+      ctx.fillRect(0, 0, w, h);
+    };
+  }, [isActive, size, duration, fillColor, backgroundColor]);
 
   return (
     <canvas

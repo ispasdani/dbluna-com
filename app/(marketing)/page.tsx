@@ -1,4 +1,5 @@
 import { DivideX } from "@/components/marketing-general/divideX";
+import { LazyMount } from "@/components/marketing-general/lazy-mount";
 import { LogoCloud } from "@/components/marketing-general/logo-cloud";
 import { Benefits } from "@/components/marketing-sections/benefits/benefits";
 import { FAQs } from "@/components/marketing-sections/faq";
@@ -19,18 +20,24 @@ export default function Home() {
       <HeroImage />
       <DivideX />
       <div id="how-it-works">
-        <HowItWorksV2 />
+        <LazyMount>
+          <HowItWorksV2 />
+        </LazyMount>
       </div>
       <DivideX />
       <div id="features">
-        <Features />
+        <LazyMount>
+          <Features />
+        </LazyMount>
       </div>
       <DivideX />
       <div id="use-cases">
         <UseCases />
       </div>
       <DivideX />
-      <Benefits />
+      <LazyMount>
+        <Benefits />
+      </LazyMount>
       <DivideX />
       <div id="pricing">
         <Pricing />
