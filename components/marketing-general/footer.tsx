@@ -45,6 +45,10 @@ export const Footer = () => {
       title: "Pricing",
       href: "/pricing",
     },
+    {
+      title: "Blog",
+      href: "/blog",
+    },
   ];
 
   const legal = [

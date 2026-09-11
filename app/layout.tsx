@@ -13,8 +13,31 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "DBLuna",
-    description: "Offline database import workstation",
+    metadataBase: new URL(
+        process.env.NEXT_PUBLIC_SITE_URL ?? "https://dbluna.com"
+    ),
+    title: {
+        default: "DBLuna",
+        template: "%s | DBLuna",
+    },
+    description:
+        "Design, document, and share database schemas visually or in DBML. Visual canvas, two-way code editor, and multi-format import/export.",
+    robots: {
+        googleBot: {
+            index: true,
+            follow: true,
+            "max-snippet": -1,
+            "max-image-preview": "large",
+            "max-video-preview": -1,
+        },
+    },
+    openGraph: {
+        siteName: "DBLuna",
+        type: "website",
+    },
+    twitter: {
+        card: "summary_large_image",
+    },
 };
 
 export default function RootLayout({
