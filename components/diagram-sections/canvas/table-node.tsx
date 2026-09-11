@@ -121,7 +121,7 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
         fill="var(--foreground)"
         fontWeight="600"
         fontSize={14}
-        style={{ pointerEvents: "none", userSelect: "none", fontFamily: "sans-serif" }}
+        style={{ pointerEvents: "none", userSelect: "none", fontFamily: "var(--font-sans)" }}
       >
         {tableName.text}
       </text>
@@ -279,7 +279,7 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
               textAnchor="end"
               fill="var(--muted-foreground)"
               fontSize={11}
-              style={{ pointerEvents: "none", userSelect: "none", fontFamily: "monospace" }}
+              style={{ pointerEvents: "none", userSelect: "none", fontFamily: "var(--font-mono)" }}
             >
               {columnType.text}
             </text>

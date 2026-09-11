@@ -22,6 +22,10 @@ const isPublicRoute = createRouteMatcher([
   "/terms-of-service(.*)",
   "/cookie-policy(.*)",
 
+  // ✅ SEO files
+  "/sitemap.xml",
+  "/robots.txt",
+
   // ✅ webhooks / endpoints that must remain public
   "/clerk(.*)",
 

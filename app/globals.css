@@ -622,3 +622,30 @@ body[data-palette="claude"] {
     box-shadow: inset 0 -2px 0 0 var(--primary);
   }
 }
+
+/* =========================================================
+   MARKETING — PERFORMANCE-FRIENDLY LINE SWEEP ANIMATIONS
+   Uses transform: translate (compositor-only, no paint)
+   instead of Framer Motion animated SVG gradients.
+========================================================= */
+@keyframes line-sweep-h {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(500%); }
+  100% { transform: translateX(500%); }
+}
+
+@keyframes line-sweep-v {
+  0%   { transform: translateY(-100%); }
+  60%  { transform: translateY(500%); }
+  100% { transform: translateY(500%); }
+}
+
+.line-sweep-h {
+  animation: line-sweep-h 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+.line-sweep-v {
+  animation: line-sweep-v 5s ease-in-out infinite;
+  will-change: transform;
+}

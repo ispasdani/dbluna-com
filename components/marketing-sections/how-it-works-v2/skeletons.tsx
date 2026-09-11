@@ -273,22 +273,41 @@ export const IssuesFeedSkeleton = () => {
   useEffect(() => {
     let animationFrame: number;
     let lastTime = performance.now();
+    let isVisible = false;
     const speed = 20;
 
     function animateScroll(now: number) {
+      if (!isVisible) return;
       const elapsed = (now - lastTime) / 1000;
       lastTime = now;
       let current = y.get();
       current -= speed * elapsed;
-
       if (Math.abs(current) >= totalHeight / 3) {
         current += totalHeight / 3;
       }
       y.set(current);
       animationFrame = requestAnimationFrame(animateScroll);
     }
-    animationFrame = requestAnimationFrame(animateScroll);
-    return () => cancelAnimationFrame(animationFrame);
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+        if (isVisible) {
+          lastTime = performance.now();
+          animationFrame = requestAnimationFrame(animateScroll);
+        } else {
+          cancelAnimationFrame(animationFrame);
+        }
+      },
+      { threshold: 0 }
+    );
+
+    if (containerRef.current) observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(animationFrame);
+    };
   }, [y, totalHeight]);
 
   return (

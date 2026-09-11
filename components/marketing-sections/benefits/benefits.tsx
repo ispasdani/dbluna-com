@@ -134,8 +134,8 @@ const MiddleCard = () => {
       </div>
 
       <div className="h-60 w-full translate-x-10 translate-y-10 overflow-hidden rounded-md bg-gray-200 p-px shadow-xl dark:bg-neutral-700">
-        <div className="absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-blue-500 via-20% to-transparent to-30% blur-2xl [animation-duration:4s]"></div>
-        <div className="via-brand absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-20% to-transparent to-30% blur-2xl [animation-delay:2s] [animation-duration:4s]"></div>
+        <div className="absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-blue-500 via-20% to-transparent to-30% opacity-40 [animation-duration:4s]"></div>
+        <div className="via-brand absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-20% to-transparent to-30% opacity-40 [animation-delay:2s] [animation-duration:4s]"></div>
         <div className="relative z-20 h-full w-full rounded-[5px] bg-white dark:bg-neutral-900">
           <div className="flex items-center justify-between p-4">
             <div className="flex gap-1">
