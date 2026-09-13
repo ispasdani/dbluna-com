@@ -1,0 +1,114 @@
+"use client";
+
+import * as React from "react";
+import { Slot } from "radix-ui";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+/**
+ * DiagramButton — design-system button for the diagram editor.
+ *
+ * Variants:
+ *   ghost     — no background, dim label, subtle hover fill (toolbar actions)
+ *   outlined  — 1px border, full-contrast label (secondary CTAs like Export)
+ *   primary   — charcoal/dark fill, white label (primary CTA like Share)
+ *   brand     — coral fill, white label (upgrade / brand moments)
+ *   dashed    — dashed border, dim label (empty-state add actions)
+ *   secondary — muted fill, standard label (toggles and less-prominent actions)
+ *   icon      — square icon-only (no padding, border-transparent)
+ *
+ * Sizes: sm | md (default) | lg | icon
+ */
+const diagramButtonVariants = cva(
+  [
+    "inline-flex items-center justify-center gap-1.5",
+    "rounded-[7px] border font-medium leading-none",
+    "transition-[background-color,color,border-color] duration-75",
+    "cursor-pointer whitespace-nowrap select-none",
+    "disabled:pointer-events-none disabled:opacity-40",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+  ].join(" "),
+  {
+    variants: {
+      variant: {
+        /** Transparent — hover reveals a subtle fill */
+        ghost: [
+          "border-transparent bg-transparent",
+          "text-muted-foreground",
+          "hover:bg-muted hover:text-foreground",
+        ].join(" "),
+
+        /** Thin border, full-contrast label */
+        outlined: [
+          "border-border bg-transparent",
+          "text-foreground",
+          "hover:bg-muted",
+        ].join(" "),
+
+        /** Charcoal fill — highest-priority action (e.g. Share) */
+        primary: [
+          "border-charcoal-900 bg-charcoal-900 text-white",
+          "hover:bg-charcoal-700 hover:border-charcoal-700",
+        ].join(" "),
+
+        /** Brand-coral fill — upgrade / brand moments */
+        brand: [
+          "border-brand bg-brand text-white",
+          "hover:opacity-90",
+        ].join(" "),
+
+        /** Dashed border — empty-state or additive actions */
+        dashed: [
+          "border-dashed border-border bg-transparent",
+          "text-muted-foreground",
+          "hover:bg-muted hover:text-foreground",
+        ].join(" "),
+
+        /** Muted fill — toggles and lower-priority actions */
+        secondary: [
+          "border-border bg-secondary text-secondary-foreground",
+          "hover:bg-secondary/70",
+        ].join(" "),
+
+        /** Pre-active ghost — same hover state applied permanently */
+        "ghost-active": [
+          "border-transparent bg-muted text-foreground",
+        ].join(" "),
+      },
+
+      size: {
+        sm:   "h-7 gap-1 px-2.5 text-[11.5px]",
+        md:   "h-[30px] px-[10px] text-[12.5px]",
+        lg:   "h-9 px-4 text-[13px] rounded-[8px]",
+        icon: "h-[30px] w-[30px] p-0 border-transparent",
+      },
+    },
+    defaultVariants: {
+      variant: "ghost",
+      size: "md",
+    },
+  }
+);
+
+export interface DiagramButtonProps
+  extends React.ComponentProps<"button">,
+    VariantProps<typeof diagramButtonVariants> {
+  asChild?: boolean;
+}
+
+const DiagramButton = React.forwardRef<HTMLButtonElement, DiagramButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot.Root : "button";
+    return (
+      <Comp
+        ref={ref}
+        className={cn(diagramButtonVariants({ variant, size }), className)}
+        {...props}
+      />
+    );
+  }
+);
+DiagramButton.displayName = "DiagramButton";
+
+export { DiagramButton, diagramButtonVariants };

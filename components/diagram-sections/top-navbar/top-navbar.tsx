@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DiagramButton } from "@/components/diagram-general/diagram-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -244,13 +245,11 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   return (
     <>
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
-        {/* Logo */}
-        <div className="flex items-center gap-6">
+        {/* Left cluster — logo, diagram picker, view helpers */}
+        <div className="flex items-center gap-3">
           <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
 
-          {/* Diagram Selector — backed by the real canvas store (each entry is
-              an actual diagram you own), not placeholder data. Renaming lives
-              solely in the My Diagrams dialog to avoid two places doing it. */}
+          {/* Diagram Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -280,8 +279,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                 <DropdownMenuItem
                   key={id}
                   onClick={() => handleSwitchDiagram(id)}
-                  className={`font-mono text-sm justify-between ${id === activeDiagramId ? "bg-secondary text-primary" : ""
-                    }`}
+                  className={`font-mono text-sm justify-between ${id === activeDiagramId ? "bg-secondary text-primary" : ""}`}
                 >
                   <span className="truncate">{diagram.name}</span>
                 </DropdownMenuItem>
@@ -322,158 +320,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             <span className="hidden sm:inline">My Diagrams</span>
           </Button>
 
-          {!readOnly && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={handleShareClick}
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-          )}
-
-          {!readOnly && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={handleInviteClick}
-            >
-              <UserPlus className="w-4 h-4" />
-              <span className="hidden sm:inline">Invite</span>
-            </Button>
-          )}
-
-          {!readOnly && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={handleHistoryClick}
-            >
-              <History className="w-4 h-4" />
-              <span className="hidden sm:inline">History</span>
-            </Button>
-          )}
-
-          {!readOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 cursor-pointer">
-                  <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Export</span>
-                </Button>
-              </DropdownMenuTrigger>
-              {/* Width matches the Import menu beside it — see the note there
-                  on the inherited trigger-width clamp. */}
-              <DropdownMenuContent align="start" className="w-60">
-                <DropdownMenuItem onClick={handleExportJson} className="gap-2">
-                  <FileText className="w-4 h-4" />
-                  Export as JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
-                  <Database className="w-4 h-4" />
-                  Export as DBML
-                </DropdownMenuItem>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2">
-                    <Database className="w-4 h-4" />
-                    Export as SQL
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="min-w-40">
-                    {SQL_DIALECTS.map((d) => (
-                      <DropdownMenuItem
-                        key={d.value}
-                        onClick={() => handleExportSql(d.value)}
-                        className="gap-2"
-                      >
-                        <span className="flex-1">{d.label}</span>
-                        {/* Marks the dialect matching the Schema tab's
-                            project database type, so the export menu reflects
-                            what the diagram says it targets. */}
-                        {d.value === projectDialect && (
-                          <span className="text-xs text-muted-foreground">✓</span>
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleExportSvg} className="gap-2">
-                  <FileCode className="w-4 h-4" />
-                  Export as SVG
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {!readOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  <span className="hidden sm:inline">Import</span>
-                </Button>
-              </DropdownMenuTrigger>
-              {/* Explicit width: DropdownMenuContent otherwise inherits
-                  w-(--radix-dropdown-menu-trigger-width), which clamps the menu
-                  to the narrow "Import" ghost button and wraps the labels. */}
-              <DropdownMenuContent align="start" className="w-60">
-                {/* Diagram-level: opens a dbluna export as a brand-new diagram. */}
-                <DropdownMenuItem onClick={handleImportClick} className="gap-2">
-                  <FileText className="w-4 h-4" />
-                  Import from JSON
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {/* Canvas-level: appends tables/relationships to this diagram. */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger className="gap-2">
-                    <Database className="w-4 h-4" />
-                    Import from Database
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="min-w-40">
-                    <DropdownMenuItem onClick={() => handleImportSchemaClick("postgresql")}>
-                      PostgreSQL
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleImportSchemaClick("sqlserver")}>
-                      SQL Server
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuItem
-                  onClick={() => handleImportSchemaClick("sql")}
-                  className="gap-2"
-                >
-                  <Terminal className="w-4 h-4" />
-                  Paste SQL Script
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleImportSchemaClick("csv")}
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Import from CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleImportSchemaClick("bacpac")}
-                  className="gap-2"
-                >
-                  <FileArchive className="w-4 h-4" />
-                  Import from BACPAC
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-
           {readOnly && (
             <Button asChild size="sm" variant="outline" className="gap-2 cursor-pointer">
               <Link href="/pricing">
@@ -486,21 +332,136 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           <SavingIndicator />
         </div>
 
-        {/* Right cluster — identity lives here, opposite the logo. The header
-            has always been justify-between; until now it had a single child,
-            so the split did nothing. */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
+        {/* Right cluster — actions + identity */}
+        <div className="flex items-center gap-1.5">
+          {!readOnly && (
+            <>
+              {/* Action buttons */}
+              <DiagramButton variant="ghost" onClick={handleShareClick}>
+                <Share2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Share</span>
+              </DiagramButton>
+
+              <DiagramButton variant="ghost" onClick={handleInviteClick}>
+                <UserPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Invite</span>
+              </DiagramButton>
+
+              <DiagramButton variant="ghost" onClick={handleHistoryClick}>
+                <History className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">History</span>
+              </DiagramButton>
+
+              {/* Separator */}
+              <div className="w-px h-5 bg-border mx-0.5" />
+
+              {/* Export dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <DiagramButton variant="outlined">
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Export</span>
+                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  </DiagramButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuItem onClick={handleExportJson} className="gap-2">
+                    <FileText className="w-4 h-4" />
+                    Export as JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
+                    <Database className="w-4 h-4" />
+                    Export as DBML
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      <Database className="w-4 h-4" />
+                      Export as SQL
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="min-w-40">
+                      {SQL_DIALECTS.map((d) => (
+                        <DropdownMenuItem
+                          key={d.value}
+                          onClick={() => handleExportSql(d.value)}
+                          className="gap-2"
+                        >
+                          <span className="flex-1">{d.label}</span>
+                          {d.value === projectDialect && (
+                            <span className="text-xs text-muted-foreground">✓</span>
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExportSvg} className="gap-2">
+                    <FileCode className="w-4 h-4" />
+                    Export as SVG
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Import dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <DiagramButton variant="ghost">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Import</span>
+                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  </DiagramButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuItem onClick={handleImportClick} className="gap-2">
+                    <FileText className="w-4 h-4" />
+                    Import from JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      <Database className="w-4 h-4" />
+                      Import from Database
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="min-w-40">
+                      <DropdownMenuItem onClick={() => handleImportSchemaClick("postgresql")}>
+                        PostgreSQL
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleImportSchemaClick("sqlserver")}>
+                        SQL Server
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem onClick={() => handleImportSchemaClick("sql")} className="gap-2">
+                    <Terminal className="w-4 h-4" />
+                    Paste SQL Script
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleImportSchemaClick("csv")} className="gap-2">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Import from CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleImportSchemaClick("bacpac")} className="gap-2">
+                    <FileArchive className="w-4 h-4" />
+                    Import from BACPAC
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Separator before identity */}
+              <div className="w-px h-5 bg-border mx-0.5" />
+            </>
+          )}
+
+          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+
+          <DiagramButton
+            variant="icon"
             size="icon"
-            className="h-8 w-8 cursor-pointer"
             onClick={() => useOnboardingStore.getState().open()}
             title="How this works"
           >
             <CircleHelp className="w-4 h-4" />
-          </Button>
-          {/* Collaborators first, you last — your own avatar anchors the far
-              right, so the stack beside it reads as "other people". */}
+          </DiagramButton>
+
+          {/* Collaborators first, you last */}
           <PresenceAvatars cloudId={currentDiagramData.cloudId} />
           <UserMenu />
         </div>
