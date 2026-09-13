@@ -153,7 +153,7 @@ export default function DiagramPage({ params }: PageProps) {
     <CapabilitiesProvider value={capabilities}>
       <div className="h-screen flex flex-col bg-background overflow-hidden">
         {isTopNavbarVisible && <TopNavbar readOnly={canvasReadOnly} />}
-        <TabLauncherBar readOnly={canvasReadOnly} />
+        <TabLauncherBar />
 
         {/* Work area */}
         <div className="relative flex-1 overflow-hidden w-full flex">

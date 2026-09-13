@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet, StickyNote, Square, Table } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,22 +14,17 @@ import {
 
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
-import { ZoomMenu } from "../diagram-general/zoom-menu";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
 
-interface TabLauncherBarProps {
-  readOnly?: boolean;
-}
-
-export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
+export function TabLauncherBar() {
   const {
     isLeftDockVisible,
     isTopNavbarVisible,
     toggleLeftDock,
     toggleTopNavbar,
   } = useViewStore();
-  const { background, setBackground, snapToGrid, toggleSnapToGrid, addTable, addNote, addArea } =
+  const { background, setBackground, snapToGrid, toggleSnapToGrid } =
     useCanvasStore();
 
   return (
@@ -73,10 +68,6 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
 
             <DropdownMenuSeparator />
 
-            {/* Zoom actions should call useCanvasStore (add later) */}
-            {/* <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={zoomIn}>Zoom In</DropdownMenuItem>
-            ... */}
             <DropdownMenuLabel className="text-xs text-muted-foreground">
               Canvas
             </DropdownMenuLabel>
@@ -119,54 +110,13 @@ export function TabLauncherBar({ readOnly = false }: TabLauncherBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="h-4 w-px bg-border mx-1" />
-
-        {!readOnly && (
-          <>
-            {/* Add Table Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={addTable}
-            >
-              <Table className="h-4 w-4" />
-              Add Table
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={addNote}
-            >
-              <StickyNote className="h-4 w-4" />
-              Add Note
-            </Button>
-
-            {/* Add Area Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-              onClick={addArea}
-            >
-              <Square className="h-4 w-4" />
-              Add Area
-            </Button>
-          </>
-        )}
       </div>
-
-      <ZoomMenu />
 
       <TabsDropdown side="left" />
 
       {/* Palette Selector */}
       <PlatformPaletteToggle />
 
-      {/* Right side: optional area (future) */}
-      <div className="w-[48px]" />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "@/components/diagram-general/canvas-world-background";
 import { Minimap } from "./minimap";
 import { CanvasShortcutsHelp } from "./canvas-shortcuts-help";
+import { CanvasFloatingToolbar } from "@/components/diagram-general/canvas-floating-toolbar";
 import { TableNode } from "./table-node";
 import { NoteNode } from "./note-node";
 import { AreaNode } from "./area-node";
@@ -1572,6 +1573,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
       {/* Keyboard shortcuts / controls help */}
       <CanvasShortcutsHelp className="absolute bottom-4 left-4 z-20" />
+
+      {/* Floating bottom toolbar */}
+      <CanvasFloatingToolbar readOnly={readOnly} />
 
       {/* Minimap overlay */}
       <Minimap
