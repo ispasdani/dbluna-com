@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Plus, Database, Download, FileText, FolderOpen, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp, Terminal } from "lucide-react";
+import { ChevronDown, Database, Download, FileText, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiagramButton } from "@/components/diagram-general/diagram-button";
 import {
@@ -16,15 +16,6 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
@@ -58,23 +49,20 @@ interface TopNavbarProps {
 export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const router = useRouter();
 
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isMyDiagramsOpen, setIsMyDiagramsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [newDiagramName, setNewDiagramName] = useState("");
   // Schema import (DB / CSV / BACPAC) — the tab is chosen by the Import menu
   // item the user picked, so each item opens straight onto its own source.
   const [isImportSchemaOpen, setIsImportSchemaOpen] = useState(false);
   const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
-  const { canUseDocsMode, planResolved, diagramCap } = useCapabilities();
+  const { canUseDocsMode, planResolved } = useCapabilities();
 
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
-  const createDiagram = useCanvasStore((s) => s.createDiagram);
   const tables = useCanvasStore((s) => s.tables);
   const notes = useCanvasStore((s) => s.notes);
   const areas = useCanvasStore((s) => s.areas);
@@ -93,11 +81,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
 
   const currentDiagramName =
     (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) || "Untitled diagram";
-
-  // Diagram-count cap (Free only; diagramCap is null for Pro). The open
-  // diagram is always in the record, so this count includes it.
-  const diagramCount = Object.keys(canvasDiagrams).length;
-  const atDiagramCap = diagramCap != null && diagramCount >= diagramCap;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -214,78 +197,25 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
     router.push(`/d/${newId}`);
   };
 
-  const handleCreateNew = () => {
-    // Free can create diagrams now (up to diagramCap) — only the cap blocks it,
-    // not the canvas-readOnly gate.
-    if (atDiagramCap) {
-      useUpgradeToastStore.getState().trigger();
-      return;
-    }
-    setNewDiagramName("");
-    setIsCreateOpen(true);
-  };
-
-  const handleCreateSubmit = () => {
-    if (!newDiagramName.trim()) return;
-    if (atDiagramCap) {
-      useUpgradeToastStore.getState().trigger();
-      setIsCreateOpen(false);
-      return;
-    }
-    const newId = createDiagram(newDiagramName.trim());
-    setIsCreateOpen(false);
-    setNewDiagramName("");
-    if (newId) router.push(`/d/${newId}`);
-  };
-
-  const handleSwitchDiagram = (id: string) => {
-    router.push(`/d/${id}`);
-  };
-
   return (
     <>
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
-        {/* Left cluster — logo, diagram picker, view helpers */}
+        {/* Left cluster — logo, diagram name, view helpers */}
         <div className="flex items-center gap-3">
           <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
 
-          {/* Diagram Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2 min-w-[180px] justify-between font-mono text-sm cursor-pointer"
-              >
-                <span className="truncate">{currentDiagramName}</span>
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className="w-[220px]">
-              <DropdownMenuItem
-                onClick={handleCreateNew}
-                disabled={atDiagramCap}
-                className="gap-2"
-                title={
-                  atDiagramCap
-                    ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited`
-                    : undefined
-                }
-              >
-                <Plus className="w-4 h-4" />
-                Create new diagram
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {Object.entries(canvasDiagrams).map(([id, diagram]) => (
-                <DropdownMenuItem
-                  key={id}
-                  onClick={() => handleSwitchDiagram(id)}
-                  className={`font-mono text-sm justify-between ${id === activeDiagramId ? "bg-secondary text-primary" : ""}`}
-                >
-                  <span className="truncate">{diagram.name}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Logo / name divider */}
+          <div className="w-px h-5 bg-border" />
+
+          {/* Diagram name — opens My Diagrams modal */}
+          <DiagramButton
+            variant="outlined"
+            onClick={() => setIsMyDiagramsOpen(true)}
+            className="gap-1.5 max-w-[200px]"
+          >
+            <span className="truncate">{currentDiagramName}</span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "tomato" }} />
+          </DiagramButton>
 
           {planResolved && (
             <Button
@@ -309,16 +239,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               )}
             </Button>
           )}
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-2 cursor-pointer"
-            onClick={() => setIsMyDiagramsOpen(true)}
-          >
-            <FolderOpen className="w-4 h-4" />
-            <span className="hidden sm:inline">My Diagrams</span>
-          </Button>
 
           {readOnly && (
             <Button asChild size="sm" variant="outline" className="gap-2 cursor-pointer">
@@ -466,40 +386,6 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           <UserMenu />
         </div>
       </header>
-
-      {/* Create Diagram Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Create New Diagram</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="diagram-name" className="text-sm font-medium">
-              Diagram Name
-            </Label>
-            <Input
-              id="diagram-name"
-              value={newDiagramName}
-              onChange={(e) => setNewDiagramName(e.target.value)}
-              placeholder="Enter diagram name..."
-              className="mt-2"
-              onKeyDown={(e) => e.key === "Enter" && handleCreateSubmit()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateSubmit}
-              disabled={!newDiagramName.trim()}
-            >
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} readOnly={readOnly} />
       <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />

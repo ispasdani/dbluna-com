@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { Pencil, Copy, Trash2, Check, X, Cloud, CloudOff, ChevronDown } from "lucide-react";
+import { Pencil, Copy, Trash2, Check, X, Cloud, CloudOff, ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
+import { useCapabilities } from "@/components/diagram-general/capabilities-context";
 import { useCloudSync } from "@/hooks/use-cloud-sync";
 import { softDeleteCloudDiagram } from "@/lib/diagram-persistence";
 import { api } from "@/convex/_generated/api";
@@ -87,9 +88,12 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
   const router = useRouter();
   const rawDiagrams = useCanvasStore((s) => s.diagrams);
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
+  const createDiagram = useCanvasStore((s) => s.createDiagram);
   const renameDiagram = useCanvasStore((s) => s.renameDiagram);
   const duplicateDiagram = useCanvasStore((s) => s.duplicateDiagram);
   const deleteDiagram = useCanvasStore((s) => s.deleteDiagram);
+
+  const { diagramCap } = useCapabilities();
 
   // Live canvas fields for the active diagram, so it shows up-to-date in the
   // list even before a diagram switch writes it back into `diagrams`. Selected
@@ -106,10 +110,33 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
   const activeSnapToGrid = useCanvasStore((s) => s.snapToGrid);
   const activeFocusMode = useCanvasStore((s) => s.isFocusModeEnabled);
 
+  const [isCreating, setIsCreating] = useState(false);
+  const [createName, setCreateName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isCloudSectionOpen, setIsCloudSectionOpen] = useState(false);
+
+  const diagramCount = Object.keys(rawDiagrams).length;
+  const atDiagramCap = diagramCap != null && diagramCount >= diagramCap;
+
+  const handleCreateNew = () => {
+    if (readOnly) { useUpgradeToastStore.getState().trigger(); return; }
+    if (atDiagramCap) { useUpgradeToastStore.getState().trigger(); return; }
+    setCreateName("");
+    setIsCreating(true);
+  };
+
+  const commitCreate = () => {
+    if (!createName.trim()) { setIsCreating(false); return; }
+    if (atDiagramCap) { useUpgradeToastStore.getState().trigger(); setIsCreating(false); return; }
+    const newId = createDiagram(createName.trim());
+    setIsCreating(false);
+    onOpenChange(false);
+    if (newId) router.push(`/d/${newId}`);
+  };
+
+  const cancelCreate = () => { setIsCreating(false); setCreateName(""); };
 
   // Cross-device discovery: cloud diagrams this account owns that this
   // browser hasn't seen locally yet — see app/(diagram)/d/cloud/[cloudId]/page.tsx.
@@ -246,8 +273,21 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[640px]">
-          <DialogHeader>
+          <DialogHeader className="flex flex-row items-center justify-between pr-8">
             <DialogTitle>My Diagrams</DialogTitle>
+            {!readOnly && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-7 text-xs"
+                onClick={handleCreateNew}
+                disabled={atDiagramCap}
+                title={atDiagramCap ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited` : undefined}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New diagram
+              </Button>
+            )}
           </DialogHeader>
 
           {rows.length === 0 ? (
@@ -265,6 +305,31 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {isCreating && (
+                  <TableRow>
+                    <TableCell colSpan={4}>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={createName}
+                          onChange={(e) => setCreateName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitCreate();
+                            if (e.key === "Escape") cancelCreate();
+                          }}
+                          placeholder="Diagram name…"
+                          className="h-7 text-sm"
+                          autoFocus
+                        />
+                        <Button size="icon-sm" variant="ghost" onClick={commitCreate}>
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon-sm" variant="ghost" onClick={cancelCreate}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
                 {rows.map(([id, diagram]) => (
                   <TableRow
                     key={id}
