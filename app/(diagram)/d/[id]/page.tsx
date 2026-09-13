@@ -65,6 +65,7 @@ export default function DiagramPage({ params }: PageProps) {
   const capabilities = useMemo<DiagramCapabilities>(
     () => ({
       isPro: effectivePro,
+      planResolved: !gateActive || planResolved,
       canEditCanvas: effectivePro,
       // Both tiers may type in the Code tab and commit parsed DBML.
       canEditCode: true,
@@ -73,7 +74,7 @@ export default function DiagramPage({ params }: PageProps) {
       visibleTabs: effectivePro ? ALL_TAB_IDS : FREE_TAB_IDS,
       canUseDocsMode: effectivePro,
     }),
-    [effectivePro]
+    [effectivePro, gateActive, planResolved]
   );
 
   // Mirror canEditCode into the store's Code-tab kill-switch. CanvasStage

@@ -12,6 +12,8 @@ const ALL_TAB_IDS = TABS.map((t) => t.id) as TabId[];
 // free-tier-code-only-editing-plan.md §2.
 export interface DiagramCapabilities {
   isPro: boolean;
+  // False while the plan query is still in-flight; true once we have a real answer.
+  planResolved: boolean;
   // Canvas gestures: drag, click-to-add, inline edit, drag-to-connect.
   canEditCanvas: boolean;
   // Typing in the Code tab and committing parsed DBML to the store.
@@ -30,6 +32,7 @@ export interface DiagramCapabilities {
 // (it matches the app's behavior before this feature existed).
 const DEFAULT_CAPABILITIES: DiagramCapabilities = {
   isPro: true,
+  planResolved: true,
   canEditCanvas: true,
   canEditCode: true,
   tableCap: null,
