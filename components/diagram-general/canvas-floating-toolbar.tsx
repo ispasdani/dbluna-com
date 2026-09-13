@@ -4,6 +4,7 @@ import { Table, StickyNote, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { ZoomMenu } from "./zoom-menu";
+import { PlatformPaletteToggle } from "./platform-palette-toggle";
 
 interface CanvasFloatingToolbarProps {
   readOnly?: boolean;
@@ -51,6 +52,10 @@ export function CanvasFloatingToolbar({ readOnly = false }: CanvasFloatingToolba
       )}
 
       <ZoomMenu />
+
+      <div className="h-4 w-px bg-border mx-1" />
+
+      <PlatformPaletteToggle />
     </div>
   );
 }

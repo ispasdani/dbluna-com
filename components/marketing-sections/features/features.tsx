@@ -140,11 +140,11 @@ export const Features = () => {
           <Card>
             <div className="flex items-center gap-2">
               <Palette className="h-6 w-6" />
-              <CardTitle>Six Canvas Themes</CardTitle>
+              <CardTitle>Light &amp; Dark Mode</CardTitle>
             </div>
             <CardDescription>
-              Switch between Default, Blue, Cyberpunk, Contrast, Tokyo Night,
-              and Dracula palettes to match your setup
+              Switch between a clean light theme and a deep dark mode that&apos;s
+              easy on the eyes during long sessions
             </CardDescription>
           </Card>
         </div>

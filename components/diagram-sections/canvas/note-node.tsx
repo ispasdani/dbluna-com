@@ -45,7 +45,6 @@ export const NoteNode = memo(function NoteNode({ note, selected, readOnly }: Not
         fillOpacity={0.2} // Slight transparency for sticky note feel
         stroke={selected ? "var(--primary)" : note.color}
         strokeWidth={selected ? 2 : 1}
-        className="transition-colors duration-200"
         style={{ filter: "drop-shadow(0 2px 4px rgb(0 0 0 / 0.1))" }}
       />
       

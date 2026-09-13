@@ -87,11 +87,10 @@ export const TableNode = memo(function TableNode({ table, selected, isDimmed, re
         strokeWidth={selected ? 2 : 1}
         // Slightly stronger shadow for the card look
         style={{ filter: "drop-shadow(0 2px 4px rgb(0 0 0 / 0.1))" }}
-        className="transition-colors duration-200"
       />
 
-      {/* 
-        Color Identity Strip 
+      {/*
+        Color Identity Strip
         - Height of ~4px at top
         - Uses table.color
         - Clipped/Masked manually by path or just drawn carefully

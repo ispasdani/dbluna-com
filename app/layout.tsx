@@ -51,7 +51,6 @@ export default function RootLayout({
         >
             <body
                 className="font-sans antialiased [--pattern-fg:var(--color-charcoal-900)]/10 dark:[--pattern-fg:var(--color-neutral-100)]/30"
-                data-palette="claude"
             >
                 {children}
             </body>

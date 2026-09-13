@@ -1,60 +1,35 @@
 "use client";
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Contrast, Flame, Moon, Palette, Sparkles, Zap } from "lucide-react";
-import {
-  PlatformPalette,
-  usePlatformPalette,
-} from "@/themeProviders/platformPaletteProvider";
-
-const options: { value: PlatformPalette; label: string; icon: any }[] = [
-  { value: "default", label: "Default", icon: Palette },
-  { value: "blue", label: "Blue", icon: Sparkles },
-  { value: "cyberpunk", label: "Cyberpunk", icon: Zap },
-  { value: "contrast", label: "Contrast", icon: Contrast },
-  { value: "tokio-night", label: "Tokyo Night", icon: Moon },
-  { value: "dracula", label: "Dracula", icon: Flame },
-];
+import { Moon, Sun } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { usePlatformPalette } from "@/themeProviders/platformPaletteProvider";
 
 export function PlatformPaletteToggle() {
   const { palette, setPalette, mounted } = usePlatformPalette();
 
-  // optional: avoid icon/UI mismatch before localStorage loads
   if (!mounted) return null;
 
-  const CurrentIcon = options.find((o) => o.value === palette)?.icon ?? Palette;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <CurrentIcon className="w-5 h-5" />
-          <span className="sr-only">Change palette</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="bg-popover text-popover-foreground"
-      >
-        {options.map(({ value, label, icon: Icon }) => (
-          <DropdownMenuItem
+    <div className="flex items-center bg-muted border border-border rounded-[7px] p-0.5 gap-0.5">
+      {(["default", "dark"] as const).map((value) => {
+        const isActive = palette === value;
+        const Icon = value === "default" ? Sun : Moon;
+        return (
+          <button
             key={value}
             onClick={() => setPalette(value)}
-            className={
-              palette === value ? "bg-secondary text-primary gap-2" : "gap-2"
-            }
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-[5px] text-[11px] font-medium transition-colors duration-75 cursor-pointer",
+              isActive
+                ? "bg-card text-foreground shadow-sm ring-1 ring-inset ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
           >
-            <Icon className="w-4 h-4" />
-            {label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <Icon className="w-3 h-3" />
+            {value === "default" ? "Light" : "Dark"}
+          </button>
+        );
+      })}
+    </div>
   );
 }

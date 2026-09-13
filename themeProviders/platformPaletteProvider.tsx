@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export type PlatformPalette = "default" | "blue" | "cyberpunk" | "contrast" | "tokio-night" | "dracula" | "claude";
+export type PlatformPalette = "default" | "dark";
+
+const VALID_PALETTES: PlatformPalette[] = ["default", "dark"];
 
 type Ctx = {
   palette: PlatformPalette;
@@ -16,27 +18,17 @@ export function PlatformPaletteProvider({ children }: { children: React.ReactNod
   const [palette, setPalette] = useState<PlatformPalette>("default");
   const [mounted, setMounted] = useState(false);
 
-  // Load ONLY for diagram area (optional)
   useEffect(() => {
     const stored = window.localStorage.getItem("diagram-palette") as PlatformPalette | null;
-    if (stored) setPalette(stored);
+    if (stored && VALID_PALETTES.includes(stored)) setPalette(stored);
     setMounted(true);
   }, []);
 
-  // Apply palette while mounted + cleanup on unmount
   useEffect(() => {
     if (!mounted) return;
-
-    // apply
-    document.body.dataset.palette = palette;
-
-    // optionally persist (diagram-only)
+    document.documentElement.dataset.palette = palette;
+    document.documentElement.classList.toggle("dark", palette === "dark");
     window.localStorage.setItem("diagram-palette", palette);
-
-    // critical: reset when leaving diagram routes
-    return () => {
-      delete document.body.dataset.palette;
-    };
   }, [palette, mounted]);
 
   const value = useMemo(

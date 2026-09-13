@@ -15,7 +15,6 @@ import {
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
-import { PlatformPaletteToggle } from "../diagram-general/platform-palette-toggle";
 
 export function TabLauncherBar() {
   const {
@@ -113,9 +112,6 @@ export function TabLauncherBar() {
       </div>
 
       <TabsDropdown side="left" />
-
-      {/* Palette Selector */}
-      <PlatformPaletteToggle />
 
     </div>
   );
