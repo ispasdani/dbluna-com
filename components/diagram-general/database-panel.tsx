@@ -23,6 +23,8 @@ import {
   groupTablesBySchema,
   moveTableToSchema,
   renameSchema,
+  schemaKey,
+  schemaLabel,
   splitSchemaName,
   validateSchemaName,
   type SchemaEditPlan,
@@ -211,7 +213,7 @@ function ProjectSection() {
   );
 }
 
-// ─── Namespaces section ──────────────────────────────────────────────────────
+// ─── Schemas section ─────────────────────────────────────────────────────────
 
 /** Unique-ifies a proposed name against the existing ones (case-insensitive). */
 function uniqueName(base: string, taken: string[]): string {
@@ -224,13 +226,11 @@ function uniqueName(base: string, taken: string[]): string {
 }
 
 // Schemas are not stored anywhere: they exist only as a `schema.` prefix inside
-// table names. So the "no schema" bucket needs a key that can't collide with a
-// real schema name, and a freshly created empty schema lives in local state
-// until a table is actually moved into it.
-const NO_SCHEMA_KEY = "\u0000none";
-const schemaKey = (schema: string | null) => schema ?? NO_SCHEMA_KEY;
+// table names, so a freshly created empty schema lives in local state until a
+// table is actually moved into it. Bucket key/label helpers come from
+// lib/schema-namespace so the Tables tab buckets rows identically.
 
-function NamespacesSection() {
+function SchemasSection() {
   const tables = useCanvasStore((s) => s.tables);
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
 
@@ -375,7 +375,7 @@ function NamespacesSection() {
                     <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                   )}
                   <span className="font-mono text-sm truncate flex-1">
-                    {schema ?? "(no schema)"}
+                    {schemaLabel(schema)}
                   </span>
                   {isReserved && (
                     <span
@@ -446,7 +446,7 @@ function NamespacesSection() {
 
 // ─── Panel ───────────────────────────────────────────────────────────────────
 
-export function SchemaPanel() {
+export function DatabasePanel() {
   const project = useCanvasStore((s) => s.project);
   // Counts only distinct named prefixes — cheap enough to run on any store
   // change, and returning a number means a canvas drag never re-renders the
@@ -462,18 +462,21 @@ export function SchemaPanel() {
 
   const projectSummary =
     [project?.name, project?.databaseType].filter(Boolean).join(" · ") || "Not set";
-  const namespaceSummary =
-    namedSchemaCount === 0 ? "None" : `${namedSchemaCount} schema${namedSchemaCount === 1 ? "" : "s"}`;
+  const schemaSummary =
+    namedSchemaCount === 0
+      ? "None — every table is unqualified"
+      : `${namedSchemaCount} schema${namedSchemaCount === 1 ? "" : "s"}`;
 
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-muted-foreground" />
-          <h2 className="font-semibold text-lg">Schema</h2>
+          <h2 className="font-semibold text-lg">Database</h2>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Database-wide settings. Tables and columns live in the Tables tab.
+          This diagram is one database. It holds schemas, which hold the tables
+          you edit in the Tables tab.
         </p>
       </div>
 
@@ -482,8 +485,8 @@ export function SchemaPanel() {
           <ProjectSection />
         </Section>
 
-        <Section title="Namespaces" description={namespaceSummary} defaultOpen={false}>
-          <NamespacesSection />
+        <Section title="Schemas" description={schemaSummary} defaultOpen={false}>
+          <SchemasSection />
         </Section>
       </div>
     </div>

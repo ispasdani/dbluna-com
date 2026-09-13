@@ -453,7 +453,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
           <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
 
           <DiagramButton
-            variant="icon"
+            variant="ghost"
             size="icon"
             onClick={() => useOnboardingStore.getState().open()}
             title="How this works"

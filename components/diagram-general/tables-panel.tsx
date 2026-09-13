@@ -1,17 +1,17 @@
 "use client";
 
-import { useCanvasStore, TABLE_COLORS } from "@/store/useCanvasStore";
+import { useCanvasStore, TABLE_COLORS, type Table } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
-import { 
-  Plus, 
-  Trash2, 
-  Key, 
-  MoreVertical, 
-  ChevronRight, 
+import {
+  Plus,
+  Trash2,
+  Key,
+  MoreVertical,
+  ChevronRight,
   ChevronDown,
   Fingerprint,
   Ban,
-  ArrowUp10
+  ArrowUp10,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +26,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-// import { ScrollArea } from "@/components/ui/scroll-area"; // Removed as file not found
-// If ScrollArea doesn't exist, I'll use div with overflow-auto. I didn't see scroll-area.tsx in components/ui list (Step 48).
-// So I will use standard div.
+import {
+  groupTablesBySchema,
+  schemaKey,
+  schemaLabel,
+  splitSchemaName,
+} from "@/lib/schema-namespace";
 
 export function TablesPanel() {
   const {
@@ -42,14 +45,12 @@ export function TablesPanel() {
     addField,
     updateField,
     deleteField,
-    deleteTables,
   } = useCanvasStore();
 
   const openTab = useDockStore((s) => s.openTab);
 
   const isSingleSelection = selectedTableIds.length === 1;
   const selectedTableId = isSingleSelection ? selectedTableIds[0] : null;
-  const selectedTable = selectedTableId ? tables.find((t) => t.id === selectedTableId) : null;
 
   // Expansion is tracked separately from selection so a table's details can be
   // collapsed by clicking its header again without losing the canvas selection.
@@ -63,15 +64,300 @@ export function TablesPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey]);
 
+  const [collapsedSchemas, setCollapsedSchemas] = useState<Set<string>>(() => new Set());
+
+  // Grouped on every render, deliberately NOT memoised on
+  // `tablesStructureSignature` the way the Database tab does it. That signature
+  // covers only ids/names/column types — these rows also render colour, the
+  // comment dot and the PK/NN/UQ/AI toggles, so a signature-keyed memo would
+  // hand back stale table objects and those edits would not repaint. The
+  // whole-store subscription above already re-renders this panel on every
+  // change, so the memo would have saved an O(n) pass and nothing more.
+  const groups = groupTablesBySchema(tables);
+
+  // With no `schema.` prefix anywhere there is exactly one bucket holding
+  // everything, and wrapping it in a "(no schema)" header would be pure chrome.
+  // Those diagrams keep the plain flat list they had before.
+  const namedSchemaCount = groups.filter((g) => g.schema !== null).length;
+  const isGrouped = namedSchemaCount > 0;
+
+  const toggleSchema = (key: string) =>
+    setCollapsedSchemas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const countLabel = `${tables.length} table${tables.length === 1 ? "" : "s"}`;
+  const subtitle = isGrouped
+    ? `${countLabel} in ${namedSchemaCount} schema${namedSchemaCount === 1 ? "" : "s"}`
+    : countLabel;
+
+  const renderTable = (table: Table) => {
+    const isSelected = selectedTableIds.includes(table.id);
+    const isExpanded = expandedTableId === table.id;
+    // Rows always show the bare name: inside a schema group the prefix is
+    // already the header, and an unqualified table has nothing to strip.
+    const { schema, table: bareName } = splitSchemaName(table.name);
+
+    return (
+      <div
+        key={table.id}
+        className={cn(
+          "border rounded-md transition-all duration-200",
+          isSelected
+            ? "border-primary bg-primary/5 shadow-sm"
+            : "border-border hover:bg-muted/50"
+        )}
+      >
+        {/* Table Header Row */}
+        <div
+          className="flex items-center p-2 cursor-pointer select-none"
+          onClick={(e) => {
+            if (e.ctrlKey || e.metaKey) {
+              if (isSelected) {
+                setSelectedTableIds(selectedTableIds.filter((id) => id !== table.id));
+              } else {
+                setSelectedTableIds([...selectedTableIds, table.id]);
+              }
+              return;
+            }
+
+            if (isSelected && isSingleSelection) {
+              // Already the active table: toggle its details open/closed.
+              setExpandedTableId(isExpanded ? null : table.id);
+            } else {
+              setSelectedTableIds([table.id]);
+              setExpandedTableId(table.id);
+            }
+          }}
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+          )}
+
+          <div
+            className="h-3 w-3 rounded-full mr-2 shrink-0"
+            style={{ backgroundColor: table.color }}
+          />
+          <span className="font-medium text-sm truncate flex-1" title={table.name}>
+            {bareName}
+          </span>
+
+          <div className="flex items-center gap-1">
+            {table.comment && (
+              <div
+                className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"
+                title="Has comment"
+              />
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Change Color
+                </DropdownMenuLabel>
+                <div className="grid grid-cols-4 gap-1 p-2">
+                  {TABLE_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      className={cn(
+                        "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                        table.color === color && "ring-2 ring-primary ring-offset-1"
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateTable(table.id, { color });
+                      }}
+                    />
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive gap-2"
+                  onSelect={() => deleteTable(table.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Delete Table</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Expanded Details */}
+        {isExpanded && isSingleSelection && (
+          <div className="px-3 pb-3 pt-0 animate-in slide-in-from-top-2 fade-in duration-200">
+            <div className="mb-3 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Table Name</label>
+              <Input
+                value={table.name}
+                onChange={(e) => updateTable(table.id, { name: e.target.value })}
+                className="h-8 text-sm"
+              />
+              {schema !== null && (
+                <p className="text-[11px] text-muted-foreground">
+                  In schema <code className="font-mono">{schema}</code> — the prefix is
+                  part of the name. Reassign it in the Database tab.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Columns</label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs gap-1 px-2"
+                  onClick={() => addField(table.id)}
+                >
+                  <Plus className="w-3 h-3" /> Field
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {table.columns.map((col) => (
+                  <div
+                    key={col.id}
+                    className="bg-card border rounded p-2 text-sm flex flex-col gap-2 relative group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={col.name}
+                        onChange={(e) =>
+                          updateField(table.id, col.id, { name: e.target.value })
+                        }
+                        className="h-7 px-2 text-xs flex-1"
+                        placeholder="Column name"
+                      />
+                      <div className="w-[110px]">
+                        <select
+                          className="h-7 w-full rounded border bg-background px-2 py-0 text-xs focus:ring-1 focus:ring-primary"
+                          value={col.type}
+                          onChange={(e) => {
+                            if (e.target.value === "__new_enum__") {
+                              openTab("enums");
+                              return;
+                            }
+                            updateField(table.id, col.id, { type: e.target.value });
+                          }}
+                        >
+                          <optgroup label="Primitives">
+                            <option value="INT">INT</option>
+                            <option value="VARCHAR">VARCHAR</option>
+                            <option value="TEXT">TEXT</option>
+                            <option value="BOOLEAN">BOOL</option>
+                            <option value="TIMESTAMP">TIME</option>
+                            <option value="DATE">DATE</option>
+                            <option value="FLOAT">FLOAT</option>
+                            <option value="UUID">UUID</option>
+                            <option value="JSON">JSON</option>
+                          </optgroup>
+                          {enums.length > 0 && (
+                            <optgroup label="Enums">
+                              {enums.map((e) => (
+                                <option key={e.id} value={e.name}>
+                                  {e.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <optgroup label="">
+                            <option value="__new_enum__">＋ New enum…</option>
+                          </optgroup>
+                        </select>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => deleteField(table.id, col.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <ConstraintToggle
+                        active={col.isPrimaryKey}
+                        onClick={() =>
+                          updateField(table.id, col.id, { isPrimaryKey: !col.isPrimaryKey })
+                        }
+                        icon={Key}
+                        label="PK"
+                        activeColor="text-foreground bg-accent border-border"
+                      />
+                      <ConstraintToggle
+                        active={col.isNotNull}
+                        onClick={() =>
+                          updateField(table.id, col.id, { isNotNull: !col.isNotNull })
+                        }
+                        icon={Ban}
+                        label="NN"
+                        activeColor="text-foreground bg-accent border-border"
+                      />
+                      <ConstraintToggle
+                        active={col.isUnique}
+                        onClick={() =>
+                          updateField(table.id, col.id, { isUnique: !col.isUnique })
+                        }
+                        icon={Fingerprint}
+                        label="UQ"
+                        activeColor="text-foreground bg-accent border-border"
+                      />
+                      <ConstraintToggle
+                        active={col.isAutoIncrement}
+                        onClick={() =>
+                          updateField(table.id, col.id, {
+                            isAutoIncrement: !col.isAutoIncrement,
+                          })
+                        }
+                        icon={ArrowUp10}
+                        label="AI"
+                        activeColor="text-foreground bg-accent border-border"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Comment</label>
+              <Textarea
+                placeholder="Leave a comment..."
+                value={table.comment || ""}
+                onChange={(e) => updateTable(table.id, { comment: e.target.value })}
+                className="min-h-[80px] text-xs resize-none"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between shrink-0">
         <div>
-           <h3 className="font-medium text-foreground">Tables</h3>
-           <p className="text-xs text-muted-foreground">
-             {tables.length} tables in schema
-           </p>
+          <h3 className="font-medium text-foreground">Tables</h3>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <Button onClick={addTable} size="sm" className="h-8 gap-1">
           <Plus className="w-3.5 h-3.5" />
@@ -81,247 +367,67 @@ export function TablesPanel() {
 
       {/* Tables List */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-        {tables.map((table) => {
-           const isSelected = selectedTableIds.includes(table.id);
-           const isExpanded = expandedTableId === table.id;
-
-           return (
-             <div 
-               key={table.id} 
-               className={cn(
-                 "border rounded-md transition-all duration-200",
-                 isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"
-               )}
-             >
-               {/* Table Header Row */}
-                <div 
-                  className="flex items-center p-2 cursor-pointer select-none"
-                  onClick={(e) => {
-                    if (e.ctrlKey || e.metaKey) {
-                      if (isSelected) {
-                        setSelectedTableIds(selectedTableIds.filter(id => id !== table.id));
-                      } else {
-                        setSelectedTableIds([...selectedTableIds, table.id]);
-                      }
-                      return;
-                    }
-
-                    if (isSelected && isSingleSelection) {
-                      // Already the active table: toggle its details open/closed.
-                      setExpandedTableId(isExpanded ? null : table.id);
-                    } else {
-                      setSelectedTableIds([table.id]);
-                      setExpandedTableId(table.id);
-                    }
-                  }}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-                  )}
-                  
-                  <div className="h-3 w-3 rounded-full mr-2 shrink-0" style={{ backgroundColor: table.color }} />
-                  <span className="font-medium text-sm truncate flex-1" title={table.name}>{table.name}</span>
-                  
-                  <div className="flex items-center gap-1">
-                    {table.comment && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" title="Has comment" />
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
-                        <div className="grid grid-cols-4 gap-1 p-2">
-                          {TABLE_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              className={cn(
-                                "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
-                                table.color === color && "ring-2 ring-primary ring-offset-1"
-                              )}
-                              style={{ backgroundColor: color }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateTable(table.id, { color });
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive gap-2"
-                          onSelect={() => deleteTable(table.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span>Delete Table</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-               {/* Expanded Details */}
-               {isExpanded && isSingleSelection && (
-                 <div className="px-3 pb-3 pt-0 animate-in slide-in-from-top-2 fade-in duration-200">
-                    <div className="mb-3 space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Table Name</label>
-                      <Input 
-                        value={table.name} 
-                        onChange={(e) => updateTable(table.id, { name: e.target.value })}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                       <div className="flex items-center justify-between">
-                         <label className="text-xs font-medium text-muted-foreground">Columns</label>
-                         <Button 
-                           variant="outline" 
-                           size="sm" 
-                           className="h-6 text-xs gap-1 px-2"
-                           onClick={() => addField(table.id)}
-                         >
-                           <Plus className="w-3 h-3" /> Field
-                         </Button>
-                       </div>
-
-                       <div className="space-y-2">
-                          {table.columns.map((col, idx) => (
-                             <div key={col.id} className="bg-card border rounded p-2 text-sm flex flex-col gap-2 relative group">
-                                <div className="flex items-center gap-2">
-                                   <Input 
-                                      value={col.name}
-                                      onChange={(e) => updateField(table.id, col.id, { name: e.target.value })}
-                                      className="h-7 px-2 text-xs flex-1"
-                                      placeholder="Column name"
-                                   />
-                                   <div className="w-[110px]">
-                                      <select
-                                        className="h-7 w-full rounded border bg-background px-2 py-0 text-xs focus:ring-1 focus:ring-primary"
-                                        value={col.type}
-                                        onChange={(e) => {
-                                          if (e.target.value === "__new_enum__") {
-                                            openTab("enums");
-                                            return;
-                                          }
-                                          updateField(table.id, col.id, { type: e.target.value });
-                                        }}
-                                      >
-                                        <optgroup label="Primitives">
-                                          <option value="INT">INT</option>
-                                          <option value="VARCHAR">VARCHAR</option>
-                                          <option value="TEXT">TEXT</option>
-                                          <option value="BOOLEAN">BOOL</option>
-                                          <option value="TIMESTAMP">TIME</option>
-                                          <option value="DATE">DATE</option>
-                                          <option value="FLOAT">FLOAT</option>
-                                          <option value="UUID">UUID</option>
-                                          <option value="JSON">JSON</option>
-                                        </optgroup>
-                                        {enums.length > 0 && (
-                                          <optgroup label="Enums">
-                                            {enums.map((e) => (
-                                              <option key={e.id} value={e.name}>
-                                                {e.name}
-                                              </option>
-                                            ))}
-                                          </optgroup>
-                                        )}
-                                        <optgroup label="">
-                                          <option value="__new_enum__">＋ New enum…</option>
-                                        </optgroup>
-                                      </select>
-                                   </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                      onClick={() => deleteField(table.id, col.id)}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                </div>
-                                
-                                <div className="flex items-center gap-1">
-                                   <ConstraintToggle 
-                                      active={col.isPrimaryKey} 
-                                      onClick={() => updateField(table.id, col.id, { isPrimaryKey: !col.isPrimaryKey })}
-                                      icon={Key}
-                                      label="PK"
-                                      activeColor="text-foreground bg-accent border-border"
-                                   />
-                                   <ConstraintToggle 
-                                      active={col.isNotNull} 
-                                      onClick={() => updateField(table.id, col.id, { isNotNull: !col.isNotNull })}
-                                      icon={Ban}
-                                      label="NN"
-                                      activeColor="text-foreground bg-accent border-border"
-                                   />
-                                   <ConstraintToggle 
-                                      active={col.isUnique} 
-                                      onClick={() => updateField(table.id, col.id, { isUnique: !col.isUnique })}
-                                      icon={Fingerprint}
-                                      label="UQ"
-                                      activeColor="text-foreground bg-accent border-border"
-                                   />
-                                   <ConstraintToggle 
-                                      active={col.isAutoIncrement} 
-                                      onClick={() => updateField(table.id, col.id, { isAutoIncrement: !col.isAutoIncrement })}
-                                      icon={ArrowUp10}
-                                      label="AI"
-                                      activeColor="text-foreground bg-accent border-border"
-                                   />
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    </div>
-
-                    <div className="mt-4 space-y-1">
-                       <label className="text-xs font-medium text-muted-foreground">Comment</label>
-                       <Textarea 
-                         placeholder="Leave a comment..."
-                         value={table.comment || ""}
-                         onChange={(e) => updateTable(table.id, { comment: e.target.value })}
-                         className="min-h-[80px] text-xs resize-none"
-                       />
-                    </div>
-                 </div>
-               )}
-             </div>
-           );
-        })}
-        {tables.length === 0 && (
+        {tables.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground text-sm">
-             No tables yet. Click "Add" to start.
+            No tables yet. Click &quot;Add&quot; to start.
           </div>
+        ) : isGrouped ? (
+          groups.map(({ schema, tables: schemaTables }) => {
+            const key = schemaKey(schema);
+            const isCollapsed = collapsedSchemas.has(key);
+
+            return (
+              <div key={key} className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSchema(key)}
+                  className="w-full flex items-center gap-2 px-1 py-1 text-left select-none hover:bg-accent rounded transition-colors"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  <span
+                    className={cn(
+                      "text-xs font-medium truncate flex-1",
+                      schema === null
+                        ? "text-muted-foreground italic"
+                        : "font-mono text-foreground"
+                    )}
+                  >
+                    {schemaLabel(schema)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground shrink-0">
+                    {schemaTables.length}
+                  </span>
+                </button>
+
+                {!isCollapsed && (
+                  <div className="space-y-2 pl-2">{schemaTables.map(renderTable)}</div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          tables.map(renderTable)
         )}
       </div>
     </div>
   );
 }
 
-function ConstraintToggle({ 
-  active, 
-  onClick, 
-  icon: Icon, 
-  label, 
-  activeColor 
-}: { 
-  active: boolean; 
-  onClick: () => void; 
-  icon: any; 
-  label: string; 
+function ConstraintToggle({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+  activeColor,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
   activeColor?: string;
 }) {
   return (
@@ -329,8 +435,8 @@ function ConstraintToggle({
       onClick={onClick}
       className={cn(
         "flex-1 flex items-center justify-center gap-1 h-6 rounded border text-[10px] font-medium transition-colors",
-        active 
-          ? activeColor || "bg-primary/10 text-primary border-primary/20" 
+        active
+          ? activeColor || "bg-primary/10 text-primary border-primary/20"
           : "bg-background text-muted-foreground border-transparent hover:bg-muted"
       )}
       title={label}

@@ -13,7 +13,7 @@ import { NotesPanel } from "./notes-panel";
 import { AreasPanel } from "./areas-panel";
 import { RelationshipsPanel } from "./relationships-panel";
 import { CodeEditor } from "./code-editor";
-import { SchemaPanel } from "./schema-panel";
+import { DatabasePanel } from "./database-panel";
 import { EnumsPanel } from "./enums-panel";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
@@ -95,8 +95,8 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <AreasPanel />
           ) : effectiveActiveTab === "code" ? (
             <CodeEditor readOnly={!canEditCode} />
-          ) : effectiveActiveTab === "schema" ? (
-            <SchemaPanel />
+          ) : effectiveActiveTab === "database" ? (
+            <DatabasePanel />
           ) : effectiveActiveTab === "enums" ? (
             <EnumsPanel />
           ) : effectiveActiveTab === "issues" ? (

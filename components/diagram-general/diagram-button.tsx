@@ -15,9 +15,11 @@ import { cn } from "@/lib/utils";
  *   brand     — coral fill, white label (upgrade / brand moments)
  *   dashed    — dashed border, dim label (empty-state add actions)
  *   secondary — muted fill, standard label (toggles and less-prominent actions)
- *   icon      — square icon-only (no padding, border-transparent)
  *
  * Sizes: sm | md (default) | lg | icon
+ *
+ * Icon-only buttons are a *size*, not a variant: pair `size="icon"` (square,
+ * no padding, transparent border) with whichever variant supplies the colour.
  */
 const diagramButtonVariants = cva(
   [
