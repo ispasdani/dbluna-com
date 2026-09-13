@@ -18,4 +18,47 @@ const DbLuna = ({ className = "" }: { className?: string }) => {
   );
 };
 
+// Futuristic all-caps variant: geometric monoline letterforms on an 8-unit
+// cap height, chamfered corners, and a crossbar-less "A" with a floating bar.
+export const DbLunaFuturistic = ({ className = "" }: { className?: string }) => {
+  return (
+    <svg
+      className={className}
+      width="74"
+      height="10"
+      viewBox="0 0 59 8"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="DBLUNA"
+      role="img"
+    >
+      <g
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="miter"
+        strokeLinecap="butt"
+      >
+        {/* D */}
+        <path d="M0.65 0.65H6L7.35 2V6L6 7.35H0.65Z" />
+        {/* B */}
+        <path d="M10.65 0.65H16L17.35 2V2.65L16 4L17.35 5.35V6L16 7.35H10.65Z" />
+        <path d="M10.65 4H16" />
+        {/* L */}
+        <path d="M20.65 0V7.35H28" />
+        {/* U */}
+        <path d="M30.65 0V6L32 7.35H36L37.35 6V0" />
+      </g>
+      <g fill="currentColor">
+        {/* N */}
+        <rect x="40" y="0" width="1.3" height="8" />
+        <rect x="46.7" y="0" width="1.3" height="8" />
+        <polygon points="40,0 41.6,0 48,8 46.4,8" />
+        {/* A */}
+        <polygon points="50,8 53.7,0 55.3,0 59,8 57.6,8 54.5,1.3 51.4,8" />
+        <rect x="53.8" y="5" width="1.4" height="1.3" />
+      </g>
+    </svg>
+  );
+};
+
 export default DbLuna;

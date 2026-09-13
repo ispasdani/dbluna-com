@@ -40,7 +40,7 @@ import { SQL_DIALECTS, dialectFromDatabaseType, type SqlDialect } from "@/lib/ge
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useCapabilities } from "@/components/diagram-general/capabilities-context";
-import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
+import DbLuna, { DbLunaFuturistic } from "@/components/uiJsxAssets/dbluna-logo";
 
 interface TopNavbarProps {
   readOnly?: boolean;
@@ -203,6 +203,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
         {/* Left cluster — logo, diagram name, view helpers */}
         <div className="flex items-center gap-3">
           <DbLuna className="text-foreground w-full max-w-[120px] h-[30px]" />
+          <DbLunaFuturistic className="text-foreground w-[110px] h-[15px] shrink-0" />
 
           {/* Logo / name divider */}
           <div className="w-px h-5 bg-border" />
