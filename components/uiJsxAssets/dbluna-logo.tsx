@@ -18,9 +18,84 @@ const DbLuna = ({ className = "" }: { className?: string }) => {
   );
 };
 
+export type DbLunaWeight = "light" | "regular" | "bold" | number;
+
+const WEIGHT_PRESETS = { light: 0.9, regular: 1.3, bold: 1.8 } as const;
+
+// Stroke thickness in viewBox units. Numbers are clamped: below 0.6 the marks
+// get hairline-thin, above 1.8 the A's floating bar no longer fits its counter.
+const MIN_THICKNESS = 0.6;
+const MAX_THICKNESS = 1.8;
+
+const CHAMFER = 1.35;
+const r = (n: number) => Math.round(n * 1000) / 1000;
+
+// Every letter keeps fixed outer bounds (cap height 8, advance 10, A spans
+// 50–59), so changing the weight never shifts the layout — only the
+// thickness and the derived N/A geometry change.
+function futuristicGeometry(t: number) {
+  const h = t / 2;
+  const c = CHAMFER;
+  const top = r(h);
+  const bot = r(8 - h);
+
+  const D = `M${r(h)} ${top}H${r(8 - h - c)}L${r(8 - h)} ${r(h + c)}V${r(8 - h - c)}L${r(8 - h - c)} ${bot}H${r(h)}Z`;
+
+  const bl = r(10 + h);
+  const br = r(18 - h);
+  const B = `M${bl} ${top}H${r(br - c)}L${br} ${r(h + c)}V${r(4 - c)}L${r(br - c)} 4L${br} ${r(4 + c)}V${r(8 - h - c)}L${r(br - c)} ${bot}H${bl}Z`;
+  const BBar = `M${bl} 4H${r(br - c)}`;
+
+  const L = `M${r(20 + h)} 0V${bot}H28`;
+
+  const ul = r(30 + h);
+  const ur = r(38 - h);
+  const U = `M${ul} 0V${r(8 - h - c)}L${r(ul + c)} ${bot}H${r(ur - c)}L${ur} ${r(8 - h - c)}V0`;
+
+  // N diagonal: solve for the horizontal width w whose perpendicular
+  // thickness equals t (w depends on its own slope, so iterate).
+  let w = t;
+  for (let i = 0; i < 4; i++) w = (t * Math.sqrt(64 + (8 - w) ** 2)) / 8;
+  const NDiagonal = `40,0 ${r(40 + w)},0 48,8 ${r(48 - w)},8`;
+
+  // A: flat apex of width f, legs with perpendicular thickness t.
+  const f = t * 1.23;
+  const s = (4.5 - f / 2) / 8; // leg run per unit of rise
+  const wa = t * Math.sqrt(1 + s * s); // horizontal leg width
+  const apexInner = 8 - (4.5 - wa) / s;
+  const A = `50,8 ${r(54.5 - f / 2)},0 ${r(54.5 + f / 2)},0 59,8 ${r(59 - wa)},8 54.5,${r(apexInner)} ${r(50 + wa)},8`;
+
+  // Floating bar: t×t square, as high as possible (y ≥ 5) while keeping a
+  // 0.6 gap to the inner edges of the legs.
+  const barGap = 0.6;
+  const barTop = Math.max(5, 8 - (4.5 - wa - t / 2 - barGap) / s);
+
+  return {
+    D,
+    B,
+    BBar,
+    L,
+    U,
+    NDiagonal,
+    A,
+    bar: { x: r(54.5 - t / 2), y: r(barTop), size: r(t) },
+    rightStemX: r(48 - t),
+  };
+}
+
 // Futuristic all-caps variant: geometric monoline letterforms on an 8-unit
 // cap height, chamfered corners, and a crossbar-less "A" with a floating bar.
-export const DbLunaFuturistic = ({ className = "" }: { className?: string }) => {
+export const DbLunaFuturistic = ({
+  className = "",
+  weight = "regular",
+}: {
+  className?: string;
+  weight?: DbLunaWeight;
+}) => {
+  const raw = typeof weight === "number" ? weight : WEIGHT_PRESETS[weight];
+  const t = Math.min(MAX_THICKNESS, Math.max(MIN_THICKNESS, raw));
+  const g = futuristicGeometry(t);
+
   return (
     <svg
       className={className}
@@ -34,28 +109,24 @@ export const DbLunaFuturistic = ({ className = "" }: { className?: string }) => 
     >
       <g
         stroke="currentColor"
-        strokeWidth="1.3"
+        strokeWidth={r(t)}
         strokeLinejoin="miter"
         strokeLinecap="butt"
       >
-        {/* D */}
-        <path d="M0.65 0.65H6L7.35 2V6L6 7.35H0.65Z" />
-        {/* B */}
-        <path d="M10.65 0.65H16L17.35 2V2.65L16 4L17.35 5.35V6L16 7.35H10.65Z" />
-        <path d="M10.65 4H16" />
-        {/* L */}
-        <path d="M20.65 0V7.35H28" />
-        {/* U */}
-        <path d="M30.65 0V6L32 7.35H36L37.35 6V0" />
+        <path d={g.D} />
+        <path d={g.B} />
+        <path d={g.BBar} />
+        <path d={g.L} />
+        <path d={g.U} />
       </g>
       <g fill="currentColor">
         {/* N */}
-        <rect x="40" y="0" width="1.3" height="8" />
-        <rect x="46.7" y="0" width="1.3" height="8" />
-        <polygon points="40,0 41.6,0 48,8 46.4,8" />
+        <rect x="40" y="0" width={r(t)} height="8" />
+        <rect x={g.rightStemX} y="0" width={r(t)} height="8" />
+        <polygon points={g.NDiagonal} />
         {/* A */}
-        <polygon points="50,8 53.7,0 55.3,0 59,8 57.6,8 54.5,1.3 51.4,8" />
-        <rect x="53.8" y="5" width="1.4" height="1.3" />
+        <polygon points={g.A} />
+        <rect x={g.bar.x} y={g.bar.y} width={g.bar.size} height={g.bar.size} />
       </g>
     </svg>
   );
