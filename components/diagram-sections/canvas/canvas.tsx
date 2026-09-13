@@ -1314,7 +1314,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   return (
     <div
       ref={rootRef}
-      className="relative h-full w-full overflow-hidden bg-background"
+      className="relative h-full w-full overflow-hidden bg-canvas-bg"
     >
       {/* World */}
       <div
