@@ -2,7 +2,7 @@
 
 import { Eye, ChevronDown, PanelLeft, Layout, Magnet } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { DiagramButton } from "@/components/diagram-general/diagram-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,15 +33,11 @@ export function TabLauncherBar() {
         {/* View Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 cursor-pointer"
-            >
-              <Eye className="h-4 w-4" />
+            <DiagramButton variant="ghost">
+              <Eye className="w-3.5 h-3.5" />
               View
-              <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </DiagramButton>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="start" className="w-64">

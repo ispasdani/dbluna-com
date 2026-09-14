@@ -15,7 +15,7 @@ import {
   ListOrdered,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { DiagramButton } from "./diagram-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,10 +57,10 @@ export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <DiagramButton variant="outlined">
           Tabs
-          <ChevronDown className="h-3 w-3" />
-        </Button>
+          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+        </DiagramButton>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="center" className="w-56">
