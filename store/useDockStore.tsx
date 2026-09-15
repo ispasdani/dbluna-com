@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type TabId = "code" | "database" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas" | "ai-chat" | "enums";
+export type TabId = "code" | "database" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas" | "enums";
 export type DockSide = "left" | "right";
 
 export interface TabInfo {
@@ -22,7 +22,6 @@ export const TABS: TabInfo[] = [
   { id: "notes", label: "Notes", icon: "StickyNote" },
   { id: "areas", label: "Areas", icon: "Square" },
   { id: "enums", label: "Enums", icon: "ListOrdered" },
-  { id: "ai-chat", label: "AI Chat", icon: "Sparkles" },
 ];
 
 interface DockState {

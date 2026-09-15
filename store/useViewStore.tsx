@@ -8,6 +8,12 @@ type ViewState = {
   leftDockWidth: number;
   setLeftDockWidth: (w: number) => void;
   toggleLeftDock: () => void;
+
+  // Luna AI sidebar: opened from the floating button on the canvas, docked to
+  // the right edge of the work area (separate from the left tab dock).
+  isAiChatOpen: boolean;
+  setAiChatOpen: (open: boolean) => void;
+  toggleAiChat: () => void;
   
   workspaceMode: 'diagram' | 'docs';
   setWorkspaceMode: (mode: 'diagram' | 'docs') => void;
@@ -25,6 +31,10 @@ export const useViewStore = create<ViewState>((set, get) => ({
   setLeftDockWidth: (w) => set({ leftDockWidth: clamp(w, 260, 720) }),
 
   toggleLeftDock: () => set({ isLeftDockVisible: !get().isLeftDockVisible }),
+
+  isAiChatOpen: false,
+  setAiChatOpen: (open) => set({ isAiChatOpen: open }),
+  toggleAiChat: () => set({ isAiChatOpen: !get().isAiChatOpen }),
 
   workspaceMode: 'diagram',
   setWorkspaceMode: (mode) => set({ workspaceMode: mode }),

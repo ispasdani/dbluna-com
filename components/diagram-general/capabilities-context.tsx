@@ -23,6 +23,9 @@ export interface DiagramCapabilities {
   diagramCap: number | null;
   // Dock tabs rendered at all (not just enabled).
   visibleTabs: TabId[];
+  // Luna AI sidebar + its floating canvas button. Hidden entirely when false,
+  // same as a dock tab missing from visibleTabs.
+  canUseAiChat: boolean;
   canUseDocsMode: boolean;
 }
 
@@ -38,6 +41,7 @@ const DEFAULT_CAPABILITIES: DiagramCapabilities = {
   tableCap: null,
   diagramCap: null,
   visibleTabs: ALL_TAB_IDS,
+  canUseAiChat: true,
   canUseDocsMode: true,
 };
 

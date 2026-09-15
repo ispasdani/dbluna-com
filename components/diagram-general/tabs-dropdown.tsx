@@ -11,7 +11,6 @@ import {
   Link,
   StickyNote,
   Square,
-  Sparkles,
   ListOrdered,
 } from "lucide-react";
 
@@ -36,7 +35,6 @@ const iconMap = {
   Link,
   StickyNote,
   Square,
-  Sparkles,
   ListOrdered,
 };
 

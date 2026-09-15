@@ -17,7 +17,6 @@ import { DatabasePanel } from "./database-panel";
 import { EnumsPanel } from "./enums-panel";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
-import { AiChatPanel } from "./ai-chat-panel";
 
 const DraggableTab = dynamic(
   () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
@@ -28,11 +27,10 @@ interface DockPanelProps {
   side: DockSide;
   tabs: TabId[];
   activeTab: TabId | null;
-  readOnly?: boolean;
 }
 
 export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
-  ({ side, tabs, activeTab, readOnly = false }, ref) => {
+  ({ side, tabs, activeTab }, ref) => {
     const { setNodeRef, isOver } = useDroppable({
       id: side,
       data: { side },
@@ -103,8 +101,6 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <IssuesPanel />
           ) : effectiveActiveTab === "templates" ? (
             <TemplatesPanel />
-          ) : effectiveActiveTab === "ai-chat" ? (
-            <AiChatPanel readOnly={readOnly} />
           ) : activeTabInfo ? (
             <div className="animate-fade-in">
               <h3 className="font-medium text-foreground mb-2">

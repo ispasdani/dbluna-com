@@ -21,6 +21,7 @@ import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
 import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
 import { OnboardingModal } from "@/components/diagram-general/onboarding-modal";
+import { AiChatLauncher, AiChatSidebar } from "@/components/diagram-general/ai-chat-sidebar";
 import {
   CapabilitiesProvider,
   type DiagramCapabilities,
@@ -72,6 +73,7 @@ export default function DiagramPage({ params }: PageProps) {
       tableCap: effectivePro ? null : FREE_MAX_TABLES_PER_DIAGRAM,
       diagramCap: effectivePro ? null : FREE_MAX_DIAGRAMS,
       visibleTabs: effectivePro ? ALL_TAB_IDS : FREE_TAB_IDS,
+      canUseAiChat: effectivePro,
       canUseDocsMode: effectivePro,
     }),
     [effectivePro, gateActive, planResolved]
@@ -175,7 +177,6 @@ export default function DiagramPage({ params }: PageProps) {
                       side="left"
                       tabs={leftTabs}
                       activeTab={activeLeftTab}
-                      readOnly={canvasReadOnly}
                     />
                   </div>
 
@@ -191,6 +192,14 @@ export default function DiagramPage({ params }: PageProps) {
                     <div className="mx-auto h-full w-[1px] bg-border/70" />
                   </div>
                 </div>
+              )}
+
+              {/* Luna AI: floating canvas button + right-docked sidebar */}
+              {capabilities.canUseAiChat && (
+                <>
+                  <AiChatLauncher />
+                  <AiChatSidebar readOnly={canvasReadOnly} />
+                </>
               )}
             </>
           )}

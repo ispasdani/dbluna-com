@@ -53,7 +53,8 @@ export function OnboardingModal() {
               two ways.
             </Row>
             <Row icon={LayoutGrid}>
-              The dock tabs cover Tables, Relationships, Issues, Templates, Notes, Areas and AI Chat.
+              The dock tabs cover Tables, Relationships, Issues, Templates, Notes and Areas — and the
+              wand button on the canvas opens <strong>Luna AI</strong>.
             </Row>
             <Row icon={FileText}>
               <strong>DBML Docs</strong> mode turns your schema into a browsable documentation view.
