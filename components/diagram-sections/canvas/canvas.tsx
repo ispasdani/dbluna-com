@@ -126,6 +126,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   // Space-to-pan
   const [spaceDown, setSpaceDown] = useState(false);
+  // Whether the pointer is over the canvas — Space only means "pan" while it is,
+  // so keyboard users can still activate focused buttons with Space elsewhere.
+  const pointerOverCanvas = useRef(false);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
@@ -137,6 +140,15 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         t?.isContentEditable;
 
       if (isTyping) return;
+
+      // A toolbar/navbar trigger (e.g. View, Tabs) keeps focus after its menu
+      // closes, and Radix toggles the menu on every Space keydown — including
+      // auto-repeats while Space is held. When panning over the canvas, drop
+      // that focus and stop the event before it reaches React's handlers.
+      if (pointerOverCanvas.current && t && !rootRef.current?.contains(t)) {
+        e.stopPropagation();
+        if (t instanceof HTMLElement && t !== document.body) t.blur();
+      }
 
       e.preventDefault();
       setSpaceDown(true);
@@ -159,10 +171,12 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       }
     };
 
-    window.addEventListener("keydown", onKeyDown, { passive: false });
+    // Capture phase: runs before React's root listener, so stopPropagation above
+    // actually keeps the Space press away from the focused trigger.
+    window.addEventListener("keydown", onKeyDown, { capture: true, passive: false });
     window.addEventListener("keyup", onKeyUp);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("keyup", onKeyUp);
     };
   }, [selectedTableIds, deleteTables, readOnly]);
@@ -1315,6 +1329,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     <div
       ref={rootRef}
       className="relative h-full w-full overflow-hidden bg-canvas-bg"
+      onPointerEnter={() => (pointerOverCanvas.current = true)}
+      onPointerLeave={() => (pointerOverCanvas.current = false)}
     >
       {/* World */}
       <div
