@@ -4,6 +4,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { GripVertical, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS, useDockStore } from "@/store/useDockStore";
+import { IssuesTabBadge } from "./issues-tab-badge";
 
 export function DraggableTabClient({
   tabId,
@@ -44,6 +45,8 @@ export function DraggableTabClient({
     >
       <GripVertical className="w-3 h-3 shrink-0 text-muted-foreground/50" />
       <span className="select-none truncate">{tab.label}</span>
+
+      {tabId === "issues" && <IssuesTabBadge />}
 
       {isOpen && (
         <button
