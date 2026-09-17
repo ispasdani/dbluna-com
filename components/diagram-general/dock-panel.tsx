@@ -64,7 +64,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         />
 
         {/* Tab Content */}
-        <div className="flex-1 min-h-0 p-4 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           {effectiveActiveTab === "tables" ? (
             <TablesPanel />
           ) : effectiveActiveTab === "relationships" ? (
