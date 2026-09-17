@@ -8,7 +8,7 @@ import { useDiagramIssues } from "./use-diagram-issues";
  *
  * Without it the tab is the only place in the app that can tell you something
  * is wrong, and nothing ever points you at it — the same reason drawdb badges
- * its own Issues section. Rendered conditionally by DraggableTabClient so the
+ * its own Issues section. Rendered conditionally by DockTab so the
  * store subscription exists once, not once per tab.
  */
 export function IssuesTabBadge() {
@@ -27,7 +27,7 @@ export function IssuesTabBadge() {
         counts.warning === 1 ? "warning" : "warnings"
       }`}
       className={cn(
-        "shrink-0 min-w-4 h-4 px-1 flex items-center justify-center text-[10px] font-semibold leading-none tabular-nums",
+        "shrink-0 min-w-4 h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-semibold leading-none tabular-nums",
         hasErrors
           ? "bg-destructive/15 text-destructive"
           : "bg-amber-500/15 text-amber-700 dark:text-amber-400"

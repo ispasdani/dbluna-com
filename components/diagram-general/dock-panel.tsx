@@ -1,12 +1,11 @@
 "use client";
 
 import { forwardRef } from "react";
-import { useDroppable } from "@dnd-kit/core";
-import dynamic from "next/dynamic";
 
 import { cn } from "@/lib/utils";
 import { DockSide, TabId, TABS } from "@/store/useDockStore";
 import { useCapabilities } from "./capabilities-context";
+import { DockTab } from "./dock-tab";
 import { DockTabsHeader } from "./dock-tabs-header";
 import { TablesPanel } from "./tables-panel";
 import { NotesPanel } from "./notes-panel";
@@ -18,11 +17,6 @@ import { EnumsPanel } from "./enums-panel";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
 
-const DraggableTab = dynamic(
-  () => import("./draggable-tab-client").then((m) => m.DraggableTabClient),
-  { ssr: false },
-);
-
 interface DockPanelProps {
   side: DockSide;
   tabs: TabId[];
@@ -31,15 +25,10 @@ interface DockPanelProps {
 
 export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
   ({ side, tabs, activeTab }, ref) => {
-    const { setNodeRef, isOver } = useDroppable({
-      id: side,
-      data: { side },
-    });
-
     const { visibleTabs, canEditCode } = useCapabilities();
 
     // Render-time gate only: the dock store still tracks open/closed/side for
-    // every tab (so drag/drop and persistence are untouched), but a tab the
+    // every tab (so persistence is untouched), but a tab the
     // current plan can't see is never rendered. See
     // free-tier-code-only-editing-plan.md §2.
     const filteredTabs = tabs.filter((t) => visibleTabs.includes(t));
@@ -49,34 +38,27 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
         : (filteredTabs[0] ?? null);
 
     const activeTabInfo = TABS.find((t) => t.id === effectiveActiveTab);
-    const openSet = new Set(filteredTabs);
 
     // Header shows tabs docked on this side
     const headerTabIds: TabId[] = filteredTabs;
 
     return (
       <div
-        ref={(node) => {
-          setNodeRef(node);
-          if (typeof ref === "function") ref(node);
-          else if (ref) ref.current = node;
-        }}
+        ref={ref}
         className={cn(
-          "h-full min-h-0 min-w-0 bg-dock-bg flex flex-col transition-all duration-200",
+          "h-full min-h-0 min-w-0 bg-dock-bg flex flex-col",
           side === "left" ? "border-r border-border" : "border-l border-border",
-          isOver && "ring-2 ring-primary/50 ring-inset bg-primary/5",
         )}
       >
         {/* Tab Headers */}
         <DockTabsHeader
           tabs={headerTabIds}
           renderTab={(tabId) => (
-            <DraggableTab
+            <DockTab
               key={tabId}
               tabId={tabId}
               isActive={tabId === effectiveActiveTab}
               side={side}
-              isOpen={openSet.has(tabId)}
             />
           )}
         />
@@ -123,55 +105,3 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
 );
 
 DockPanel.displayName = "DockPanel";
-
-interface DropZoneProps {
-  side: DockSide;
-}
-
-export function DropZone({ side }: DropZoneProps) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `dropzone-${side}`,
-    data: { side },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "absolute top-0 bottom-0 w-48 z-50 flex items-center justify-center transition-all duration-200",
-        side === "left" ? "left-0" : "right-0",
-        isOver
-          ? "bg-primary/15 border-primary"
-          : "bg-background/80 backdrop-blur-sm",
-      )}
-      style={{
-        borderLeft: side === "right" ? "2px dashed" : undefined,
-        borderRight: side === "left" ? "2px dashed" : undefined,
-        borderColor: isOver
-          ? "hsl(var(--primary))"
-          : "hsl(var(--muted-foreground) / 0.4)",
-      }}
-    >
-      <div
-        className={cn(
-          "flex flex-col items-center gap-2 transition-all duration-200",
-          isOver ? "text-primary scale-110" : "text-muted-foreground",
-        )}
-      >
-        <div
-          className={cn(
-            "w-14 h-14 rounded-xl border-2 border-dashed flex items-center justify-center transition-all",
-            isOver
-              ? "border-primary bg-primary/20"
-              : "border-muted-foreground/40",
-          )}
-        >
-          <span className="text-2xl font-light">+</span>
-        </div>
-        <span className="text-xs font-medium uppercase tracking-wider">
-          {side === "left" ? "Dock Left" : "Dock Right"}
-        </span>
-      </div>
-    </div>
-  );
-}
