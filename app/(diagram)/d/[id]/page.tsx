@@ -3,7 +3,7 @@
 
 import { useRef, use, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
-import { Loader2 } from "lucide-react";
+import { GripVertical, Loader2 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useDockStore, TABS, type TabId } from "@/store/useDockStore";
@@ -180,16 +180,17 @@ export default function DiagramPage({ params }: PageProps) {
                     />
                   </div>
 
-                  {/* Drag handle */}
+                  {/* Drag handle — straddles the dock's border-r */}
                   <div
-                    className="absolute right-0 top-0 h-full w-2 cursor-col-resize"
+                    className="group absolute -right-1 top-0 h-full w-2 cursor-col-resize"
                     onPointerDown={onHandlePointerDown}
                     onPointerMove={onHandlePointerMove}
                     onPointerUp={onHandlePointerUp}
                     title="Resize"
                   >
-                    {/* optional visible grip */}
-                    <div className="mx-auto h-full w-[1px] bg-border/70" />
+                    <div className="pointer-events-none absolute left-1/2 top-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border bg-background text-muted-foreground shadow-sm transition-colors group-hover:text-foreground">
+                      <GripVertical className="h-3 w-3" />
+                    </div>
                   </div>
                 </div>
               )}
