@@ -70,3 +70,27 @@ export function focusTableOnCanvas(tableId: string) {
 
   setCameraXY(viewport.w / 2 - worldX * camera.zoom, viewport.h / 2 - worldY * camera.zoom);
 }
+
+/** Centres the camera between the two tables a relationship joins. */
+export function focusRelationshipOnCanvas(sourceTableId: string, targetTableId: string) {
+  const { tables } = useCanvasStore.getState();
+  const a = tables.find((t) => t.id === sourceTableId);
+  const b = tables.find((t) => t.id === targetTableId);
+  if (!a || !b) return;
+
+  const { camera, viewport, setCameraXY } = useEditorStore.getState();
+  if (viewport.w <= 1 || viewport.h <= 1) return;
+
+  const geo = getTableGeometry();
+  const centre = (t: typeof a) => ({
+    x: t.x + geo.width / 2,
+    y: t.y + tableHeight(geo, t.columns.length) / 2,
+  });
+  const ca = centre(a);
+  const cb = centre(b);
+
+  setCameraXY(
+    viewport.w / 2 - ((ca.x + cb.x) / 2) * camera.zoom,
+    viewport.h / 2 - ((ca.y + cb.y) / 2) * camera.zoom
+  );
+}

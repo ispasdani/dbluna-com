@@ -23,11 +23,23 @@ import {
   CANVAS_STYLE_ORDER,
   isCanvasStyleId,
 } from "./canvas/canvas-style";
+import { usePanelStyleStore } from "@/store/usePanelStyleStore";
+import {
+  PANEL_STYLES,
+  PANEL_STYLE_ORDER,
+  isPanelStyleId,
+} from "../diagram-general/panel-style";
 
-/** Switches the look of tables and relationship lines on the canvas. */
+/**
+ * Switches the look of the canvas (tables, relationship lines) and, in its own
+ * section, of the dock panels. The two are separate settings that never
+ * affect each other; they only share a menu to keep the toolbar narrow.
+ */
 function CanvasStyleMenu() {
   const styleId = useCanvasStyleStore((s) => s.styleId);
   const setStyleId = useCanvasStyleStore((s) => s.setStyleId);
+  const panelStyleId = usePanelStyleStore((s) => s.styleId);
+  const setPanelStyleId = usePanelStyleStore((s) => s.setStyleId);
 
   return (
     <DropdownMenu>
@@ -53,6 +65,27 @@ function CanvasStyleMenu() {
                 <span className="text-sm">{CANVAS_STYLES[id].label}</span>
                 <span className="text-xs text-muted-foreground">
                   {CANVAS_STYLES[id].description}
+                </span>
+              </div>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Panel style
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={panelStyleId}
+          onValueChange={(v) => isPanelStyleId(v) && setPanelStyleId(v)}
+        >
+          {PANEL_STYLE_ORDER.map((id) => (
+            <DropdownMenuRadioItem key={id} value={id} className="items-start py-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm">{PANEL_STYLES[id].label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {PANEL_STYLES[id].description}
                 </span>
               </div>
             </DropdownMenuRadioItem>
