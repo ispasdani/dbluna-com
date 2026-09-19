@@ -105,15 +105,32 @@ export interface DiagramButtonProps
   asChild?: boolean;
 }
 
+/**
+ * Bare text children become anonymous flex items, which the label selectors
+ * above can't reach — so they'd miss the cap-height trim and sit high. Wrap
+ * them in a span so every label is centred the same way.
+ */
+function wrapTextChildren(children: React.ReactNode) {
+  return React.Children.map(children, (child) =>
+    typeof child === "string" || typeof child === "number" ? (
+      <span>{child}</span>
+    ) : (
+      child
+    ),
+  );
+}
+
 const DiagramButton = React.forwardRef<HTMLButtonElement, DiagramButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot.Root : "button";
     return (
       <Comp
         ref={ref}
         className={cn(diagramButtonVariants({ variant, size }), className)}
         {...props}
-      />
+      >
+        {asChild ? children : wrapTextChildren(children)}
+      </Comp>
     );
   },
 );
