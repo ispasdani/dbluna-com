@@ -25,7 +25,7 @@ interface ShortcutGroup {
   items: Shortcut[];
 }
 
-const GROUPS: ShortcutGroup[] = [
+export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Navigation",
     items: [
@@ -94,7 +94,7 @@ export function CanvasShortcutsHelp({ className }: { className?: string }) {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
 
-          {GROUPS.map((group, gi) => (
+          {SHORTCUT_GROUPS.map((group, gi) => (
             <div key={group.title}>
               {gi > 0 && <DropdownMenuSeparator />}
               <div className="px-2 py-1.5">

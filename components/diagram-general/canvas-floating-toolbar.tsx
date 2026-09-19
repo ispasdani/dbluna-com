@@ -1,61 +1,85 @@
 "use client";
 
-import { Table, StickyNote, Square } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import type { CSSProperties } from "react";
+import Link from "next/link";
+import { Eye, Moon, Square, StickyNote, Sun, Table } from "lucide-react";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { usePlatformPalette } from "@/themeProviders/platformPaletteProvider";
 import { ZoomMenu } from "./zoom-menu";
-import { PlatformPaletteToggle } from "./platform-palette-toggle";
+import { useCapabilities } from "./capabilities-context";
+import styles from "./canvas-floating-toolbar.module.scss";
 
 interface CanvasFloatingToolbarProps {
   readOnly?: boolean;
 }
 
-export function CanvasFloatingToolbar({ readOnly = false }: CanvasFloatingToolbarProps) {
-  const { addTable, addNote, addArea } = useCanvasStore();
+const ADD_ITEMS = [
+  { id: "table", label: "Table", title: "Add a table", icon: Table, color: "#6366f1" },
+  { id: "note", label: "Note", title: "Add a note", icon: StickyNote, color: "#f59e0b" },
+  { id: "area", label: "Area", title: "Add an area", icon: Square, color: "#8b5cf6" },
+] as const;
+
+/** Light / dark as two icons; renders nothing until the palette is known. */
+function ThemeSwitch() {
+  const { palette, setPalette, mounted } = usePlatformPalette();
+  if (!mounted) return null;
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1.5 bg-dock-header border border-border rounded-2xl shadow-lg">
-      {!readOnly && (
-        <>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 cursor-pointer"
-            onClick={addTable}
-            title="Add Table"
-          >
-            <Table className="h-4 w-4" />
-          </Button>
+    <span className={styles.theme} role="group" aria-label="Theme">
+      <button type="button" aria-pressed={palette === "default"} onClick={() => setPalette("default")} title="Light">
+        <Sun className="size-3.5" />
+        <span className="sr-only">Light</span>
+      </button>
+      <button type="button" aria-pressed={palette === "dark"} onClick={() => setPalette("dark")} title="Dark">
+        <Moon className="size-3.5" />
+        <span className="sr-only">Dark</span>
+      </button>
+    </span>
+  );
+}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 cursor-pointer"
-            onClick={addNote}
-            title="Add Note"
-          >
-            <StickyNote className="h-4 w-4" />
-          </Button>
+export function CanvasFloatingToolbar({ readOnly = false }: CanvasFloatingToolbarProps) {
+  const addTable = useCanvasStore((s) => s.addTable);
+  const addNote = useCanvasStore((s) => s.addNote);
+  const addArea = useCanvasStore((s) => s.addArea);
+  const actions = { table: addTable, note: addNote, area: addArea };
+  // Read-only is either the Free plan or the anonymous share-link viewer
+  // (/d/view, which has no plan and gets the fully-capable default). Only the
+  // first can upgrade.
+  const { isPro } = useCapabilities();
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 cursor-pointer"
-            onClick={addArea}
-            title="Add Area"
+  return (
+    <div className={styles.bar}>
+      {readOnly ? (
+        <span className={styles.viewOnly}>
+          <Eye className="size-3.5" />
+          <b>View-only</b>
+          {!isPro && (
+            <>
+              on Free ·<Link href="/pricing">Upgrade to edit</Link>
+            </>
+          )}
+        </span>
+      ) : (
+        ADD_ITEMS.map(({ id, label, title, icon: Icon, color }) => (
+          <button
+            key={id}
+            type="button"
+            className={styles.add}
+            style={{ "--tc": color } as CSSProperties}
+            onClick={actions[id]}
+            title={title}
           >
-            <Square className="h-4 w-4" />
-          </Button>
-
-          <div className="h-4 w-px bg-border mx-1" />
-        </>
+            <Icon className="size-4" />
+            <span>{label}</span>
+          </button>
+        ))
       )}
 
+      <span className={styles.sep} />
       <ZoomMenu />
-
-      <div className="h-4 w-px bg-border mx-1" />
-
-      <PlatformPaletteToggle />
+      <span className={styles.sep} />
+      <ThemeSwitch />
     </div>
   );
 }

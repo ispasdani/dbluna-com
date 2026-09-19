@@ -122,3 +122,39 @@ export function focusAreaOnCanvas(areaId: string) {
     viewport.h / 2 - (area.y + area.height / 2) * camera.zoom
   );
 }
+
+/**
+ * Zooms and centres the camera so every table, note and area is in view, with
+ * some breathing room. Never zooms in past 100%, so a tiny diagram isn't blown
+ * up to fill the screen.
+ */
+export function fitDiagramOnCanvas() {
+  const { tables, notes, areas } = useCanvasStore.getState();
+  const { viewport, setZoomAt, setCameraXY } = useEditorStore.getState();
+  if (viewport.w <= 1 || viewport.h <= 1) return;
+
+  const geo = getTableGeometry();
+  const boxes = [
+    ...tables.map((t) => ({ x: t.x, y: t.y, w: geo.width, h: tableHeight(geo, t.columns.length) })),
+    ...notes.map((n) => ({ x: n.x, y: n.y, w: n.width, h: n.height })),
+    ...areas.map((a) => ({ x: a.x, y: a.y, w: a.width, h: a.height })),
+  ];
+  if (boxes.length === 0) return;
+
+  const minX = Math.min(...boxes.map((b) => b.x));
+  const minY = Math.min(...boxes.map((b) => b.y));
+  const maxX = Math.max(...boxes.map((b) => b.x + b.w));
+  const maxY = Math.max(...boxes.map((b) => b.y + b.h));
+
+  // Room for the floating toolbar and minimap along the edges.
+  const pad = 80;
+  const zoom = Math.min(1, (viewport.w - pad * 2) / (maxX - minX), (viewport.h - pad * 2) / (maxY - minY));
+
+  // setZoomAt clamps to the store's zoom range; read back what it settled on.
+  setZoomAt(zoom, 0, 0);
+  const applied = useEditorStore.getState().camera.zoom;
+  setCameraXY(
+    viewport.w / 2 - ((minX + maxX) / 2) * applied,
+    viewport.h / 2 - ((minY + maxY) / 2) * applied
+  );
+}

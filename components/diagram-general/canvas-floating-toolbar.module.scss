@@ -1,0 +1,182 @@
+// Floating toolbar at the bottom of the canvas: labelled add buttons, a zoom
+// stepper with presets, and the light / dark switch.
+
+.bar {
+  --hover: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --sub: color-mix(in oklab, var(--foreground) 6%, var(--dock-header));
+
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--dock-header) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.08);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+// Add buttons: icon + label; the icon takes the item's colour on hover.
+.add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  svg {
+    color: var(--muted-foreground);
+    transition: color 0.12s ease;
+  }
+
+  &:hover {
+    background: var(--hover);
+
+    svg {
+      color: var(--tc);
+    }
+  }
+}
+
+.icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+    color: var(--foreground);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+}
+
+.zoomValue {
+  min-width: 54px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+
+  &:hover,
+  &[data-state="open"] {
+    background: var(--hover);
+  }
+}
+
+.theme {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--sub);
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 28px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--foreground);
+    }
+
+    &[aria-pressed="true"] {
+      background: var(--card);
+      color: var(--foreground);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+    }
+  }
+}
+
+.viewOnly {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 11px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+
+  b {
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  a {
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.zoomMenu {
+  width: 200px;
+}
+
+.tick {
+  flex: none;
+  color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .add span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .add svg {
+    transition: none;
+  }
+}

@@ -1,68 +1,70 @@
 "use client";
 
+import { DropdownMenu as Menu } from "radix-ui";
+import { Check, Maximize, Minus, Plus } from "lucide-react";
 import { useEditorStore } from "@/store/useEditorStore";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { ChevronDown, Minus, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { fitDiagramOnCanvas } from "./use-diagram-issues";
+import menu from "./toolbar-menus.module.scss";
+import styles from "./canvas-floating-toolbar.module.scss";
 
 const PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const STEP = 1.1;
 
+/** Zoom stepper: − 100% + and fit; the percentage opens the presets. */
 export function ZoomMenu() {
   const zoom = useEditorStore((s) => s.camera.zoom);
   const viewport = useEditorStore((s) => s.viewport);
   const setZoomAt = useEditorStore((s) => s.setZoomAt);
 
   const zoomPct = Math.round(zoom * 100);
-
-  const centerX = viewport.w / 2;
-  const centerY = viewport.h / 2;
-
-  const applyZoom = (z: number) => setZoomAt(z, centerX, centerY);
+  // Zoom around the middle of the canvas, so what's centred stays centred.
+  const applyZoom = (z: number) => setZoomAt(z, viewport.w / 2, viewport.h / 2);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          {zoomPct}%
-          <ChevronDown className="h-4 w-4 opacity-70" />
-        </Button>
-      </DropdownMenuTrigger>
+    <>
+      <button type="button" className={styles.icon} onClick={() => applyZoom(zoom / STEP)} title="Zoom out">
+        <Minus className="size-4" />
+        <span className="sr-only">Zoom out</span>
+      </button>
 
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>Zoom</DropdownMenuLabel>
+      <Menu.Root>
+        <Menu.Trigger asChild>
+          <button type="button" className={styles.zoomValue} title="Zoom presets">
+            {zoomPct}%
+          </button>
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Content side="top" align="center" sideOffset={10} className={cn(menu.menu, styles.zoomMenu)}>
+            <Menu.Label className={menu.group}>Zoom</Menu.Label>
+            <Menu.Item className={menu.item} onSelect={fitDiagramOnCanvas}>
+              <span className={menu.icon}>
+                <Maximize className="size-4" />
+              </span>
+              <span className={menu.text}>Fit to screen</span>
+            </Menu.Item>
+            <Menu.Separator className={menu.sep} />
+            {PRESETS.map((z) => {
+              const active = Math.abs(z - zoom) < 0.001;
+              return (
+                <Menu.Item key={z} className={cn(menu.item, menu.plain)} onSelect={() => applyZoom(z)}>
+                  <span className={menu.text}>{Math.round(z * 100)}%</span>
+                  {active && <Check className={cn("size-3.5", menu.tick)} />}
+                </Menu.Item>
+              );
+            })}
+          </Menu.Content>
+        </Menu.Portal>
+      </Menu.Root>
 
-        <DropdownMenuItem onClick={() => applyZoom(zoom * 1.1)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Zoom in
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => applyZoom(zoom / 1.1)}>
-          <Minus className="mr-2 h-4 w-4" />
-          Zoom out
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-
-        {PRESETS.map((z) => {
-          const pct = Math.round(z * 100);
-          const active = Math.abs(z - zoom) < 0.001; // close enough
-          return (
-            <DropdownMenuItem
-              key={z}
-              onClick={() => applyZoom(z)}
-              className={active ? "font-medium" : undefined}
-            >
-              {pct}%
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <button type="button" className={styles.icon} onClick={() => applyZoom(zoom * STEP)} title="Zoom in">
+        <Plus className="size-4" />
+        <span className="sr-only">Zoom in</span>
+      </button>
+      <button type="button" className={styles.icon} onClick={fitDiagramOnCanvas} title="Fit to screen">
+        <Maximize className="size-4" />
+        <span className="sr-only">Fit to screen</span>
+      </button>
+    </>
   );
 }
