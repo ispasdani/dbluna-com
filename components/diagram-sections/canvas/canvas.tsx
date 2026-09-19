@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
@@ -15,6 +15,36 @@ import { TableNode } from "./table-node";
 import { NoteNode } from "./note-node";
 import { AreaNode } from "./area-node";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
+import { useCanvasStyle } from "@/store/useCanvasStyleStore";
+import { getCanvasFontFamily, measureTextWidth } from "@/lib/svg-text";
+import {
+  TABLE_GEOMETRY,
+  pickSides,
+  routeRelationship,
+  rowCenterY,
+  tableHeight,
+  type PortPoint,
+  type Side,
+} from "./canvas-style";
+import { RelationshipEnd, cardinalityShort, relationshipRoles } from "./relationship-ends";
+import { cn } from "@/lib/utils";
+import type { Relationship, Table } from "@/store/useCanvasStore";
+
+// Resting colour for "quiet" lines — mixed against the canvas so it stays opaque.
+const QUIET_LINE = "color-mix(in oklab, var(--muted-foreground) 50%, var(--canvas-bg))";
+
+/** The column on the "many" side of a relationship (the foreign key). */
+function foreignKeyEnd(rel: Relationship): { tableId: string; columnId: string } {
+  return rel.cardinality === "One to many"
+    ? { tableId: rel.targetTableId, columnId: rel.targetColumnId }
+    : { tableId: rel.sourceTableId, columnId: rel.sourceColumnId };
+}
+
+const pushTo = (map: Map<string, string[]>, key: string, value: string) => {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+};
 import styles from "./canvas.module.scss";
 
 
@@ -74,6 +104,22 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
   const [hoveredRelationshipId, setHoveredRelationshipId] = useState<string | null>(null);
+  // Table / row under the pointer; colId null = over the table but not a row.
+  const [hoveredTable, setHoveredTable] = useState<{ tableId: string; colId: string | null } | null>(null);
+  // Relationships created by drag-to-connect in this session play a draw-in once.
+  const [newRelationshipIds, setNewRelationshipIds] = useState<string[]>([]);
+
+  const canvasStyle = useCanvasStyle();
+  const geo = TABLE_GEOMETRY[canvasStyle.table];
+
+  // Stable across renders so the memoised TableNodes never see a new function.
+  const handleTableHover = useCallback((tableId: string, colId: string | null | undefined) => {
+    setHoveredTable((prev) => {
+      if (colId === undefined) return prev?.tableId === tableId ? null : prev;
+      if (prev?.tableId === tableId && prev.colId === colId) return prev;
+      return { tableId, colId };
+    });
+  }, []);
 
   // Selection Rect State (in world coordinates)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
@@ -398,12 +444,20 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     active: boolean;
     sourceTableId: string;
     sourceColumnId: string;
+    sourceSide: Side;
     startX: number;
     startY: number;
     currentX: number;
     currentY: number;
+    /** Row under the pointer in another table — the line snaps to it. */
+    dropTableId: string | null;
+    dropColumnId: string | null;
     pointerId: number | null;
-  }>({ active: false, sourceTableId: "", sourceColumnId: "", startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
+  }>({
+    active: false, sourceTableId: "", sourceColumnId: "", sourceSide: 1,
+    startX: 0, startY: 0, currentX: 0, currentY: 0,
+    dropTableId: null, dropColumnId: null, pointerId: null,
+  });
 
   const [, setTick] = useState(0);
 
@@ -445,135 +499,59 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   // linear find that is O(relationships × tables) per frame during a drag.
   const tablesById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
 
-  // Helper to get column position in world coordinates
-  const getColumnPosition = (tableId: string, columnId: string, isSource: boolean) => {
+  const minimapTables = useMemo(
+    () => tables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
+    [tables, geo]
+  );
+
+  // Where a table is drawn right now — its stored position plus any live drag
+  // offset (and grid snap), so lines follow the card mid-gesture.
+  const getLiveTablePosition = (tableId: string) => {
     const table = tablesById.get(tableId);
     if (!table) return null;
-    const colIndex = table.columns.findIndex(c => c.id === columnId);
-    if (colIndex === -1) return null;
-
-    const HEADER_HEIGHT = 36;
-    const ROW_HEIGHT = 30;
-    const WIDTH = 220;
 
     let x = table.x;
     let y = table.y;
-    
+
     if (dragOffset.active) {
-      if (dragTable.current.active && dragTable.current.initialPositions.has(tableId)) {
-          x += dragOffset.dx;
-          y += dragOffset.dy;
-      } else if (dragArea.current.active && dragArea.current.childTables.includes(tableId)) {
-          x += dragOffset.dx;
-          y += dragOffset.dy;
-      }
-      if (snapToGrid) {
+      const moving =
+        (dragTable.current.active && dragTable.current.initialPositions.has(tableId)) ||
+        (dragArea.current.active && dragArea.current.childTables.includes(tableId));
+      if (moving) {
+        x += dragOffset.dx;
+        y += dragOffset.dy;
+        if (snapToGrid) {
           x = Math.round(x / 24) * 24;
           y = Math.round(y / 24) * 24;
+        }
       }
     }
-
-    x += (isSource ? WIDTH : 0);
-    y += HEADER_HEIGHT + colIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
-    return { x, y };
+    return { table, x, y };
   };
 
-  // Orthogonal path calculator with rounded corners (DrawDB style)
-  const calculatePath = (x1: number, y1: number, x2: number, y2: number) => {
-    const cornerRadius = 8;
-    const midX = (x1 + x2) / 2;
-
-    // Determine if we need to go around obstacles
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-
-    // Simple case: straight horizontal or mostly horizontal
-    if (Math.abs(dy) < 10) {
-      return `M ${x1} ${y1} L ${x2} ${y2}`;
-    }
-
-    // Orthogonal routing: horizontal -> vertical -> horizontal
-    // Start horizontal from x1
-    const segments: string[] = [];
-
-    if (dx > cornerRadius * 2) {
-      // Going right: x1 -> midX (horizontal), midX -> y2 (vertical), midX -> x2 (horizontal)
-      segments.push(`M ${x1} ${y1}`);
-
-      // Horizontal segment to midpoint
-      segments.push(`L ${midX - cornerRadius} ${y1}`);
-
-      // Rounded corner going down/up
-      if (dy > 0) {
-        segments.push(`Q ${midX} ${y1} ${midX} ${y1 + cornerRadius}`);
-      } else {
-        segments.push(`Q ${midX} ${y1} ${midX} ${y1 - cornerRadius}`);
-      }
-
-      // Vertical segment
-      if (dy > 0) {
-        segments.push(`L ${midX} ${y2 - cornerRadius}`);
-      } else {
-        segments.push(`L ${midX} ${y2 + cornerRadius}`);
-      }
-
-      // Rounded corner going right
-      if (dy > 0) {
-        segments.push(`Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`);
-      } else {
-        segments.push(`Q ${midX} ${y2} ${midX + cornerRadius} ${y2}`);
-      }
-
-      // Final horizontal segment to end
-      segments.push(`L ${x2} ${y2}`);
-    } else {
-      // Going left or very short distance: need different routing
-      const offset = 30;
-
-      segments.push(`M ${x1} ${y1}`);
-
-      // Go right a bit
-      segments.push(`L ${x1 + offset - cornerRadius} ${y1}`);
-
-      // Turn down/up
-      if (dy > 0) {
-        segments.push(`Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 + cornerRadius}`);
-        segments.push(`L ${x1 + offset} ${y2 - cornerRadius}`);
-        segments.push(`Q ${x1 + offset} ${y2} ${x1 + offset - cornerRadius} ${y2}`);
-      } else {
-        segments.push(`Q ${x1 + offset} ${y1} ${x1 + offset} ${y1 - cornerRadius}`);
-        segments.push(`L ${x1 + offset} ${y2 + cornerRadius}`);
-        segments.push(`Q ${x1 + offset} ${y2} ${x1 + offset - cornerRadius} ${y2}`);
-      }
-
-      // Go to end
-      segments.push(`L ${x2} ${y2}`);
-    }
-
-    return segments.join(' ');
+  // World position of a column's handle on the given edge (1 = right, -1 = left).
+  const getColumnPosition = (tableId: string, columnId: string, side: Side): PortPoint | null => {
+    const live = getLiveTablePosition(tableId);
+    if (!live) return null;
+    const colIndex = live.table.columns.findIndex(c => c.id === columnId);
+    if (colIndex === -1) return null;
+    return {
+      x: live.x + (side === 1 ? geo.width : 0),
+      y: live.y + rowCenterY(geo, colIndex),
+      d: side,
+    };
   };
 
-  const calculateMidpoint = (x1: number, y1: number, x2: number, y2: number) => {
-    const dx = x2 - x1;
-    const cornerRadius = 8;
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-
-    if (dx > cornerRadius * 2) {
-      return { x: midX, y: midY };
-    } else {
-      const offset = 30;
-      return { x: x1 + offset, y: midY };
-    }
-  };
-
-  const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, isSource: boolean) => {
+  // The memoised TableNodes keep whichever callback they first saw, so route
+  // through a ref to always reach the current closure (positions, geometry).
+  const columnPointerDownRef = useRef<(e: React.PointerEvent, tableId: string, columnId: string, side: Side) => void>(() => {});
+  const onColumnPointerDown = (e: React.PointerEvent, tableId: string, columnId: string, side: Side) => {
     if (readOnly) return; // no creating relationships in a read-only viewer
 
     e.stopPropagation();
     e.preventDefault();
 
-    const pos = getColumnPosition(tableId, columnId, isSource);
+    const pos = getColumnPosition(tableId, columnId, side);
     if (!pos) return;
 
     const target = e.currentTarget as Element;
@@ -583,14 +561,25 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       active: true,
       sourceTableId: tableId,
       sourceColumnId: columnId,
+      sourceSide: side,
       startX: pos.x,
       startY: pos.y,
       currentX: pos.x,
       currentY: pos.y,
+      dropTableId: null,
+      dropColumnId: null,
       pointerId: e.pointerId
     };
     setTick(t => t + 1);
   };
+  useLayoutEffect(() => {
+    columnPointerDownRef.current = onColumnPointerDown;
+  });
+  const handleColumnPointerDown = useCallback(
+    (e: React.PointerEvent, tableId: string, columnId: string, side: Side) =>
+      columnPointerDownRef.current(e, tableId, columnId, side),
+    []
+  );
 
   const onPointerDown = (e: React.PointerEvent) => {
     // If dragging a table, don't pan
@@ -852,7 +841,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       // Find Tables inside
       tables.forEach(t => {
         // Rough center checks or full containment? Center is best feel.
-        const tW = 220; const tH = 100; // approx
+        const tW = geo.width; const tH = tableHeight(geo, t.columns.length);
         const tCx = t.x + tW / 2;
         const tCy = t.y + tH / 2;
         if (tCx > rect.l && tCx < rect.r && tCy > rect.t && tCy < rect.b) {
@@ -992,6 +981,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
       dragConnection.current.currentX = worldX;
       dragConnection.current.currentY = worldY;
+
+      // The source handle holds pointer capture, so rows never see enter
+      // events — hit-test instead to find the row the line should snap to.
+      const hitRow = document
+        .elementFromPoint(e.clientX, e.clientY)
+        ?.closest<SVGElement>("[data-col-id]");
+      const hitTableId = hitRow?.getAttribute("data-table-id") ?? null;
+      const valid = !!hitTableId && hitTableId !== dragConnection.current.sourceTableId;
+      dragConnection.current.dropTableId = valid ? hitTableId : null;
+      dragConnection.current.dropColumnId = valid ? hitRow!.getAttribute("data-col-id") : null;
       // The ref already holds the newest point; only the repaint is deferred.
       scheduleGestureFrame(() => setTick(t => t + 1));
       return;
@@ -1182,20 +1181,26 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       }
       setTick(t => t + 1);
 
-      // Check what we dropped on using data attributes
-      const hitEl = document.elementFromPoint(e.clientX, e.clientY);
-      const gripTableId = hitEl?.getAttribute("data-table-id");
-      const gripColId = hitEl?.getAttribute("data-col-id");
+      // Dropped on any part of a row (not just its handle) in another table?
+      const hitRow = document
+        .elementFromPoint(e.clientX, e.clientY)
+        ?.closest<SVGElement>("[data-col-id]");
+      const dropTableId = hitRow?.getAttribute("data-table-id");
+      const dropColId = hitRow?.getAttribute("data-col-id");
+      dragConnection.current.dropTableId = null;
+      dragConnection.current.dropColumnId = null;
 
-      // Valid drop? (different table)
-      if (gripTableId && gripColId && gripTableId !== dragConnection.current.sourceTableId) {
+      if (dropTableId && dropColId && dropTableId !== dragConnection.current.sourceTableId) {
+        const id = crypto.randomUUID();
         addRelationship({
-          id: crypto.randomUUID(),
+          id,
           sourceTableId: dragConnection.current.sourceTableId,
           sourceColumnId: dragConnection.current.sourceColumnId,
-          targetTableId: gripTableId,
-          targetColumnId: gripColId
+          targetTableId: dropTableId,
+          targetColumnId: dropColId
         });
+        setNewRelationshipIds((ids) => [...ids, id]);
+        window.setTimeout(() => setNewRelationshipIds((ids) => ids.filter((x) => x !== id)), 1600);
       }
 
       return;
@@ -1224,8 +1229,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
         tables.forEach(t => {
           // Estimate Table Bounds
-          const estWidth = 220;
-          const estHeight = 36 + (t.columns?.length || 0) * 30; // Exact match to TableNode
+          const estWidth = geo.width;
+          const estHeight = tableHeight(geo, t.columns?.length || 0);
 
           const tX = t.x;
           const tY = t.y;
@@ -1325,6 +1330,87 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const vRight = isExporting ? Infinity : (-camera.x + viewport.w) / camera.zoom + CULL_MARGIN;
   const vBottom = isExporting ? Infinity : (-camera.y + viewport.h) / camera.zoom + CULL_MARGIN;
 
+  // ── Relationship view model ──────────────────────────────────────────────
+  // "Lit" relationships are the ones the user is pointing at or has selected:
+  // they thicken, animate, and light up the rows at both ends.
+  const hoverActive = !isExporting && (!!hoveredTable || !!hoveredRelationshipId);
+  const litRelationships = new Set<string>();
+  if (!isExporting) {
+    const touches = (rel: Relationship, tableId: string, colId: string | null) =>
+      (rel.sourceTableId === tableId && (colId === null || rel.sourceColumnId === colId)) ||
+      (rel.targetTableId === tableId && (colId === null || rel.targetColumnId === colId));
+    for (const rel of relationships) {
+      if (
+        rel.id === hoveredRelationshipId ||
+        rel.id === selectedRelationshipId ||
+        (hoveredTable && touches(rel, hoveredTable.tableId, hoveredTable.colId)) ||
+        selectedTableIds.some((id) => touches(rel, id, null))
+      ) {
+        litRelationships.add(rel.id);
+      }
+    }
+  }
+
+  const routedRelationships: {
+    rel: Relationship;
+    source: Table;
+    target: Table;
+    start: PortPoint;
+    end: PortPoint;
+  }[] = [];
+  for (const rel of relationships) {
+    const a = getLiveTablePosition(rel.sourceTableId);
+    const b = getLiveTablePosition(rel.targetTableId);
+    if (!a || !b) continue;
+    const [sa, sb] = pickSides(a.x, b.x, geo.width);
+    const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, sa);
+    const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, sb);
+    if (!start || !end) continue;
+    routedRelationships.push({ rel, source: a.table, target: b.table, start, end });
+  }
+
+  // Colour of the line where it meets `table` (gradient lines change colour end to end).
+  const endColor = (lit: boolean, source: Table, table: Table) => {
+    switch (canvasStyle.color) {
+      case "neutral":
+        return lit ? "var(--primary)" : QUIET_LINE;
+      case "primary":
+        return "var(--primary)";
+      case "source":
+        return source.color;
+      case "gradient":
+        return table.color;
+    }
+  };
+
+  // Per-table strings for the memoised TableNodes (cheap equality checks).
+  const portsByTable = new Map<string, string[]>();
+  const linkedByTable = new Map<string, string[]>();
+  const litTables = new Set<string>();
+  for (const { rel, source, target, start, end } of routedRelationships) {
+    const lit = litRelationships.has(rel.id);
+    pushTo(portsByTable, source.id, `${rel.sourceColumnId}|${start.d === 1 ? "r" : "l"}|${endColor(lit, source, source)}`);
+    pushTo(portsByTable, target.id, `${rel.targetColumnId}|${end.d === 1 ? "r" : "l"}|${endColor(lit, source, target)}`);
+    if (lit) {
+      pushTo(linkedByTable, source.id, rel.sourceColumnId);
+      pushTo(linkedByTable, target.id, rel.targetColumnId);
+      litTables.add(source.id);
+      litTables.add(target.id);
+    }
+  }
+  const foreignKeysByTable = new Map<string, string[]>();
+  for (const rel of relationships) {
+    const fk = foreignKeyEnd(rel);
+    pushTo(foreignKeysByTable, fk.tableId, fk.columnId);
+  }
+  const fadeTables = hoverActive && canvasStyle.dim === "all";
+  const fadeLines = hoverActive && canvasStyle.dim !== "off";
+
+  const dc = dragConnection.current;
+  const hoveredRoute = hoveredRelationshipId
+    ? routedRelationships.find((r) => r.rel.id === hoveredRelationshipId)
+    : undefined;
+
   return (
     <div
       ref={rootRef}
@@ -1362,14 +1448,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             className="absolute inset-0 overflow-visible pointer-events-none"
           >
             {/* Existing Relationships */}
-            {relationships.map(rel => {
-              const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, true);
-              const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, false);
-
-              if (!start || !end) return null;
-
-              const minX = Math.min(start.x, end.x);
-              const maxX = Math.max(start.x, end.x);
+            {routedRelationships.map(({ rel, source, target, start, end }) => {
+              const minX = Math.min(start.x, end.x) - 40;
+              const maxX = Math.max(start.x, end.x) + 40;
               const minY = Math.min(start.y, end.y);
               const maxY = Math.max(start.y, end.y);
 
@@ -1377,11 +1458,26 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 return null;
               }
 
-              const pathData = calculatePath(start.x, start.y, end.x, end.y);
-              const mid = calculateMidpoint(start.x, start.y, end.x, end.y);
-              const isHovered = hoveredRelationshipId === rel.id;
+              const { d } = routeRelationship(canvasStyle.routing, start, end);
+              const lit = litRelationships.has(rel.id);
               const isSelected = selectedRelationshipId === rel.id;
-              const label = rel.name || "Relationship";
+              const isNew = newRelationshipIds.includes(rel.id);
+              const roles = relationshipRoles(rel.cardinality);
+              const oneToMany = roles.source === "one" && roles.target === "many";
+              const startColor = endColor(lit, source, source);
+              const endColorValue = endColor(lit, source, target);
+
+              // Ring on the "one" end when the foreign key is nullable.
+              const fk = foreignKeyEnd(rel);
+              const fkTable = fk.tableId === source.id ? source : target;
+              const optional = !fkTable.columns.find((c) => c.id === fk.columnId)?.isNotNull;
+
+              const gradientId = `rel-grad-${rel.id}`;
+              const stroke = canvasStyle.color === "gradient" ? `url(#${gradientId})` : startColor;
+
+              let opacity = 1;
+              if (focusedRelationships !== null && !focusedRelationships.has(rel.id)) opacity = 0.15;
+              else if (fadeLines && !lit) opacity = 0.16;
 
               return (
                 <g
@@ -1393,77 +1489,70 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                     setSelectedRelationshipId(rel.id);
                     openTab("relationships", "left");
                   }}
-                  className="cursor-pointer"
+                  className={cn("cursor-pointer", styles.rel, lit && styles.relLit, isNew && styles.relNew)}
+                  data-motion={canvasStyle.motion}
+                  // Motion runs from the foreign key toward the key it references.
+                  data-reverse={oneToMany || undefined}
+                  style={{ opacity }}
                 >
+                  {canvasStyle.color === "gradient" && (
+                    <defs>
+                      <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
+                        <stop offset="0" stopColor={source.color} />
+                        <stop offset="1" stopColor={target.color} />
+                      </linearGradient>
+                    </defs>
+                  )}
                   {/* Invisible hit area for easier hovering */}
                   <path
-                    d={pathData}
+                    d={d}
                     fill="none"
-                    strokeWidth={12}
+                    strokeWidth={14}
                     className={styles["relationship-hit-area"]}
                     style={{ pointerEvents: "auto" }}
                   />
-                  {/* The actual visible line */}
+                  {lit && (
+                    <path d={d} fill="none" stroke={stroke} strokeWidth={9} strokeLinecap="round" className={styles.relHalo} />
+                  )}
                   <path
-                    d={pathData}
-                    stroke={isSelected ? "var(--primary)" : "var(--primary)"}
-                    strokeWidth={isSelected ? 3 : 2}
+                    d={d}
                     fill="none"
-                    className={`${styles["relationship-path"]} ${isHovered ? styles["marching-ants"] : ""}`}
-                    style={{
-                      filter: isSelected ? "drop-shadow(0 0 4px var(--primary))" : "none",
-                      opacity: focusedRelationships !== null && !focusedRelationships.has(rel.id) ? 0.15 : (isSelected ? 1 : 0.8),
-                      transition: "opacity 0.3s ease"
-                    }}
+                    stroke={stroke}
+                    strokeWidth={lit || isSelected ? 2.4 : 1.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    pathLength={isNew ? 1 : undefined}
+                    className={styles.relLine}
                   />
-
-                  {/* Hover Label */}
-                  {isHovered && (
-                    <g transform={`translate(${mid.x}, ${mid.y})`}>
-                      {/* Background for label */}
-                      <rect
-                        x={-label.length * 4 - 8}
-                        y={-12}
-                        width={label.length * 8 + 16}
-                        height={24}
-                        rx={4}
-                        fill="var(--popover)"
-                        stroke="var(--border)"
-                        strokeWidth={1}
-                        className="shadow-md"
+                  <RelationshipEnd
+                    ends={canvasStyle.ends}
+                    point={start}
+                    role={roles.source}
+                    optional={roles.source === "one" && roles.target === "many" && optional}
+                    color={startColor}
+                  />
+                  <RelationshipEnd
+                    ends={canvasStyle.ends}
+                    point={end}
+                    role={roles.target}
+                    optional={roles.target === "one" && roles.source === "many" && optional}
+                    color={endColorValue}
+                  />
+                  {canvasStyle.motion === "pulse" && lit && !isExporting && (
+                    <circle r={3.2} fill={endColorValue} className={styles.relPulse}>
+                      <animateMotion
+                        dur="1.8s"
+                        repeatCount="indefinite"
+                        path={d}
+                        keyPoints={oneToMany ? "1;0" : "0;1"}
+                        keyTimes="0;1"
+                        calcMode="linear"
                       />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="var(--popover-foreground)"
-                        fontSize={11}
-                        fontWeight="600"
-                        style={{ pointerEvents: "none", userSelect: "none" }}
-                      >
-                        {label}
-                      </text>
-                    </g>
+                    </circle>
                   )}
                 </g>
               );
             })}
-
-            {/* Pending Connection */}
-            {dragConnection.current.active && (
-              <path
-                d={calculatePath(
-                  dragConnection.current.startX,
-                  dragConnection.current.startY,
-                  dragConnection.current.currentX,
-                  dragConnection.current.currentY
-                )}
-                stroke="var(--primary)"
-                strokeWidth={2}
-                fill="none"
-                strokeDasharray="5,5"
-                opacity={0.6}
-              />
-            )}
 
             {/* Areas */}
             {areas.map((area) => {
@@ -1564,11 +1653,72 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                   table={table}
                   selected={selectedTableIds.includes(table.id)}
                   isDimmed={focusedTables !== null && !focusedTables.has(table.id)}
+                  isFaded={fadeTables && !litTables.has(table.id) && hoveredTable?.tableId !== table.id}
                   readOnly={readOnly}
-                  onColumnPointerDown={(e, colId, isSource) => onColumnPointerDown(e, table.id, colId, isSource)}
+                  hidePorts={isExporting}
+                  canvasStyle={canvasStyle}
+                  connectedPorts={portsByTable.get(table.id)?.join(";")}
+                  linkedColumns={linkedByTable.get(table.id)?.join(";")}
+                  foreignKeys={foreignKeysByTable.get(table.id)?.join(";")}
+                  dropColumnId={dc.active && dc.dropTableId === table.id ? dc.dropColumnId ?? undefined : undefined}
+                  sourcePort={
+                    dc.active && dc.sourceTableId === table.id
+                      ? `${dc.sourceColumnId}|${dc.sourceSide === 1 ? "r" : "l"}`
+                      : undefined
+                  }
+                  onColumnPointerDown={handleColumnPointerDown}
+                  onHoverChange={handleTableHover}
                 />
               </g>
             )})}
+
+            {/* Pending Connection — snaps to the row under the pointer */}
+            {dc.active && (() => {
+              const from: PortPoint = { x: dc.startX, y: dc.startY, d: dc.sourceSide };
+              let to: PortPoint | null = null;
+              if (dc.dropTableId && dc.dropColumnId) {
+                const live = getLiveTablePosition(dc.dropTableId);
+                const side: Side = live && from.x < live.x + geo.width / 2 ? -1 : 1;
+                to = getColumnPosition(dc.dropTableId, dc.dropColumnId, side);
+              }
+              const snapped = !!to;
+              const target: PortPoint = to ?? { x: dc.currentX, y: dc.currentY, d: dc.currentX >= from.x ? -1 : 1 };
+              return (
+                <g pointerEvents="none">
+                  <path
+                    d={routeRelationship(canvasStyle.routing, from, target).d}
+                    stroke="var(--primary)"
+                    strokeWidth={1.8}
+                    fill="none"
+                    className={styles.pending}
+                  />
+                  {!snapped && <circle cx={target.x} cy={target.y} r={3.5} fill="var(--primary)" />}
+                </g>
+              );
+            })()}
+
+            {/* Hovered relationship label — drawn above the tables */}
+            {hoveredRoute && !isExporting && (() => {
+              const { rel, source, target, start, end } = hoveredRoute;
+              const { mid } = routeRelationship(canvasStyle.routing, start, end);
+              const family = getCanvasFontFamily();
+              const card = cardinalityShort(rel.cardinality);
+              const srcCol = source.columns.find((c) => c.id === rel.sourceColumnId)?.name ?? "";
+              const tgtCol = target.columns.find((c) => c.id === rel.targetColumnId)?.name ?? "";
+              const main = rel.name || `${source.name}.${srcCol} → ${target.name}.${tgtCol}`;
+              const cardW = measureTextWidth(card, "600 11px monospace");
+              const mainW = measureTextWidth(main, `500 11px ${family}`);
+              const w = cardW + 8 + mainW;
+              return (
+                <g transform={`translate(${mid.x}, ${mid.y})`} pointerEvents="none" className={styles.relLabel}>
+                  <rect x={-w / 2 - 10} y={-12} width={w + 20} height={24} rx={8} fill="var(--popover)" stroke="var(--border)" />
+                  <text x={-w / 2} y={0} dominantBaseline="central" fontSize={11} style={{ userSelect: "none" }}>
+                    <tspan fontFamily="var(--font-mono)" fontWeight={600} fill="var(--primary)">{card}</tspan>
+                    <tspan dx={8} fontWeight={500} fill="var(--popover-foreground)">{main}</tspan>
+                  </text>
+                </g>
+              );
+            })()}
 
             {/* Marquee Selection Rectangle */}
             {selectionRect && (
@@ -1598,7 +1748,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         className="absolute bottom-4 right-4"
         viewport={viewport}
         camera={camera}
-        tables={tables}
+        tables={minimapTables}
         notes={notes}
         areas={areas}
         onRecenter={(worldX, worldY) => {

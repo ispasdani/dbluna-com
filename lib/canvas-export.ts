@@ -1,9 +1,8 @@
 import type { Area, Note, Table } from "@/store/useCanvasStore";
+import { getTableGeometry } from "@/store/useCanvasStyleStore";
+import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const TABLE_WIDTH = 220;
-const TABLE_HEADER_HEIGHT = 36;
-const TABLE_ROW_HEIGHT = 30;
 
 export interface DiagramBounds {
     x: number;
@@ -32,8 +31,9 @@ export function computeDiagramBounds(
         if (y + h > maxY) maxY = y + h;
     };
 
+    const geo = getTableGeometry();
     tables.forEach((t) =>
-        expand(t.x, t.y, TABLE_WIDTH, TABLE_HEADER_HEIGHT + t.columns.length * TABLE_ROW_HEIGHT)
+        expand(t.x, t.y, geo.width, tableHeight(geo, t.columns.length))
     );
     notes.forEach((n) => expand(n.x, n.y, n.width, n.height));
     areas.forEach((a) => expand(a.x, a.y, a.width, a.height));

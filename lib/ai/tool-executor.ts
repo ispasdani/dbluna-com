@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { useCanvasStore, type Column, type Table } from "@/store/useCanvasStore";
 import { findFreePosition } from "./placement";
+import { getTableGeometry } from "@/store/useCanvasStyleStore";
+import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 import { toolSchemas, type ToolName } from "./tools";
 
-const HEADER_HEIGHT = 36;
-const ROW_HEIGHT = 30;
 
 function findTable(name: string): Table | undefined {
   const { tables } = useCanvasStore.getState();
@@ -70,7 +70,7 @@ export async function applyToolCall(toolName: string, rawInput: unknown): Promis
       const origin = near ?? centroid(tables);
 
       const columns = (input.columns as z.infer<typeof toolSchemas.add_column>["column"][]).map(toColumn);
-      const height = HEADER_HEIGHT + columns.length * ROW_HEIGHT;
+      const height = tableHeight(getTableGeometry(), columns.length);
       const pos = findFreePosition(tables, areas, { near: origin, height });
 
       const newTable: Table = {
@@ -177,9 +177,9 @@ export async function applyToolCall(toolName: string, rawInput: unknown): Promis
         const pad = 40;
         const minX = Math.min(...memberTables.map((t: Table) => t.x)) - pad;
         const minY = Math.min(...memberTables.map((t: Table) => t.y)) - pad;
-        const maxX = Math.max(...memberTables.map((t: Table) => t.x + 220)) + pad;
+        const maxX = Math.max(...memberTables.map((t: Table) => t.x + getTableGeometry().width)) + pad;
         const maxY = Math.max(
-          ...memberTables.map((t: Table) => t.y + HEADER_HEIGHT + t.columns.length * ROW_HEIGHT)
+          ...memberTables.map((t: Table) => t.y + tableHeight(getTableGeometry(), t.columns.length))
         ) + pad;
         store.updateArea(newId, {
           title: input.title,

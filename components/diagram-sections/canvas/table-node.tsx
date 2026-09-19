@@ -1,7 +1,7 @@
 "use client";
 
-import { useCanvasStore, type Table, TABLE_COLORS } from "@/store/useCanvasStore";
-import { Key, Lock, Unlock, MoreVertical, Trash } from "lucide-react";
+import { useCanvasStore, type Table, type Column, TABLE_COLORS } from "@/store/useCanvasStore";
+import { Lock, Unlock, MoreVertical, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-import React, { memo, useSyncExternalStore } from "react";
+import React, { memo, useState, useSyncExternalStore } from "react";
 import {
   getCanvasFontFamily,
   getFontsReadyServerSnapshot,
@@ -22,319 +22,590 @@ import {
   subscribeFontsReady,
   truncateTextToWidth,
 } from "@/lib/svg-text";
+import {
+  TABLE_GEOMETRY,
+  rowTopY,
+  tableHeight,
+  type CanvasStyle,
+  type HandleShape,
+  type Side,
+  type TableGeometry,
+  type TableVariant,
+} from "./canvas-style";
+import styles from "./table-node.module.scss";
 
 interface TableNodeProps {
   table: Table;
+  canvasStyle: CanvasStyle;
   selected?: boolean;
+  /** Focus mode: outside the selection's neighbourhood — faded and inert. */
   isDimmed?: boolean;
+  /** Hover focus elsewhere — faded but still interactive. */
+  isFaded?: boolean;
   readOnly?: boolean;
-  onColumnPointerDown?: (e: React.PointerEvent, columnId: string, isSource: boolean) => void;
+  /** Hide connection handles (read-only viewer, SVG export). */
+  hidePorts?: boolean;
+  /**
+   * Connected handles, `colId|side|color` joined by `;` (color may be empty).
+   * A string so the memo comparison stays a cheap equality check.
+   */
+  connectedPorts?: string;
+  /** Column ids whose relationships are currently lit, joined by `;`. */
+  linkedColumns?: string;
+  /** Column ids that are foreign keys, joined by `;`. */
+  foreignKeys?: string;
+  /** Row the in-progress connection would drop onto. */
+  dropColumnId?: string;
+  /** `colId|side` of the handle a connection is being dragged from. */
+  sourcePort?: string;
+  onColumnPointerDown?: (e: React.PointerEvent, tableId: string, columnId: string, side: Side) => void;
+  /** `undefined` = pointer left the table; `null` = over the table but not a row. */
+  onHoverChange?: (tableId: string, columnId: string | null | undefined) => void;
 }
 
-export const TableNode = memo(function TableNode({ table, selected, isDimmed, readOnly, onColumnPointerDown }: TableNodeProps) {
-  const HEADER_HEIGHT = 36;
-  const ROW_HEIGHT = 30;
-  const WIDTH = 220;
-  const STRIP_HEIGHT = 4;
-  const PAD_X = 12;
-  const ACTIONS_WIDTH = 76;
-  /** Keeps a very long type from squeezing the column name down to nothing. */
-  const MAX_TYPE_WIDTH = 88;
-  /** Breathing room between a column name and its right-aligned type. */
-  const NAME_TYPE_GAP = 8;
+const MONO = "var(--font-mono)";
+const SANS = "var(--font-sans)";
+const ACTIONS_WIDTH = 60;
 
-  const updateTable = useCanvasStore((s) => s.updateTable);
-  const deleteTable = useCanvasStore((s) => s.deleteTable);
+const splitList = (s?: string) => new Set(s ? s.split(";") : []);
 
-  // Re-render once when web fonts settle so measurements stop using fallback
-  // metrics. After that first flip this is a constant and costs nothing.
-  useSyncExternalStore(
-    subscribeFontsReady,
-    getFontsReadySnapshot,
-    getFontsReadyServerSnapshot
+function topRoundedPath(w: number, h: number, r: number, o = 0) {
+  return `M${o} ${h}V${r}A${r - o} ${r - o} 0 0 1 ${r} ${o}H${w - r}A${r - o} ${r - o} 0 0 1 ${w - o} ${r}V${h}Z`;
+}
+
+function bottomRoundedRow(w: number, h: number, r: number) {
+  const rr = r - 0.5;
+  return `M.5 0H${w - 0.5}V${h - rr - 0.5}A${rr} ${rr} 0 0 1 ${w - rr - 0.5} ${h - 0.5}H${rr + 0.5}A${rr} ${rr} 0 0 1 .5 ${h - rr - 0.5}Z`;
+}
+
+// 12×12 glyphs drawn with strokes so they inherit the row's colour tokens.
+function KeyIcon({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <g transform={`translate(${x},${y})`} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round">
+      <circle cx={3.6} cy={6} r={2.6} />
+      <path d="M6.2 6H11.4M9.6 6V8.2M11.4 6V7.8" />
+    </g>
   );
+}
+function LinkIcon({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <g transform={`translate(${x},${y})`} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round">
+      <path d="M4.6 7.4 7.4 4.6" />
+      <path d="M6.2 3.2 7.3 2.1a2.3 2.3 0 0 1 3.3 3.3L9.5 6.5" />
+      <path d="M5.8 8.8 4.7 9.9a2.3 2.3 0 0 1-3.3-3.3L2.5 5.5" />
+    </g>
+  );
+}
+function UniqueIcon({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <path
+      transform={`translate(${x},${y})`}
+      d="M6 2.4 9.6 6 6 9.6 2.4 6Z"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.4}
+      strokeLinejoin="round"
+    />
+  );
+}
+function TableIcon({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <g transform={`translate(${x},${y})`} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round">
+      <rect x={1} y={1.5} width={10} height={9} rx={2} />
+      <path d="M1 4.8H11M4.6 4.8V10.5" />
+    </g>
+  );
+}
 
-  const bodyFamily = getCanvasFontFamily();
-  const titleFont = "600 14px sans-serif";
-  const columnFont = `13px ${bodyFamily}`;
-  const typeFont = "11px monospace";
+function ColumnIcon({ col, isFk, x, y }: { col: Column; isFk: boolean; x: number; y: number }) {
+  if (col.isPrimaryKey) return <KeyIcon x={x} y={y} color="var(--tc)" />;
+  if (isFk) return <LinkIcon x={x} y={y} color="var(--muted-foreground)" />;
+  if (col.isUnique) return <UniqueIcon x={x} y={y} color="var(--muted-foreground)" />;
+  return null;
+}
 
-  const totalHeight = HEADER_HEIGHT + table.columns.length * ROW_HEIGHT;
-
-  // The header action buttons only exist in edit mode, so read-only cards get
-  // the full width for the name.
-  const nameMaxWidth = readOnly
-    ? WIDTH - PAD_X * 2
-    : WIDTH - ACTIONS_WIDTH - PAD_X - 6;
-  const tableName = truncateTextToWidth(table.name, titleFont, nameMaxWidth);
+function Port({
+  shape,
+  side,
+  x,
+  y,
+  rowHeight,
+  tableId,
+  colId,
+  color,
+  connected,
+  hot,
+  source,
+  onPointerDown,
+}: {
+  shape: HandleShape;
+  side: Side;
+  x: number;
+  y: number;
+  rowHeight: number;
+  tableId: string;
+  colId: string;
+  color?: string;
+  connected: boolean;
+  hot: boolean;
+  source: boolean;
+  onPointerDown?: (e: React.PointerEvent) => void;
+}) {
+  let idle: React.ReactNode;
+  let conn: React.ReactNode;
+  if (shape === "tab") {
+    idle = <rect className={styles.idle} x={-3.5} y={-8} width={7} height={16} rx={3.5} />;
+    conn = <rect className={styles.conn} x={-3} y={-7.5} width={6} height={15} rx={3} />;
+  } else if (shape === "plus") {
+    idle = (
+      <g className={styles.idle}>
+        <circle r={7.5} />
+        <path d="M-3.2 0H3.2M0 -3.2V3.2" />
+      </g>
+    );
+    conn = <circle className={styles.conn} r={3.75} />;
+  } else if (shape === "notch") {
+    const h = rowHeight - 12;
+    idle = <circle className={styles.idle} r={4.5} />;
+    conn = <rect className={cn(styles.conn, styles.connFlat)} x={-1.75} y={-h / 2} width={3.5} height={h} rx={1.75} />;
+  } else {
+    idle = <circle className={styles.idle} r={4.5} />;
+    conn = <circle className={styles.conn} r={3.75} />;
+  }
 
   return (
-    <g className={cn("transition-opacity duration-300", isDimmed && "opacity-30 pointer-events-none grayscale")}>
-      {/* 
-        Container Frame 
-        - rx=8 for rounded corners
-        - fill="hsl(var(--card))" for theme awareness 
-        - stroke="hsl(var(--border))" for outline
-      */}
-      <rect
-        x={0}
-        y={0}
-        width={WIDTH}
-        height={totalHeight}
-        rx={8}
-        fill="var(--table-bg)"
-        stroke={selected ? "var(--primary)" : "var(--border)"}
-        strokeWidth={selected ? 2 : 1}
-        // Slightly stronger shadow for the card look
-        style={{ filter: "drop-shadow(0 2px 4px rgb(0 0 0 / 0.1))" }}
-      />
+    <g
+      className={styles.port}
+      transform={`translate(${x},${y})`}
+      data-connected={connected || undefined}
+      data-hot={hot || undefined}
+      data-source={source || undefined}
+      data-table-id={tableId}
+      data-col-id={colId}
+      data-side={side}
+      style={color ? ({ "--pc": color } as React.CSSProperties) : undefined}
+      onPointerDown={onPointerDown}
+    >
+      <g className={styles.portInner}>
+        <circle className={styles.portHit} r={10} />
+        {idle}
+        {conn}
+      </g>
+    </g>
+  );
+}
 
-      {/*
-        Color Identity Strip
-        - Height of ~4px at top
-        - Uses table.color
-        - Clipped/Masked manually by path or just drawn carefully
-      */}
-      <path
-        d={`M1 1 Q 1 1 1 1 L${WIDTH - 1} 1 Q ${WIDTH - 1} 1 ${WIDTH - 1} 1 L${WIDTH - 1} ${STRIP_HEIGHT} L1 ${STRIP_HEIGHT} Z`}
-        fill={table.color}
-        // Clip to top rounded corners if needed, or just let it sit inside stroke
-        // Here we roughly match the inner border
-        style={{ clipPath: "inset(0 0 0 0 round 7px 7px 0 0)" }}
-      />
-      
-      {/* Header Area */}
-      {/* Background for header (optional, usually just card bg or very faint gray) */}
-      <rect
-         x={1}
-         y={STRIP_HEIGHT}
-         width={WIDTH - 2}
-         height={HEADER_HEIGHT - STRIP_HEIGHT}
-         fill="transparent" 
-      />
+interface HeaderProps {
+  table: Table;
+  variant: TableVariant;
+  g: TableGeometry;
+  height: number;
+  readOnly?: boolean;
+  titleFont: string;
+}
 
-      {/* Table Name — shortened to fit the card; full value shown on hover */}
+function Header({ table, variant, g, height, readOnly, titleFont }: HeaderProps) {
+  const W = g.width;
+  const H = g.headerHeight;
+  const cy = H / 2;
+
+  const nameX = variant === "chips" ? 48 : variant === "dense" ? 26 : 34;
+  const nameMax = W - nameX - 14 - (readOnly ? 0 : ACTIONS_WIDTH - 10);
+
+  // Dense cards show a `schema.` prefix in muted text when the name has one.
+  const dot = variant === "dense" ? table.name.lastIndexOf(".") : -1;
+  const schema = dot > 0 ? table.name.slice(0, dot + 1) : "";
+  const bare = dot > 0 ? table.name.slice(dot + 1) : table.name;
+  const nameFont = variant === "dense" ? `500 12.5px monospace` : titleFont;
+  const fitted = truncateTextToWidth(schema + bare, nameFont, nameMax);
+
+  const nameFill = variant === "header" ? "#fff" : "var(--foreground)";
+  const count = table.columns.length;
+  const countLabel = variant === "chips" ? `${count} columns` : `${count} cols`;
+
+  return (
+    <>
+      {variant === "header" && <path d={topRoundedPath(W, H, g.radius)} fill="var(--tc)" />}
+      {variant === "dense" && (
+        <>
+          <path
+            d={`M.5 ${H}H26V${height - 0.5}H${g.radius}A${g.radius - 0.5} ${g.radius - 0.5} 0 0 1 .5 ${height - g.radius}Z`}
+            className={styles.gutter}
+          />
+          <line x1={26} x2={26} y1={H} y2={height} stroke="var(--border)" />
+        </>
+      )}
+
+      {variant === "soft" && <rect x={14} y={cy - 6} width={12} height={12} rx={3.5} fill="var(--tc)" />}
+      {variant === "header" && <TableIcon x={14} y={cy - 6} color="#fff" />}
+      {variant === "dense" && <circle cx={13} cy={cy} r={4} fill="var(--tc)" />}
+      {variant === "chips" && (
+        <>
+          <rect className={styles.chipIcon} x={12} y={cy - 13} width={26} height={26} rx={8} />
+          <TableIcon x={19} y={cy - 6} color="var(--tc)" />
+        </>
+      )}
+
       <text
-        x={PAD_X}
-        y={STRIP_HEIGHT + 20}
-        fill="var(--foreground)"
-        fontWeight="600"
-        fontSize={14}
-        style={{ pointerEvents: "none", userSelect: "none", fontFamily: "var(--font-sans)" }}
+        x={nameX}
+        y={cy}
+        dominantBaseline="central"
+        fill={nameFill}
+        fontSize={variant === "dense" ? 12.5 : 13.5}
+        fontWeight={variant === "dense" ? 500 : 600}
+        fontFamily={variant === "dense" ? MONO : SANS}
+        className={styles.noEvents}
       >
-        {tableName.text}
+        {schema && !fitted.truncated ? (
+          <>
+            <tspan fill="var(--muted-foreground)" fontWeight={400}>{schema}</tspan>
+            {bare}
+          </>
+        ) : (
+          fitted.text
+        )}
       </text>
-      {tableName.truncated && (
-        // Transparent hit area carrying a native <title>. Pointer events still
+      {fitted.truncated && (
+        // Transparent hit area carrying a native <title>; pointer events still
         // bubble to the parent group, so dragging the table is unaffected.
-        <rect
-          x={PAD_X}
-          y={STRIP_HEIGHT}
-          width={nameMaxWidth}
-          height={HEADER_HEIGHT - STRIP_HEIGHT}
-          fill="transparent"
-        >
+        <rect x={nameX} y={0} width={nameMax} height={H} fill="transparent">
           <title>{table.name}</title>
         </rect>
       )}
 
-      {/* Header Actions using foreignObject for Shadcn UI — hidden in read-only mode */}
-      {!readOnly && (
-        <foreignObject
-          x={WIDTH - 76}
-          y={STRIP_HEIGHT + 4}
-          width={72}
-          height={28}
-          className="overflow-visible"
-        >
-          <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
-              onClick={() => updateTable(table.id, { isLocked: !table.isLocked })}
-            >
-              {table.isLocked ? (
-                <Lock className="h-4 w-4 text-primary" />
-              ) : (
-                <Unlock className="h-4 w-4" />
-              )}
-            </Button>
+      <text
+        x={W - 14}
+        y={cy}
+        textAnchor="end"
+        dominantBaseline="central"
+        fontSize={10.5}
+        fontWeight={500}
+        fontFamily={MONO}
+        fill={variant === "header" ? "rgba(255,255,255,.78)" : "var(--muted-foreground)"}
+        className={cn(styles.count, styles.noEvents)}
+      >
+        {countLabel}
+      </text>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {table.comment && (
-                  <>
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
-                      {table.comment}
-                    </div>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
-                <div className="grid grid-cols-4 gap-1 p-2">
-                  {TABLE_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      className={cn(
-                        "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
-                        table.color === color && "ring-2 ring-primary ring-offset-1"
-                      )}
-                      style={{ backgroundColor: color }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateTable(table.id, { color });
-                      }}
-                    />
-                  ))}
+      {variant !== "header" && <line x1={0} x2={W} y1={H} y2={H} stroke="var(--border)" />}
+    </>
+  );
+}
+
+function HeaderActions({ table, g, onHeader }: { table: Table; g: TableGeometry; onHeader: boolean }) {
+  const updateTable = useCanvasStore((s) => s.updateTable);
+  const deleteTable = useCanvasStore((s) => s.deleteTable);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const btn = onHeader
+    ? "h-7 w-7 text-white/80 hover:text-white hover:bg-white/15"
+    : "h-7 w-7 text-muted-foreground/70 hover:text-foreground";
+
+  return (
+    <foreignObject
+      x={g.width - ACTIONS_WIDTH - 6}
+      y={(g.headerHeight - 28) / 2}
+      width={ACTIONS_WIDTH}
+      height={28}
+      className={cn("overflow-visible", styles.actions)}
+      data-open={menuOpen || table.isLocked || undefined}
+    >
+      <div className="flex items-center justify-end gap-1" onPointerDown={(e) => e.stopPropagation()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={btn}
+          onClick={() => updateTable(table.id, { isLocked: !table.isLocked })}
+        >
+          {table.isLocked ? (
+            <Lock className={cn("h-3.5 w-3.5", !onHeader && "text-primary")} />
+          ) : (
+            <Unlock className="h-3.5 w-3.5" />
+          )}
+        </Button>
+
+        <DropdownMenu onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className={btn}>
+              <MoreVertical className="h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {table.comment && (
+              <>
+                <div className="px-2 py-1.5 text-xs text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto italic">
+                  {table.comment}
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive gap-2"
-                  onSelect={() => deleteTable(table.id)}
-                >
-                  <Trash className="h-4 w-4" />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </foreignObject>
+              </>
+            )}
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Change Color</DropdownMenuLabel>
+            <div className="grid grid-cols-4 gap-1 p-2">
+              {TABLE_COLORS.map((color) => (
+                <button
+                  key={color}
+                  className={cn(
+                    "w-6 h-6 rounded-full border border-black/10 transition-transform hover:scale-110",
+                    table.color === color && "ring-2 ring-primary ring-offset-1"
+                  )}
+                  style={{ backgroundColor: color }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateTable(table.id, { color });
+                  }}
+                />
+              ))}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive gap-2"
+              onSelect={() => deleteTable(table.id)}
+            >
+              <Trash className="h-4 w-4" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </foreignObject>
+  );
+}
+
+export const TableNode = memo(function TableNode({
+  table,
+  canvasStyle,
+  selected,
+  isDimmed,
+  isFaded,
+  readOnly,
+  hidePorts,
+  connectedPorts,
+  linkedColumns,
+  foreignKeys,
+  dropColumnId,
+  sourcePort,
+  onColumnPointerDown,
+  onHoverChange,
+}: TableNodeProps) {
+  // Re-render once when web fonts settle so measurements stop using fallback
+  // metrics. After that first flip this is a constant and costs nothing.
+  useSyncExternalStore(subscribeFontsReady, getFontsReadySnapshot, getFontsReadyServerSnapshot);
+
+  const variant = canvasStyle.table;
+  const g = TABLE_GEOMETRY[variant];
+  const W = g.width;
+  const R = g.rowHeight;
+  const height = tableHeight(g, table.columns.length);
+  const showPorts = !readOnly && !hidePorts;
+
+  const bodyFamily = getCanvasFontFamily();
+  const titleFont = `600 13.5px ${bodyFamily}`;
+  const nameSize = variant === "dense" ? 12.5 : 12.75;
+  const typeSize = variant === "chips" ? 10.5 : 11;
+  const columnFont = `${nameSize}px ${bodyFamily}`;
+  const columnFontBold = `600 ${nameSize}px ${bodyFamily}`;
+  const typeFont = `${typeSize}px monospace`;
+
+  const connected = new Map<string, string>();
+  if (connectedPorts) {
+    for (const entry of connectedPorts.split(";")) {
+      const [colId, side, color] = entry.split("|");
+      connected.set(`${colId}|${side}`, color);
+    }
+  }
+  const linked = splitList(linkedColumns);
+  const fks = splitList(foreignKeys);
+
+  const nameX = variant === "chips" ? 46 : variant === "dense" ? 36 : 34;
+  const typeRight = W - (variant === "dense" || variant === "chips" ? 12 : 14);
+
+  return (
+    <g
+      className={cn(styles.table, isDimmed && styles.dimmed, isFaded && styles.faded)}
+      data-variant={variant}
+      data-visibility={canvasStyle.handleVisibility}
+      data-selected={selected || undefined}
+      style={{ "--tc": table.color } as React.CSSProperties}
+      onPointerEnter={() => onHoverChange?.(table.id, null)}
+      onPointerLeave={() => onHoverChange?.(table.id, undefined)}
+    >
+      {/* Rendered only when selected: the SVG export keeps colours but not
+          CSS opacity, so anything merely hidden by a class would show up there. */}
+      {selected && (
+        <rect
+          className={styles.selRing}
+          x={-4.5}
+          y={-4.5}
+          width={W + 9}
+          height={height + 9}
+          rx={g.radius + 4}
+          fill="none"
+          stroke="var(--primary)"
+          strokeWidth={1.5}
+        />
       )}
+      <rect className={styles.card} width={W} height={height} rx={g.radius} strokeWidth={1} />
 
-      {/* Divider between Header and Body */}
-      <line
-        x1={0}
-        y1={HEADER_HEIGHT}
-        x2={WIDTH}
-        y2={HEADER_HEIGHT}
-        stroke="var(--border)"
-        strokeWidth={1}
-      />
+      <Header table={table} variant={variant} g={g} height={height} readOnly={readOnly} titleFont={titleFont} />
 
-      {/* Columns List */}
       {table.columns.map((col, i) => {
-        const rowY = HEADER_HEIGHT + i * ROW_HEIGHT;
-        const nameX = col.isPrimaryKey ? 28 : PAD_X;
+        const isFk = fks.has(col.id);
+        const cy = R / 2;
+        const last = i === table.columns.length - 1;
+        const nameFont = col.isPrimaryKey ? columnFontBold : columnFont;
+        const nullable = variant === "dense" && !col.isNotNull && !col.isPrimaryKey;
 
         // The type is right-aligned, so it claims its space first and the name
         // gets whatever is left — that way neither can spill past the card edge.
-        const columnType = truncateTextToWidth(col.type, typeFont, MAX_TYPE_WIDTH);
+        const columnType = truncateTextToWidth(col.type, typeFont, 88);
         const typeWidth = measureTextWidth(columnType.text, typeFont);
-        const columnName = truncateTextToWidth(
-          col.name,
-          columnFont,
-          WIDTH - PAD_X - typeWidth - NAME_TYPE_GAP - nameX
-        );
+        const chipWidth = Math.ceil(typeWidth) + 14;
+        const typeSpace = variant === "chips" ? chipWidth : typeWidth + (nullable ? 7 : 0);
+        const columnName = truncateTextToWidth(col.name, nameFont, typeRight - typeSpace - 8 - nameX);
         const showFullRow = columnName.truncated || columnType.truncated;
 
+        let rowBg: React.ReactNode;
+        if (g.rowInset) {
+          rowBg = <rect className={styles.rowBg} x={g.rowInset} y={1} width={W - 2 * g.rowInset} height={R - 2} rx={g.rowRadius} />;
+        } else if (last && !g.padBottom) {
+          rowBg = <path className={styles.rowBg} d={bottomRoundedRow(W, R, g.radius)} />;
+        } else {
+          rowBg = <rect className={styles.rowBg} x={0.5} y={0} width={W - 1} height={R} />;
+        }
+
+        const badge = col.isPrimaryKey ? "PK" : isFk ? "FK" : col.isUnique ? "UQ" : null;
+
         return (
-          <g key={col.name} transform={`translate(0, ${rowY})`}>
-            {/* Row Hover Zone (invisible rect for events) */}
+          <g
+            key={col.id}
+            className={styles.row}
+            transform={`translate(0, ${rowTopY(g, i)})`}
+            data-table-id={table.id}
+            data-col-id={col.id}
+            data-linked={linked.has(col.id) || undefined}
+            data-drop={dropColumnId === col.id || undefined}
+            onPointerEnter={() => onHoverChange?.(table.id, col.id)}
+            onPointerLeave={() => onHoverChange?.(table.id, null)}
+          >
+            {/* Hover zone reaches past the card edge so a handle doesn't vanish as you reach for it */}
             <rect
-              x={1}
+              className={styles.rowHit}
+              x={showPorts ? -14 : 0}
               y={0}
-              width={WIDTH - 2}
-              height={ROW_HEIGHT}
+              width={showPorts ? W + 28 : W}
+              height={R}
               fill="transparent"
-              className="hover:fill-muted/50 transition-colors"
             >
               {showFullRow && <title>{`${col.name} ${col.type}`}</title>}
             </rect>
+            {rowBg}
 
-            {/* PK Indicator */}
-            {col.isPrimaryKey && (
-               <path
-                 d="M3.5 10c0-1.7 1.3-3 3-3s3 1.3 3 3c0 1.3-0.8 2.4-2 2.8V15h2v2h-2v1h-2v-1H4.5v-2h1.5v-2.2C4.3 12.4 3.5 11.3 3.5 10"
-                 transform="translate(10, 4) scale(0.6)"
-                 fill="var(--primary)"
-               />
+            {(variant === "header" || variant === "dense") && i > 0 && (
+              <line x1={0} x2={W} y1={0} y2={0} stroke="var(--border)" strokeOpacity={0.65} />
             )}
 
-            {/* Column Name */}
+            {variant === "chips" ? (
+              badge && (
+                <>
+                  <rect
+                    className={badge === "PK" ? styles.badgePk : styles.badge}
+                    x={12}
+                    y={cy - 8}
+                    width={24}
+                    height={16}
+                    rx={5}
+                  />
+                  <text
+                    x={24}
+                    y={cy}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={9}
+                    fontWeight={600}
+                    fontFamily={MONO}
+                    letterSpacing={0.3}
+                    fill={badge === "PK" ? "var(--tc)" : "var(--muted-foreground)"}
+                    className={styles.noEvents}
+                  >
+                    {badge}
+                  </text>
+                </>
+              )
+            ) : (
+              <ColumnIcon col={col} isFk={isFk} x={variant === "dense" ? 7 : 14} y={cy - 6} />
+            )}
+
             <text
               x={nameX}
-              y={20}
+              y={cy}
+              dominantBaseline="central"
               fill="var(--foreground)"
-              fontSize={13}
-              style={{ pointerEvents: "none", userSelect: "none" }}
+              fontSize={nameSize}
+              fontWeight={col.isPrimaryKey ? 600 : 400}
+              fontFamily={SANS}
+              className={styles.noEvents}
             >
               {columnName.text}
             </text>
 
-            {/* Column Type */}
+            {variant === "chips" && (
+              <rect className={styles.typeChip} x={typeRight - chipWidth} y={cy - 9} width={chipWidth} height={18} rx={5} />
+            )}
             <text
-              x={WIDTH - 12}
-              y={20}
-              textAnchor="end"
+              x={variant === "chips" ? typeRight - chipWidth / 2 : typeRight}
+              y={cy}
+              textAnchor={variant === "chips" ? "middle" : "end"}
+              dominantBaseline="central"
               fill="var(--muted-foreground)"
-              fontSize={11}
-              style={{ pointerEvents: "none", userSelect: "none", fontFamily: "var(--font-mono)" }}
+              fontSize={typeSize}
+              fontFamily={MONO}
+              className={styles.noEvents}
             >
               {columnType.text}
+              {nullable && <tspan fillOpacity={0.55}>?</tspan>}
             </text>
 
-            {/* Connection Grips — hidden in read-only mode (no relationship creation) */}
-            {!readOnly && (
-              <>
-                {/* Left Grip (Target) */}
-                <circle
-                   cx={0}
-                   cy={ROW_HEIGHT / 2}
-                   r={4}
-                   fill="var(--primary)"
-                   stroke="var(--background)"
-                   strokeWidth={1.5}
-                   className="cursor-crosshair transition-all hover:r-5"
-                   data-table-id={table.id}
-                   data-col-id={col.id}
-                   data-is-source="false"
-                   onPointerDown={(e) => {
-                     if (onColumnPointerDown) {
-                       onColumnPointerDown(e, col.id, false);
-                     }
-                   }}
-                />
-                {/* Right Grip (Source) */}
-                <circle
-                   cx={WIDTH}
-                   cy={ROW_HEIGHT / 2}
-                   r={4}
-                   fill="var(--primary)"
-                   stroke="var(--background)"
-                   strokeWidth={1.5}
-                   className="cursor-crosshair transition-all hover:r-5"
-                   data-table-id={table.id}
-                   data-col-id={col.id}
-                   data-is-source="true"
-                   onPointerDown={(e) => {
-                     if (onColumnPointerDown) {
-                       onColumnPointerDown(e, col.id, true);
-                     }
-                   }}
-                />
-              </>
-            )}
+            {showPorts &&
+              ([-1, 1] as Side[]).map((side) => {
+                const key = `${col.id}|${side === 1 ? "r" : "l"}`;
+                const isConnected = connected.has(key);
+                return (
+                  <Port
+                    key={side}
+                    shape={canvasStyle.handles}
+                    side={side}
+                    x={side === 1 ? W : 0}
+                    y={cy}
+                    rowHeight={R}
+                    tableId={table.id}
+                    colId={col.id}
+                    color={connected.get(key) || undefined}
+                    connected={isConnected}
+                    hot={isConnected && linked.has(col.id)}
+                    source={sourcePort === key}
+                    onPointerDown={(e) => onColumnPointerDown?.(e, table.id, col.id, side)}
+                  />
+                );
+              })}
           </g>
         );
       })}
+
+      {/* Rendered last so the row hover zones never sit on top of the buttons */}
+      {!readOnly && !hidePorts && <HeaderActions table={table} g={g} onHeader={variant === "header"} />}
     </g>
   );
-}
-, (prevProps, nextProps) => {
-  return (
-    prevProps.table === nextProps.table &&
-    prevProps.selected === nextProps.selected &&
-    prevProps.isDimmed === nextProps.isDimmed &&
-    prevProps.readOnly === nextProps.readOnly
-  );
-});
+},
+(prev, next) =>
+  prev.table === next.table &&
+  prev.canvasStyle === next.canvasStyle &&
+  prev.selected === next.selected &&
+  prev.isDimmed === next.isDimmed &&
+  prev.isFaded === next.isFaded &&
+  prev.readOnly === next.readOnly &&
+  prev.hidePorts === next.hidePorts &&
+  prev.connectedPorts === next.connectedPorts &&
+  prev.linkedColumns === next.linkedColumns &&
+  prev.foreignKeys === next.foreignKeys &&
+  prev.dropColumnId === next.dropColumnId &&
+  prev.sourcePort === next.sourcePort
+);

@@ -12,28 +12,133 @@
   background-position: 0 0;
 }
 
-.relationship-path {
-  transition: stroke 0.2s ease;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
 .relationship-hit-area {
   pointer-events: auto;
   cursor: pointer;
   stroke: transparent;
 }
 
-.marching-ants {
-  stroke-dasharray: 6;
-  animation: marching-ants 0.5s linear infinite;
+// ─── Relationship lines (see canvas-style.ts for the per-style settings) ────
+
+.rel {
+  transition: opacity 0.25s ease;
 }
 
-@keyframes marching-ants {
+.relLine {
+  pointer-events: none;
+  transition: stroke-width 0.18s ease;
+}
+
+// Only rendered while the line is lit (see canvas.tsx).
+.relHalo {
+  opacity: 0.13;
+  pointer-events: none;
+  animation: rel-halo-in 0.2s ease;
+}
+
+@keyframes rel-halo-in {
   from {
-    stroke-dashoffset: 12;
+    opacity: 0;
   }
+}
+
+.relEnd,
+.relPulse,
+.relLabel {
+  pointer-events: none;
+}
+
+// Dashes run from the foreign key toward the key it references.
+.relLit[data-motion="flow"] .relLine {
+  stroke-dasharray: 6 5;
+  animation: rel-flow 0.8s linear infinite;
+}
+
+.relLit[data-motion="flow"][data-reverse] .relLine {
+  animation-direction: reverse;
+}
+
+.relLit[data-motion="glow"] .relHalo {
+  animation: rel-breathe 1.6s ease-in-out infinite;
+}
+
+// Freshly connected: the line draws in (pathLength = 1), then its ends fade in.
+.rel.relNew .relLine {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: rel-draw 0.75s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+}
+
+.rel.relNew .relEnd {
+  opacity: 0;
+  animation: rel-fade-in 0.25s 0.6s forwards;
+}
+
+.pending {
+  stroke-dasharray: 5 5;
+  animation: rel-flow 0.6s linear infinite;
+}
+
+.relLabel {
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.14));
+  animation: rel-fade-in 0.15s ease;
+}
+
+@keyframes rel-flow {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+@keyframes rel-breathe {
+  0%,
+  100% {
+    opacity: 0.07;
+  }
+  50% {
+    opacity: 0.32;
+  }
+}
+
+@keyframes rel-draw {
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rel,
+  .relLine,
+  .relHalo,
+  .relLabel,
+  .pending,
+  .relLit[data-motion="flow"] .relLine,
+  .relLit[data-motion="glow"] .relHalo {
+    animation: none;
+    transition: none;
+  }
+
+  .rel.relNew .relLine {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .rel.relNew .relEnd {
+    animation: none;
+    opacity: 1;
+  }
+
+  .relPulse {
+    display: none;
   }
 }

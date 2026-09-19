@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, ChevronDown, PanelLeft, Layout, Magnet } from "lucide-react";
+import { Eye, ChevronDown, PanelLeft, Layout, Magnet, Palette } from "lucide-react";
 
 import { DiagramButton } from "@/components/diagram-general/diagram-button";
 import {
@@ -8,6 +8,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -15,6 +17,51 @@ import {
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
+import { useCanvasStyleStore } from "@/store/useCanvasStyleStore";
+import {
+  CANVAS_STYLES,
+  CANVAS_STYLE_ORDER,
+  isCanvasStyleId,
+} from "./canvas/canvas-style";
+
+/** Switches the look of tables and relationship lines on the canvas. */
+function CanvasStyleMenu() {
+  const styleId = useCanvasStyleStore((s) => s.styleId);
+  const setStyleId = useCanvasStyleStore((s) => s.setStyleId);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <DiagramButton variant="ghost" title="Canvas style">
+          <Palette className="w-3.5 h-3.5" />
+          Style: {CANVAS_STYLES[styleId].label}
+          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+        </DiagramButton>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="start" className="w-72">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Canvas style
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={styleId}
+          onValueChange={(v) => isCanvasStyleId(v) && setStyleId(v)}
+        >
+          {CANVAS_STYLE_ORDER.map((id) => (
+            <DropdownMenuRadioItem key={id} value={id} className="items-start py-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm">{CANVAS_STYLES[id].label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {CANVAS_STYLES[id].description}
+                </span>
+              </div>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function TabLauncherBar() {
   const {
@@ -105,6 +152,7 @@ export function TabLauncherBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <CanvasStyleMenu />
       </div>
 
       <TabsDropdown side="left" />

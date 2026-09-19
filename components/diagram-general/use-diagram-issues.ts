@@ -12,6 +12,8 @@ import {
 } from "@/lib/diagram-issues";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
+import { getTableGeometry } from "@/store/useCanvasStyleStore";
+import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 
 /**
  * Live schema issues for the active diagram.
@@ -44,11 +46,6 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
   return { issues, counts };
 }
 
-/** Rendered size of a table card on the canvas; mirrors table-node.tsx. */
-const TABLE_WIDTH = 220;
-const TABLE_HEADER_HEIGHT = 36;
-const TABLE_ROW_HEIGHT = 30;
-
 /**
  * Centres the camera on a table.
  *
@@ -66,9 +63,10 @@ export function focusTableOnCanvas(tableId: string) {
   // against that would fling the camera somewhere arbitrary.
   if (viewport.w <= 1 || viewport.h <= 1) return;
 
-  const worldX = table.x + TABLE_WIDTH / 2;
+  const geo = getTableGeometry();
+  const worldX = table.x + geo.width / 2;
   const worldY =
-    table.y + (TABLE_HEADER_HEIGHT + table.columns.length * TABLE_ROW_HEIGHT) / 2;
+    table.y + tableHeight(geo, table.columns.length) / 2;
 
   setCameraXY(viewport.w / 2 - worldX * camera.zoom, viewport.h / 2 - worldY * camera.zoom);
 }
