@@ -1,0 +1,214 @@
+@use "./panel-card";
+
+// Enums tab. Cards come from _panel-card.scss; values are drawn as table rows.
+// Enums have no canvas colour, so `--tc` is the accent.
+
+.index {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.valueNote {
+  flex: none;
+  max-width: 45%;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.valueRow {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}
+
+.valueOpen {
+  background: color-mix(in oklab, var(--primary) 13%, transparent);
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+}
+
+.valueEditor {
+  gap: 10px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+
+.editorFoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linkDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--destructive);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--danger-bg);
+  }
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--rh);
+  width: 100%;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
+}
+
+.panel[data-v="soft"] .addRow,
+.panel[data-v="chips"] .addRow {
+  margin: 0 5px;
+  width: calc(100% - 10px);
+  padding: 0 7px;
+  border-radius: 6px;
+}
+
+.panel[data-v="header"] .addRow,
+.panel[data-v="dense"] .addRow {
+  border-top: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+}
+
+.emptyValues {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.unused {
+  color: var(--faint);
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px 10px;
+  cursor: pointer;
+}
+
+.valueChip {
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--tc) 10%, var(--sub));
+  color: var(--foreground);
+  font-size: 11.5px;
+}
+
+.more {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px 2px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--sub);
+    color: var(--foreground);
+    font-size: 11.5px;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in oklab, var(--primary) 12%, var(--sub));
+    }
+
+    i {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+      background: var(--tc);
+      flex: none;
+    }
+  }
+}
+
+.col {
+  color: var(--muted-foreground);
+}
+
+.inlineLink {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.emptyState {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted-foreground);
+
+  svg {
+    opacity: 0.35;
+  }
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+// The expressive style hides row icons in favour of badges; the position
+// number is content here, so keep it.
+.panel[data-v="chips"] .index {
+  display: grid;
+}

@@ -56,3 +56,15 @@ export function AreaGlyph() {
     </svg>
   );
 }
+
+/** Short list with bullets — a named set of values. */
+export function EnumGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+      <path d="M4.5 3h6M4.5 6h6M4.5 9h6" />
+      <circle cx={1.8} cy={3} r={0.6} fill="currentColor" />
+      <circle cx={1.8} cy={6} r={0.6} fill="currentColor" />
+      <circle cx={1.8} cy={9} r={0.6} fill="currentColor" />
+    </svg>
+  );
+}

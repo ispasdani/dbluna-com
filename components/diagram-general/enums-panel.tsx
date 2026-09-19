@@ -1,15 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  ListOrdered,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
+import { ChevronDown, ChevronUp, ChevronsDownUp, ListOrdered, Plus, Search, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -21,21 +13,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import {
-  useCanvasStore,
-  type CanvasEnum,
-  type EnumValue,
-} from "@/store/useCanvasStore";
-import {
-  buildEnumUsageIndex,
-  tablesStructureSignature,
-  type EnumUsageSite,
-} from "@/lib/enum-usage";
-import { CommittedInput } from "./committed-input";
+import { useCanvasStore, type CanvasEnum, type EnumValue } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
+import { usePanelStyle } from "@/store/usePanelStyleStore";
+import { buildEnumUsageIndex, tablesStructureSignature, type EnumUsageSite } from "@/lib/enum-usage";
+import { splitSchemaName } from "@/lib/schema-namespace";
+import { cn } from "@/lib/utils";
+import { CommittedInput } from "./committed-input";
+import { EnumGlyph } from "./panel-glyphs";
+import styles from "./enums-panel.module.scss";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/** Enums have no canvas colour; they take the accent. */
+const ENUM_TINT = { "--tc": "var(--primary)" } as CSSProperties;
+/** Values listed on a closed card before the rest collapse into "+N". */
+const PREVIEW_VALUES = 5;
 
 /** Unique-ifies a proposed name against the existing ones. */
 function uniqueName(base: string, taken: string[]): string {
@@ -47,246 +38,18 @@ function uniqueName(base: string, taken: string[]): string {
   }
 }
 
-// ─── EnumValueRow ─────────────────────────────────────────────────────────────
-
-function EnumValueRow({
-  value,
-  index,
-  total,
-  onChange,
-  onMove,
-  onRemove,
-}: {
-  value: EnumValue;
-  index: number;
-  total: number;
-  onChange: (patch: Partial<EnumValue>) => void;
-  onMove: (delta: number) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="bg-card border border-border p-2 space-y-1.5">
-      <div className="flex items-center gap-1">
-        <CommittedInput
-          value={value.name}
-          onCommit={(name) => onChange({ name })}
-          placeholder="value"
-          aria-label={`Enum value ${index + 1} name`}
-          className="h-7 text-xs font-mono"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-6 shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
-          disabled={index === 0}
-          onClick={() => onMove(-1)}
-          title="Move up"
-        >
-          <ChevronUp className="w-3.5 h-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-6 shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-30"
-          disabled={index === total - 1}
-          onClick={() => onMove(1)}
-          title="Move down"
-        >
-          <ChevronDown className="w-3.5 h-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
-          title="Remove value"
-        >
-          <X className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-      <CommittedInput
-        value={value.note ?? ""}
-        onCommit={(note) => onChange({ note: note.trim() || undefined })}
-        placeholder="Note (optional)"
-        aria-label={`Enum value ${index + 1} note`}
-        className="h-7 text-xs"
-      />
-    </div>
-  );
-}
-
-// ─── EnumCard ─────────────────────────────────────────────────────────────────
-
-function EnumCard({
-  canvasEnum,
-  usage,
-  isExpanded,
-  onToggle,
-  onPatch,
-  onPatchValues,
-  onDelete,
-  onSelectTable,
-}: {
-  canvasEnum: CanvasEnum;
-  usage: EnumUsageSite[];
-  isExpanded: boolean;
-  onToggle: () => void;
-  onPatch: (patch: Partial<CanvasEnum>) => void;
-  onPatchValues: (updater: (prev: EnumValue[]) => EnumValue[]) => void;
-  onDelete: () => void;
-  onSelectTable: (tableId: string) => void;
-}) {
-  return (
-    <div className="border border-border">
-      <div className="flex items-center p-2 gap-1">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex items-center gap-2 min-w-0 flex-1 text-left select-none"
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          )}
-          <span className="font-mono text-sm truncate" title={canvasEnum.name}>
-            {canvasEnum.name}
-          </span>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {canvasEnum.values.length} value{canvasEnum.values.length === 1 ? "" : "s"}
-          </span>
-        </button>
-
-        <span
-          className={
-            usage.length > 0
-              ? "text-[11px] text-emerald-600 dark:text-emerald-400 shrink-0"
-              : "text-[11px] text-muted-foreground shrink-0"
-          }
-        >
-          {usage.length > 0
-            ? `${usage.length} use${usage.length === 1 ? "" : "s"}`
-            : "unused"}
-        </span>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground/60 hover:text-destructive"
-          onClick={onDelete}
-          title="Delete enum"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-
-      {isExpanded && (
-        <div className="px-3 pb-3 space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Name</label>
-            <CommittedInput
-              value={canvasEnum.name}
-              onCommit={(name) => onPatch({ name })}
-              placeholder="enum_name"
-              className="h-8 text-sm font-mono"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Note</label>
-            <CommittedInput
-              value={canvasEnum.note ?? ""}
-              onCommit={(note) => onPatch({ note: note.trim() || undefined })}
-              placeholder="Optional description"
-              className="h-8 text-sm"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted-foreground">Values</label>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs gap-1 px-2"
-                onClick={() =>
-                  onPatchValues((prev) => [
-                    ...prev,
-                    { name: uniqueName("value", prev.map((v) => v.name)) },
-                  ])
-                }
-              >
-                <Plus className="w-3 h-3" /> Value
-              </Button>
-            </div>
-
-            {canvasEnum.values.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No values yet. An enum with no values is dropped from the generated DBML.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {canvasEnum.values.map((value, idx) => (
-                  <EnumValueRow
-                    key={idx}
-                    value={value}
-                    index={idx}
-                    total={canvasEnum.values.length}
-                    onChange={(patch) =>
-                      onPatchValues((prev) =>
-                        prev.map((v, i) => (i === idx ? { ...v, ...patch } : v))
-                      )
-                    }
-                    onMove={(delta) =>
-                      onPatchValues((prev) => {
-                        const next = [...prev];
-                        const target = idx + delta;
-                        if (target < 0 || target >= next.length) return prev;
-                        [next[idx], next[target]] = [next[target], next[idx]];
-                        return next;
-                      })
-                    }
-                    onRemove={() => onPatchValues((prev) => prev.filter((_, i) => i !== idx))}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {usage.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Used by</label>
-              <div className="flex flex-wrap gap-1">
-                {usage.map((site) => (
-                  <button
-                    key={site.columnId}
-                    type="button"
-                    onClick={() => onSelectTable(site.tableId)}
-                    className="text-[11px] font-mono px-1.5 py-0.5 border border-border hover:bg-accent transition-colors"
-                    title={`Select ${site.tableName}`}
-                  >
-                    {site.tableName}.{site.columnName}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── EnumsPanel ───────────────────────────────────────────────────────────────
-
 export function EnumsPanel() {
   const enums = useCanvasStore((s) => s.enums);
   const tables = useCanvasStore((s) => s.tables);
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const openTab = useDockStore((s) => s.openTab);
+  const { variant } = usePanelStyle("enums");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [openValue, setOpenValue] = useState<number | null>(null);
+  const [focusValue, setFocusValue] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CanvasEnum | null>(null);
+  const [query, setQuery] = useState("");
 
   // `tables` is replaced on every pointermove of a canvas drag. Keying the
   // usage scan on a structural fingerprint instead of the array identity keeps
@@ -297,6 +60,7 @@ export function EnumsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [signature, enums]
   );
+  const tableColor = useMemo(() => new Map(tables.map((t) => [t.id, t.color])), [tables]);
 
   // Every mutation reads `enums` fresh from the store rather than from the
   // render closure. A field committing on blur writes the store during the
@@ -310,10 +74,13 @@ export function EnumsPanel() {
   const patchEnum = (id: string, patch: Partial<CanvasEnum>) =>
     mutate((current) => current.map((e) => (e.id === id ? { ...e, ...patch } : e)));
 
-  const patchEnumValues = (id: string, updater: (prev: EnumValue[]) => EnumValue[]) =>
-    mutate((current) =>
-      current.map((e) => (e.id === id ? { ...e, values: updater(e.values) } : e))
-    );
+  const patchValues = (id: string, updater: (prev: EnumValue[]) => EnumValue[]) =>
+    mutate((current) => current.map((e) => (e.id === id ? { ...e, values: updater(e.values) } : e)));
+
+  const toggleEnum = (id: string) => {
+    setExpandedId(expandedId === id ? null : id);
+    setOpenValue(null);
+  };
 
   const addEnum = () => {
     const created: CanvasEnum = {
@@ -323,6 +90,27 @@ export function EnumsPanel() {
     };
     mutate((current) => [...current, created]);
     setExpandedId(created.id);
+    setOpenValue(null);
+  };
+
+  const addValue = (id: string) => {
+    const current = useCanvasStore.getState().enums.find((e) => e.id === id);
+    if (!current) return;
+    const index = current.values.length;
+    patchValues(id, (prev) => [...prev, { name: uniqueName("value", prev.map((v) => v.name)) }]);
+    setOpenValue(index);
+    setFocusValue(index);
+  };
+
+  const moveValue = (id: string, idx: number, delta: number) => {
+    patchValues(id, (prev) => {
+      const target = idx + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+    setOpenValue(idx + delta);
   };
 
   const requestDelete = (target: CanvasEnum) => {
@@ -339,76 +127,322 @@ export function EnumsPanel() {
     setPendingDelete(null);
   };
 
+  const showTable = (tableId: string) => {
+    openTab("tables");
+    setSelectedTableIds([tableId]);
+  };
+
+  const onKey = (e: React.KeyboardEvent, fn: () => void) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn();
+    }
+  };
+
+  const needle = query.trim().toLowerCase();
+  const visible = enums.filter(
+    (e) =>
+      !needle ||
+      needle
+        .split(/\s+/)
+        .every((w) => `${e.name} ${e.values.map((v) => v.name).join(" ")}`.toLowerCase().includes(w))
+  );
   const pendingUsage = pendingDelete ? (usageIndex.get(pendingDelete.id) ?? []) : [];
 
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-border shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ListOrdered className="w-4 h-4 text-muted-foreground" />
-            <h2 className="font-semibold text-lg">Enums</h2>
-          </div>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={addEnum}>
-            <Plus className="w-3 h-3" /> New enum
-          </Button>
+  const renderValue = (e: CanvasEnum, value: EnumValue, idx: number) => {
+    const isOpen = openValue === idx;
+    const toggle = () => setOpenValue(isOpen ? null : idx);
+    return (
+      <Fragment key={idx}>
+        <div
+          className={cn(styles.row, styles.valueRow, isOpen && styles.valueOpen)}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isOpen}
+          onClick={toggle}
+          onKeyDown={(ev) => onKey(ev, toggle)}
+        >
+          <span className={cn(styles.ic, styles.index)}>{idx + 1}</span>
+          <span className={styles.cn} title={value.name}>
+            {value.name}
+          </span>
+          {value.note && (
+            <span className={styles.valueNote} title={value.note}>
+              {value.note}
+            </span>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Named value sets usable as column types. Pick an enum from the type selector in the{" "}
-          <button
-            type="button"
-            onClick={() => openTab("tables")}
-            className="underline underline-offset-2 hover:text-foreground transition-colors"
-          >
-            Tables tab
-          </button>
-          .
-        </p>
-      </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-        {enums.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            No enums yet. Click <strong>New enum</strong> above to create one, then assign it
-            as a column type in the Tables tab.
-          </p>
-        ) : (
-          enums.map((e) => (
-            <EnumCard
-              key={e.id}
-              canvasEnum={e}
-              usage={usageIndex.get(e.id) ?? []}
-              isExpanded={expandedId === e.id}
-              onToggle={() => setExpandedId(expandedId === e.id ? null : e.id)}
-              onPatch={(patch) => patchEnum(e.id, patch)}
-              onPatchValues={(updater) => patchEnumValues(e.id, updater)}
-              onDelete={() => requestDelete(e)}
-              onSelectTable={(tableId) => setSelectedTableIds([tableId])}
+        {isOpen && (
+          <div className={cn(styles.detail, styles.valueEditor)} onClick={(ev) => ev.stopPropagation()}>
+            <div className={styles.twoCol}>
+              <label className={styles.field}>
+                Value
+                <CommittedInput
+                  value={value.name}
+                  onCommit={(name) =>
+                    name.trim() &&
+                    patchValues(e.id, (prev) => prev.map((v, i) => (i === idx ? { ...v, name: name.trim() } : v)))
+                  }
+                  className={styles.input}
+                  autoFocus={focusValue === idx}
+                  onFocus={(ev) => {
+                    if (focusValue === idx) {
+                      ev.currentTarget.select();
+                      setFocusValue(null);
+                    }
+                  }}
+                />
+              </label>
+              <label className={styles.field}>
+                Note
+                <CommittedInput
+                  value={value.note ?? ""}
+                  onCommit={(note) =>
+                    patchValues(e.id, (prev) =>
+                      prev.map((v, i) => (i === idx ? { ...v, note: note.trim() || undefined } : v))
+                    )
+                  }
+                  placeholder="Optional"
+                  className={styles.input}
+                />
+              </label>
+            </div>
+            <div className={styles.editorFoot}>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={idx === 0}
+                onClick={() => moveValue(e.id, idx, -1)}
+                title="Move up"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+                Up
+              </button>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={idx === e.values.length - 1}
+                onClick={() => moveValue(e.id, idx, 1)}
+                title="Move down"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+                Down
+              </button>
+              <button
+                type="button"
+                className={styles.linkDanger}
+                onClick={() => {
+                  patchValues(e.id, (prev) => prev.filter((_, i) => i !== idx));
+                  setOpenValue(null);
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Remove value
+              </button>
+            </div>
+          </div>
+        )}
+      </Fragment>
+    );
+  };
+
+  const renderUsage = (usage: EnumUsageSite[]) => (
+    <div className={styles.usage}>
+      {usage.map((site) => (
+        <button
+          key={site.columnId}
+          type="button"
+          style={{ "--tc": tableColor.get(site.tableId) } as CSSProperties}
+          title={`Open ${site.tableName} in the Tables tab`}
+          onClick={() => showTable(site.tableId)}
+        >
+          <i />
+          <span className={styles.tname}>
+            {splitSchemaName(site.tableName).table}
+            <span className={styles.col}>.{site.columnName}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderEnum = (e: CanvasEnum) => {
+    const isOpen = expandedId === e.id;
+    const usage = usageIndex.get(e.id) ?? [];
+
+    return (
+      <div key={e.id} className={cn(styles.tb, styles.card, !isOpen && styles.closed, isOpen && styles.cardOpen)} style={ENUM_TINT}>
+        <div
+          className={styles.tbHead}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isOpen}
+          onClick={() => toggleEnum(e.id)}
+          onKeyDown={(ev) => onKey(ev, () => toggleEnum(e.id))}
+        >
+          <span className={styles.chev}>
+            <ChevronDown className="w-3 h-3" />
+          </span>
+          <span className={styles.mk}>
+            <EnumGlyph />
+          </span>
+          <span className={styles.tname} title={e.name}>
+            {e.name}
+          </span>
+          <span className={styles.meta}>
+            <span className={cn(usage.length === 0 && styles.unused)}>
+              {usage.length > 0 ? `${usage.length} use${usage.length === 1 ? "" : "s"}` : "unused"}
+            </span>
+            <span>
+              {e.values.length} value{e.values.length === 1 ? "" : "s"}
+            </span>
+          </span>
+        </div>
+
+        {/* Closed cards preview the values; the compact style stays one line. */}
+        {!isOpen && variant !== "dense" && e.values.length > 0 && (
+          <div className={styles.preview} onClick={() => toggleEnum(e.id)}>
+            {e.values.slice(0, PREVIEW_VALUES).map((v, i) => (
+              <span key={i} className={styles.valueChip}>
+                {v.name}
+              </span>
+            ))}
+            {e.values.length > PREVIEW_VALUES && (
+              <span className={styles.more}>+{e.values.length - PREVIEW_VALUES}</span>
+            )}
+          </div>
+        )}
+
+        {isOpen && (
+          <>
+            <div className={styles.tbBody}>
+              {e.values.length === 0 ? (
+                <p className={styles.emptyValues}>
+                  No values yet. An enum with no values is left out of the generated DBML.
+                </p>
+              ) : (
+                e.values.map((v, i) => renderValue(e, v, i))
+              )}
+              <button type="button" className={styles.addRow} onClick={() => addValue(e.id)}>
+                <Plus className="w-3 h-3" />
+                Add value
+              </button>
+            </div>
+
+            <div className={styles.settings}>
+              <label className={styles.field}>
+                Name
+                <CommittedInput
+                  value={e.name}
+                  onCommit={(name) => name.trim() && patchEnum(e.id, { name: name.trim() })}
+                  placeholder="enum_name"
+                  className={styles.input}
+                />
+              </label>
+              <label className={styles.field}>
+                Note
+                <CommittedInput
+                  value={e.note ?? ""}
+                  onCommit={(note) => patchEnum(e.id, { note: note.trim() || undefined })}
+                  placeholder="What these values mean"
+                  className={styles.input}
+                />
+              </label>
+
+              <div className={styles.sec}>
+                <h4>Used by</h4>
+                {usage.length > 0 ? (
+                  renderUsage(usage)
+                ) : (
+                  <p className={styles.hint}>
+                    Not used yet. Pick it as a column type in the{" "}
+                    <button type="button" className={styles.inlineLink} onClick={() => openTab("tables")}>
+                      Tables tab
+                    </button>
+                    .
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.actions}>
+                <button type="button" className={cn(styles.btn, styles.btnDanger)} onClick={() => requestDelete(e)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete enum
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className={styles.panel} data-v={variant}>
+      <div className={styles.header}>
+        <div className={styles.titleRow}>
+          <h3>Enums</h3>
+          <span className={styles.count}>{needle ? `${visible.length} / ${enums.length}` : enums.length}</span>
+          <span className={styles.spacer} />
+          {expandedId && (
+            <button
+              type="button"
+              className={styles.iconBtn}
+              title="Close the open enum"
+              aria-label="Close the open enum"
+              onClick={() => toggleEnum(expandedId)}
+            >
+              <ChevronsDownUp className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button type="button" className={styles.addBtn} onClick={addEnum}>
+            <Plus className="w-3.5 h-3.5" />
+            Add enum
+          </button>
+        </div>
+        {enums.length > 0 && (
+          <label className={styles.search}>
+            <Search className="w-3.5 h-3.5 shrink-0" />
+            <input
+              type="search"
+              value={query}
+              onChange={(ev) => setQuery(ev.target.value)}
+              placeholder="Filter enums or values"
+              aria-label="Filter enums"
             />
-          ))
+          </label>
         )}
       </div>
 
-      {/* Delete confirmation */}
-      <AlertDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => !open && setPendingDelete(null)}
-      >
+      <div className={styles.body}>
+        {enums.length === 0 ? (
+          <div className={styles.emptyState}>
+            <ListOrdered className="w-8 h-8" />
+            <p>Enums are named sets of values, like order statuses, that you can use as a column type.</p>
+            <button type="button" className={styles.btn} onClick={addEnum}>
+              <Plus className="w-3.5 h-3.5" />
+              Add enum
+            </button>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className={styles.empty}>No enums match “{query.trim()}”.</div>
+        ) : (
+          <div className={styles.list}>{visible.map(renderEnum)}</div>
+        )}
+      </div>
+
+      <AlertDialog open={pendingDelete !== null} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete enum &ldquo;{pendingDelete?.name}&rdquo;?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete enum &ldquo;{pendingDelete?.name}&rdquo;?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2">
                 <p>
-                  {pendingUsage.length} column
-                  {pendingUsage.length === 1 ? "" : "s"} still use this type. Their types are
-                  left unchanged, so they will refer to an enum that no longer exists.
+                  {pendingUsage.length} column{pendingUsage.length === 1 ? "" : "s"} still use this type. Their
+                  types are left unchanged, so they will refer to an enum that no longer exists.
                 </p>
-                <ul className="font-mono text-xs space-y-0.5 max-h-32 overflow-y-auto">
+                <ul className="text-xs space-y-0.5 max-h-32 overflow-y-auto">
                   {pendingUsage.map((site) => (
                     <li key={site.columnId}>
                       {site.tableName}.{site.columnName}
