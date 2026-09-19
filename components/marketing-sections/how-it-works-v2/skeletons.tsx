@@ -1,110 +1,349 @@
-import { Card } from "@/components/marketing-general/tech-card";
-import { DivideX } from "@/components/marketing-general/divideX";
-import { CenterSVG } from "@/components/uiJsxAssets/center-svg";
-import { CloseIcon } from "@/components/uiJsxAssets/close-icon";
-import { DatabaseIcon } from "@/components/uiJsxAssets/database-icon";
-import { LeftSVG } from "@/components/uiJsxAssets/left-svg";
-import { RightSVG } from "@/components/uiJsxAssets/right-svg";
+"use client";
+
 import { cn } from "@/lib/utils";
 import { motion, useMotionValue } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  BookOpen,
+  Info,
+  Maximize,
+  Minus,
+  Plus,
+  Search,
+  Square,
+  StickyNote,
+  Table as TableIcon,
+} from "lucide-react";
 
-const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => {
+/* ─────────────────────────────────────────────────────────────────────────────
+   These scenes mirror the editor as it looks today: table cards and lines in
+   the Recommended canvas style, the floating canvas toolbar, the Issues tab
+   cards. Keep them in step when the editor's look changes.
+───────────────────────────────────────────────────────────────────────────── */
+
+const INDIGO = "#6366f1";
+const AMBER = "#f59e0b";
+const EMERALD = "#10b981";
+const PINK = "#ec4899";
+
+// 12×12 glyphs, same strokes as the canvas's TableNode.
+function KeyGlyph({ x, y, color }: { x: number; y: number; color: string }) {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" />
-      <path d="M7 11l5 5l5 -5" />
-      <path d="M12 4l0 12" />
-    </svg>
+    <g transform={`translate(${x},${y})`} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round">
+      <circle cx={3.6} cy={6} r={2.6} />
+      <path d="M6.2 6H11.4M9.6 6V8.2M11.4 6V7.8" />
+    </g>
   );
-};
+}
 
-const AlertTriangleIcon = (props: React.SVGProps<SVGSVGElement>) => {
+function LinkGlyph({ x, y }: { x: number; y: number }) {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
+    <g
+      transform={`translate(${x},${y})`}
       fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={1.4}
       strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
+      className="stroke-gray-400 dark:stroke-neutral-500"
     >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-      <path d="M12 9v4" />
-      <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
-      <path d="M12 16h.01" />
-    </svg>
+      <path d="M4.6 7.4 7.4 4.6" />
+      <path d="M6.2 3.2 7.3 2.1a2.3 2.3 0 0 1 3.3 3.3L9.5 6.5" />
+      <path d="M5.8 8.8 4.7 9.9a2.3 2.3 0 0 1-3.3-3.3L2.5 5.5" />
+    </g>
   );
-};
+}
 
-// Tab 1 — Design Visually or with Code: a small relational schema (users → orders → order_items / products)
+function UniqueGlyph({ x, y }: { x: number; y: number }) {
+  return (
+    <path
+      transform={`translate(${x},${y})`}
+      d="M6 2.4 9.6 6 6 9.6 2.4 6Z"
+      fill="none"
+      strokeWidth={1.4}
+      strokeLinejoin="round"
+      className="stroke-gray-400 dark:stroke-neutral-500"
+    />
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tab 1 — Design visually or with code: a mini canvas
+───────────────────────────────────────────────────────────────────────────── */
+
+type Col = { name: string; type: string; kind?: "pk" | "fk" | "uq" };
+type SceneTable = { name: string; color: string; x: number; y: number; cols: Col[] };
+
+const W = 164; // table width
+const HEAD = 32; // header height
+const ROW = 22; // row height
+const PAD_TOP = 4;
+
+const SCENE: SceneTable[] = [
+  {
+    name: "users",
+    color: INDIGO,
+    x: 40,
+    y: 36,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "email", type: "varchar", kind: "uq" },
+      { name: "created_at", type: "timestamp" },
+    ],
+  },
+  {
+    name: "orders",
+    color: AMBER,
+    x: 236,
+    y: 112,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "user_id", type: "int", kind: "fk" },
+      { name: "status", type: "varchar" },
+      { name: "total", type: "decimal" },
+    ],
+  },
+  {
+    name: "products",
+    color: EMERALD,
+    x: 440,
+    y: 22,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "sku", type: "varchar", kind: "uq" },
+      { name: "name", type: "varchar" },
+    ],
+  },
+  {
+    name: "order_items",
+    color: PINK,
+    x: 440,
+    y: 176,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "order_id", type: "int", kind: "fk" },
+      { name: "product_id", type: "int", kind: "fk" },
+    ],
+  },
+];
+
+const rowY = (t: SceneTable, i: number) => t.y + HEAD + PAD_TOP + i * ROW + ROW / 2;
+const tableH = (t: SceneTable) => HEAD + PAD_TOP + t.cols.length * ROW + 5;
+
+/** Rounded orthogonal path from (x1,y1) to (x2,y2) turning at `mx`. */
+function route(x1: number, y1: number, x2: number, y2: number, mx: number) {
+  const r = 8;
+  const dy = y2 > y1 ? 1 : -1;
+  const d1 = mx > x1 ? 1 : -1;
+  const d2 = x2 > mx ? 1 : -1;
+  return `M${x1} ${y1}H${mx - d1 * r}Q${mx} ${y1} ${mx} ${y1 + dy * r}V${y2 - dy * r}Q${mx} ${y2} ${mx + d2 * r} ${y2}H${x2}`;
+}
+
+// Each relationship: its path, where the "one" bar sits, and where the crow's foot sits.
+const LINKS: { d: string; oneAt: [number, number]; manyAt: [number, number]; manyDir: 1 | -1 }[] = [
+  {
+    // users.id → orders.user_id
+    d: route(SCENE[0].x + W, rowY(SCENE[0], 0), SCENE[1].x, rowY(SCENE[1], 1), 220),
+    oneAt: [SCENE[0].x + W + 8, rowY(SCENE[0], 0)],
+    manyAt: [SCENE[1].x, rowY(SCENE[1], 1)],
+    manyDir: 1,
+  },
+  {
+    // orders.id → order_items.order_id
+    d: route(SCENE[1].x + W, rowY(SCENE[1], 0), SCENE[3].x, rowY(SCENE[3], 1), 420),
+    oneAt: [SCENE[1].x + W + 8, rowY(SCENE[1], 0)],
+    manyAt: [SCENE[3].x, rowY(SCENE[3], 1)],
+    manyDir: 1,
+  },
+  {
+    // products.id → order_items.product_id: both sit in the right column, so
+    // the line runs down their right edges and never crosses the other two.
+    d: `M${SCENE[2].x + W} ${rowY(SCENE[2], 0)}H${612}Q${620} ${rowY(SCENE[2], 0)} ${620} ${rowY(SCENE[2], 0) + 8}V${rowY(SCENE[3], 2) - 8}Q${620} ${rowY(SCENE[3], 2)} ${612} ${rowY(SCENE[3], 2)}H${SCENE[3].x + W}`,
+    oneAt: [SCENE[2].x + W + 8, rowY(SCENE[2], 0)],
+    manyAt: [SCENE[3].x + W, rowY(SCENE[3], 2)],
+    manyDir: -1,
+  },
+];
+
+function SceneTableCard({ t, delay }: { t: SceneTable; delay: number }) {
+  const h = tableH(t);
+  return (
+    <motion.g
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay }}
+    >
+      <rect
+        x={t.x}
+        y={t.y}
+        width={W}
+        height={h}
+        rx={10}
+        className="fill-white stroke-gray-200 dark:fill-neutral-900 dark:stroke-neutral-700"
+        style={{ filter: "drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.06)) drop-shadow(0 6px 16px rgb(0 0 0 / 0.07))" }}
+      />
+      <rect x={t.x + 12} y={t.y + HEAD / 2 - 5.5} width={11} height={11} rx={3.2} fill={t.color} />
+      <text
+        x={t.x + 30}
+        y={t.y + HEAD / 2}
+        dominantBaseline="central"
+        fontSize={12.5}
+        fontWeight={600}
+        className="fill-charcoal-700 dark:fill-neutral-100"
+      >
+        {t.name}
+      </text>
+      <text
+        x={t.x + W - 12}
+        y={t.y + HEAD / 2}
+        dominantBaseline="central"
+        textAnchor="end"
+        fontSize={9.5}
+        fontWeight={500}
+        className="fill-gray-400 dark:fill-neutral-500"
+      >
+        {t.cols.length} cols
+      </text>
+      <line x1={t.x} x2={t.x + W} y1={t.y + HEAD} y2={t.y + HEAD} className="stroke-gray-200 dark:stroke-neutral-700" />
+      {t.cols.map((c, i) => {
+        const cy = rowY(t, i);
+        return (
+          <g key={c.name}>
+            {c.kind === "pk" && <KeyGlyph x={t.x + 12} y={cy - 6} color={t.color} />}
+            {c.kind === "fk" && <LinkGlyph x={t.x + 12} y={cy - 6} />}
+            {c.kind === "uq" && <UniqueGlyph x={t.x + 12} y={cy - 6} />}
+            <text
+              x={t.x + 30}
+              y={cy}
+              dominantBaseline="central"
+              fontSize={11.5}
+              fontWeight={c.kind === "pk" ? 600 : 400}
+              className="fill-charcoal-700 dark:fill-neutral-200"
+            >
+              {c.name}
+            </text>
+            <text
+              x={t.x + W - 12}
+              y={cy}
+              dominantBaseline="central"
+              textAnchor="end"
+              fontSize={10}
+              className="fill-gray-400 dark:fill-neutral-500"
+            >
+              {c.type}
+            </text>
+          </g>
+        );
+      })}
+    </motion.g>
+  );
+}
+
 export const SchemaDesignSkeleton = () => {
-  return (
-    <div className="mt-12 flex flex-col items-center">
-      <div className="relative">
-        <Card title="users" subtitle="#public" cta="id · PK" tone="default" />
-        <LeftSVG className="absolute top-12 -left-32" />
-        <RightSVG className="absolute top-12 -right-32" />
-        <CenterSVG className="absolute top-24 right-[107px]" />
-      </div>
+  const lineClass = "stroke-gray-400/80 dark:stroke-neutral-500";
 
-      <div className="mt-12 flex flex-row gap-4.5">
-        <Card
-          title="orders"
-          subtitle="#public"
-          cta="user_id · FK"
-          tone="danger"
-          delay={0.2}
-        />
-        <Card
-          title="order_items"
-          subtitle="#public"
-          cta="order_id · FK"
-          tone="default"
-          delay={0.4}
-        />
-        <Card
-          title="products"
-          subtitle="#public"
-          cta="sku · Unique"
-          tone="success"
-          delay={0.6}
-        />
-      </div>
+  return (
+    <div className="relative flex h-full w-full items-center justify-center">
+      <svg viewBox="0 0 640 330" className="-mt-8 h-full max-h-66 w-full max-w-128 font-sans" aria-hidden>
+        <style>{`@keyframes hiw-flow{to{stroke-dashoffset:-11}}.hiw-flow{stroke-dasharray:5 6;animation:hiw-flow 1s linear infinite}@media (prefers-reduced-motion:reduce){.hiw-flow{animation:none}}`}</style>
+
+        {LINKS.map((l, i) => (
+          <motion.g
+            key={i}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.7 + i * 0.15 }}
+          >
+            <path d={l.d} fill="none" strokeWidth={1.3} className={lineClass} />
+            {/* The first line is "hovered": lit in the accent with the flowing dash. */}
+            {i === 0 && <path d={l.d} fill="none" stroke={INDIGO} strokeWidth={1.8} className="hiw-flow" />}
+            {/* One end: a bar. Many end: a crow's foot on the foreign key. */}
+            <line
+              x1={l.oneAt[0]}
+              x2={l.oneAt[0]}
+              y1={l.oneAt[1] - 5}
+              y2={l.oneAt[1] + 5}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              className={i === 0 ? undefined : lineClass}
+              stroke={i === 0 ? INDIGO : undefined}
+            />
+            <path
+              d={`M${l.manyAt[0]} ${l.manyAt[1] - 5}L${l.manyAt[0] - l.manyDir * 9} ${l.manyAt[1]}L${l.manyAt[0]} ${l.manyAt[1] + 5}`}
+              fill="none"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={i === 0 ? undefined : lineClass}
+              stroke={i === 0 ? INDIGO : undefined}
+            />
+          </motion.g>
+        ))}
+
+        {SCENE.map((t, i) => (
+          <SceneTableCard key={t.name} t={t} delay={0.1 + i * 0.12} />
+        ))}
+
+        {/* The hovered relationship's two rows, highlighted like on the canvas. */}
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.1, duration: 0.4 }}>
+          <rect x={SCENE[0].x + 5} y={rowY(SCENE[0], 0) - 10} width={W - 10} height={20} rx={6} fill={INDIGO} fillOpacity={0.12} />
+          <rect x={SCENE[1].x + 5} y={rowY(SCENE[1], 1) - 10} width={W - 10} height={20} rx={6} fill={INDIGO} fillOpacity={0.12} />
+        </motion.g>
+      </svg>
+
+      {/* The floating canvas toolbar */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.5 }}
+        className="absolute bottom-7 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-[14px] border border-gray-200 bg-white/90 p-1 text-[11.5px] font-medium text-charcoal-700 shadow-lg backdrop-blur dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-100"
+      >
+        {[
+          { label: "Table", icon: TableIcon, color: "text-indigo-500" },
+          { label: "Note", icon: StickyNote, color: "text-gray-400 dark:text-neutral-500" },
+          { label: "Area", icon: Square, color: "text-gray-400 dark:text-neutral-500" },
+        ].map(({ label, icon: Icon, color }, i) => (
+          <span
+            key={label}
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-[9px] px-2.5",
+              i === 0 && "bg-gray-100 dark:bg-neutral-800"
+            )}
+          >
+            <Icon className={cn("size-3.5", color)} />
+            {label}
+          </span>
+        ))}
+        <span className="mx-1 h-4 w-px bg-gray-200 dark:bg-neutral-700" />
+        <span className="flex items-center text-gray-400 dark:text-neutral-500">
+          <Minus className="mx-1.5 size-3.5" />
+          <span className="w-9 text-center text-charcoal-700 tabular-nums dark:text-neutral-100">100%</span>
+          <Plus className="mx-1.5 size-3.5" />
+          <Maximize className="mx-1.5 size-3.5" />
+        </span>
+      </motion.div>
     </div>
   );
 };
 
-// Tab 2 — Generate Documentation Instantly: sidebar of tables + a rendered docs page for one table
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tab 2 — Generate documentation instantly
+───────────────────────────────────────────────────────────────────────────── */
+
 export const DocsPreviewSkeleton = () => {
-  const columns = [
-    { name: "id", type: "integer", constraint: "PK" },
-    { name: "user_id", type: "uuid", constraint: "FK → users.id" },
-    { name: "status", type: "varchar", constraint: "not null" },
-    { name: "created_at", type: "timestamp", constraint: "default now()" },
+  const tables = [
+    { name: "users", color: INDIGO },
+    { name: "orders", color: AMBER },
+    { name: "products", color: EMERALD },
+    { name: "order_items", color: PINK },
   ];
 
-  const tables = ["users", "orders", "products", "order_items"];
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  if (!mounted) return null;
+  const columns: { name: string; type: string; badge?: "PK" | "FK"; note: string }[] = [
+    { name: "id", type: "int", badge: "PK", note: "Auto increment" },
+    { name: "user_id", type: "int", badge: "FK", note: "→ users.id" },
+    { name: "status", type: "varchar", note: "Not null" },
+    { name: "created_at", type: "timestamp", note: "Default now()" },
+  ];
 
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -112,88 +351,116 @@ export const DocsPreviewSkeleton = () => {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="relative flex h-72 w-104 flex-col overflow-hidden rounded-2xl border-t border-gray-300 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
+        className="relative flex h-80 w-108 flex-col overflow-hidden rounded-[14px] border border-gray-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900"
       >
-        <div className="absolute inset-x-0 -top-1.5 mx-auto size-3 rounded-full border-2 border-gray-300 bg-white dark:border-neutral-700 dark:bg-neutral-900" />
-
-        {/* Doc site top bar */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-neutral-700">
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <DatabaseIcon className="h-3.5 w-3.5 text-gray-400 dark:text-neutral-500" />
-            <span className="text-gray-400 dark:text-neutral-500">Docs</span>
-            <span className="text-gray-300 dark:text-neutral-600">/</span>
-            <span className="text-charcoal-700 font-medium dark:text-neutral-100">
-              orders
-            </span>
-          </div>
-          <div className="flex items-center gap-1 rounded-md border border-gray-200 px-1.5 py-1 text-gray-500 dark:border-neutral-600 dark:text-neutral-400">
-            <DownloadIcon className="h-3 w-3" />
-          </div>
+        {/* Docs top bar */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3.5 py-2.5 dark:border-neutral-700">
+          <span className="grid size-6 place-items-center rounded-md bg-indigo-500/12 text-indigo-500">
+            <BookOpen className="size-3.5" />
+          </span>
+          <span className="text-[11.5px] text-gray-400 dark:text-neutral-500">Docs</span>
+          <span className="text-[11.5px] text-gray-300 dark:text-neutral-600">/</span>
+          <span className="text-[11.5px] font-medium text-charcoal-700 dark:text-neutral-100">orders</span>
+          <span className="ml-auto flex h-6 items-center gap-1.5 rounded-md border border-gray-200 px-2 text-[10.5px] text-gray-400 dark:border-neutral-700 dark:text-neutral-500">
+            <Search className="size-3" />
+            Search
+          </span>
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <div className="flex w-30 shrink-0 flex-col gap-0.5 border-r border-gray-200 p-3 dark:border-neutral-700">
-            <span className="text-charcoal-700 mb-1.5 text-[10px] font-medium tracking-wide uppercase dark:text-neutral-400">
-              Tables (4)
+          {/* Sidebar: tables in their canvas colours */}
+          <div className="flex w-32 shrink-0 flex-col gap-0.5 border-r border-gray-200 bg-gray-50/60 p-2 dark:border-neutral-700 dark:bg-neutral-800/30">
+            <span className="px-1.5 pt-1 pb-1.5 text-[9.5px] font-semibold tracking-wider text-gray-400 uppercase dark:text-neutral-500">
+              Tables · 4
             </span>
-            {tables.map((table, index) => (
+            {tables.map((t, index) => (
               <motion.div
-                key={table}
+                key={t.name}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.2 + index * 0.1 }}
                 className={cn(
-                  "relative flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px]",
-                  table === "orders"
-                    ? "bg-brand/10 text-brand font-medium"
+                  "flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[11px]",
+                  t.name === "orders"
+                    ? "bg-white font-medium text-charcoal-700 shadow-sm ring-1 ring-gray-200 dark:bg-neutral-900 dark:text-neutral-100 dark:ring-neutral-700"
                     : "text-gray-500 dark:text-neutral-400"
                 )}
               >
-                {table === "orders" && (
-                  <span className="bg-brand absolute top-1/2 left-0 h-3.5 w-0.5 -translate-y-1/2 rounded-full" />
-                )}
-                <DatabaseIcon className="h-3 w-3 shrink-0" />
-                <span className="truncate">{table}</span>
+                <span className="size-2 shrink-0 rounded-[3px]" style={{ background: t.color }} />
+                <span className="truncate">{t.name}</span>
               </motion.div>
             ))}
           </div>
 
+          {/* Page */}
           <div className="flex flex-1 flex-col overflow-hidden p-4">
-            <span className="text-charcoal-700 text-base font-semibold dark:text-neutral-100">
-              orders
-            </span>
-            <p className="mt-1 text-[11px] text-gray-500 dark:text-neutral-400">
-              Orders placed by customers, linked to users and products.
+            <div className="flex items-center gap-2">
+              <span className="size-3 rounded-[4px]" style={{ background: AMBER }} />
+              <span className="text-[15px] font-semibold text-charcoal-700 dark:text-neutral-100">orders</span>
+              <span className="ml-auto rounded-md bg-gray-100 px-1.5 py-0.5 text-[9.5px] font-medium text-gray-500 dark:bg-neutral-800 dark:text-neutral-400">
+                4 columns
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-neutral-400">
+              Orders placed by customers, linked to users and their items.
             </p>
 
-            <div className="mt-3 grid grid-cols-[3.5rem_3.5rem_1fr] gap-x-2 text-[9px] font-medium tracking-wide text-gray-400 uppercase dark:text-neutral-500">
-              <span>Column</span>
-              <span>Type</span>
-              <span>Constraint</span>
-            </div>
-            <DivideX className="mt-1.5" />
-            <div className="flex flex-col">
+            <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 dark:border-neutral-700">
               {columns.map((col, index) => (
                 <motion.div
                   key={col.name}
                   initial={{ opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: 0.4 + index * 0.15 }}
+                  transition={{ duration: 0.3, delay: 0.4 + index * 0.12 }}
                   className={cn(
-                    "grid grid-cols-[3.5rem_3.5rem_1fr] items-center gap-x-2 rounded-sm px-1 py-1.5 text-[11px]",
-                    index % 2 === 1 && "bg-gray-50 dark:bg-neutral-800/50"
+                    "flex items-center gap-2 px-2.5 py-1.5 text-[11px]",
+                    index > 0 && "border-t border-gray-100 dark:border-neutral-800"
                   )}
                 >
-                  <span className="text-charcoal-700 truncate font-mono dark:text-neutral-200">
+                  <span
+                    className={cn(
+                      "w-6 shrink-0 rounded-[5px] py-px text-center text-[8.5px] font-semibold",
+                      col.badge === "PK" && "bg-amber-500/15 text-amber-600",
+                      col.badge === "FK" && "bg-gray-100 text-gray-500 dark:bg-neutral-800 dark:text-neutral-400"
+                    )}
+                  >
+                    {col.badge}
+                  </span>
+                  <span
+                    className={cn(
+                      "w-18 truncate text-charcoal-700 dark:text-neutral-200",
+                      col.badge === "PK" && "font-semibold"
+                    )}
+                  >
                     {col.name}
                   </span>
-                  <span className="truncate font-mono text-gray-500 dark:text-neutral-500">
-                    {col.type}
-                  </span>
-                  <span className="truncate font-mono text-blue-500">
-                    {col.constraint}
+                  <span className="w-15 truncate text-gray-400 dark:text-neutral-500">{col.type}</span>
+                  <span
+                    className={cn(
+                      "ml-auto truncate",
+                      col.badge === "FK" ? "font-medium text-indigo-500" : "text-gray-400 dark:text-neutral-500"
+                    )}
+                  >
+                    {col.note}
                   </span>
                 </motion.div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+              <span className="text-gray-400 dark:text-neutral-500">Related</span>
+              {[
+                { dir: "→", name: "users", color: INDIGO },
+                { dir: "←", name: "order_items", color: PINK },
+              ].map((r) => (
+                <span
+                  key={r.name}
+                  className="flex items-center gap-1 rounded-md bg-gray-100 px-1.5 py-0.5 text-charcoal-700 dark:bg-neutral-800 dark:text-neutral-200"
+                >
+                  <span className="text-gray-400">{r.dir}</span>
+                  <span className="size-1.5 rounded-[2px]" style={{ background: r.color }} />
+                  {r.name}
+                </span>
               ))}
             </div>
           </div>
@@ -203,69 +470,73 @@ export const DocsPreviewSkeleton = () => {
   );
 };
 
-// Tab 3 — Sandbox & Validate: an auto-scrolling feed of schema-linter issues
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tab 3 — Catch issues before you ship: the Issues tab, scrolling
+───────────────────────────────────────────────────────────────────────────── */
+
+type Severity = "error" | "warning" | "info";
+
+const SEVERITY = {
+  error: { icon: AlertCircle, text: "text-red-500", label: "Error" },
+  warning: { icon: AlertTriangle, text: "text-amber-500", label: "Warning" },
+  info: { icon: Info, text: "text-sky-500", label: "Suggestion" },
+} as const;
+
 export const IssuesFeedSkeleton = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState(0);
 
   const issues = useMemo(
     () =>
       [
         {
-          severity: "error" as const,
+          table: "customers",
+          color: EMERALD,
+          severity: "error" as Severity,
           message: "Duplicate table name",
-          location: "customers ~ clients",
+          hint: "Also defined as clients. Rename one of them.",
         },
         {
-          severity: "warning" as const,
-          message: "Missing primary key",
-          location: "audit_logs",
+          table: "audit_logs",
+          color: "#8b5cf6",
+          severity: "warning" as Severity,
+          message: "No primary key",
+          hint: "Add an id column so rows can be referenced.",
         },
         {
-          severity: "error" as const,
-          message: "Reserved keyword used",
-          location: "order",
+          table: "order",
+          color: AMBER,
+          severity: "error" as Severity,
+          message: "Reserved word as a table name",
+          hint: "Most databases need it quoted. Try orders.",
         },
         {
-          severity: "warning" as const,
-          message: "Type mismatch on relationship",
-          location: "orders.user_id → users.id",
+          table: "orders",
+          color: AMBER,
+          severity: "warning" as Severity,
+          message: "Type mismatch on a relationship",
+          hint: "orders.user_id is varchar, users.id is int.",
         },
         {
-          severity: "warning" as const,
-          message: "Orphaned table",
-          location: "temp_migrations",
+          table: "temp_migrations",
+          color: "#0ea5e9",
+          severity: "info" as Severity,
+          message: "Table has no relationships",
+          hint: "Nothing points to it and it points nowhere.",
         },
         {
-          severity: "error" as const,
-          message: "Missing primary key",
-          location: "sessions",
+          table: "sessions",
+          color: PINK,
+          severity: "error" as Severity,
+          message: "No primary key",
+          hint: "Add an id column so rows can be referenced.",
         },
       ] as const,
     []
   );
 
-  const extendedIssues = useMemo(
-    () => [...issues, ...issues, ...issues],
-    [issues]
-  );
+  const extendedIssues = useMemo(() => [...issues, ...issues, ...issues], [issues]);
 
-  const cardHeight = 56;
-  const gap = 4;
-  const itemHeight = cardHeight + gap;
-
-  useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? 0;
-      setContainerHeight(height);
-    });
-
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
+  const itemHeight = 84 + 8;
 
   const y = useMotionValue(0);
   const totalHeight = extendedIssues.length * itemHeight;
@@ -315,75 +586,51 @@ export const IssuesFeedSkeleton = () => {
       className="relative h-full w-full overflow-hidden"
       ref={containerRef}
       style={{
-        maskImage:
-          "linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)",
-        WebkitMaskImage:
-          "linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)",
+        maskImage: "linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)",
+        WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%)",
       }}
     >
-      <motion.div
-        className="absolute left-1/2 flex w-full -translate-x-1/2 flex-col items-center"
-        style={{ y }}
-      >
+      <motion.div className="absolute left-1/2 flex w-full -translate-x-1/2 flex-col items-center gap-2" style={{ y }}>
         {extendedIssues.map((issue, index) => (
-          <div
-            key={`${index}-${issue.message}-${issue.location}`}
-            className="mx-auto mt-1 w-full max-w-sm shrink-0 rounded-xl border border-gray-200 bg-white shadow-md dark:border-neutral-700 dark:bg-neutral-900"
-          >
-            <IssueCard {...issue} />
-          </div>
+          <IssueCard key={`${index}-${issue.message}-${issue.table}`} {...issue} />
         ))}
       </motion.div>
     </div>
   );
 };
 
+/** One Issues-tab group card: the table's header in its canvas colour, then the issue. */
 const IssueCard = ({
+  table,
+  color,
   severity,
   message,
-  location,
+  hint,
 }: {
-  severity: "error" | "warning";
+  table: string;
+  color: string;
+  severity: Severity;
   message: string;
-  location: string;
+  hint: string;
 }) => {
+  const s = SEVERITY[severity];
+  const Icon = s.icon;
   return (
-    <div className="mx-auto flex w-full max-w-sm items-center gap-2 p-3">
-      <div
-        className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-          severity === "error" ? "bg-red-200" : "bg-yellow-200"
-        )}
-      >
-        {severity === "error" ? (
-          <CloseIcon
-            className={cn(
-              "h-3.5 w-3.5",
-              severity === "error" && "text-red-500"
-            )}
-          />
-        ) : (
-          <AlertTriangleIcon className="h-3.5 w-3.5 text-yellow-600" />
-        )}
-      </div>
-      <div className="flex min-w-0 flex-col">
-        <span className="text-charcoal-700 truncate text-xs font-medium sm:text-sm dark:text-neutral-200">
-          {message}
-        </span>
-        <span className="truncate font-mono text-[10px] text-gray-500 dark:text-neutral-500">
-          {location}
+    <div className="h-21 w-full max-w-sm shrink-0 overflow-hidden rounded-[10px] border border-gray-200 bg-white shadow-md dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="flex h-8 items-center gap-2 border-b border-gray-200 px-3 dark:border-neutral-700">
+        <span className="size-2.5 rounded-[3px]" style={{ background: color }} />
+        <span className="truncate text-[12px] font-semibold text-charcoal-700 dark:text-neutral-100">{table}</span>
+        <span className={cn("ml-auto flex items-center gap-1 text-[10.5px] font-medium", s.text)}>
+          <Icon className="size-3" />1
         </span>
       </div>
-      <span
-        className={cn(
-          "ml-auto shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px]",
-          severity === "error"
-            ? "border-red-400 bg-red-50 text-red-500 dark:bg-red-50/10"
-            : "border-yellow-400 bg-yellow-50 text-yellow-600 dark:bg-yellow-50/10"
-        )}
-      >
-        {severity === "error" ? "Error" : "Warning"}
-      </span>
+      <div className="flex items-start gap-2.5 px-3 py-2">
+        <Icon className={cn("mt-0.5 size-3.5 shrink-0", s.text)} aria-label={s.label} />
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-[12.5px] text-charcoal-700 dark:text-neutral-200">{message}</span>
+          <span className="truncate text-[11px] text-gray-500 dark:text-neutral-400">{hint}</span>
+        </div>
+      </div>
     </div>
   );
 };
