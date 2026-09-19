@@ -1484,10 +1484,15 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                   key={rel.id}
                   onPointerEnter={() => setHoveredRelationshipId(rel.id)}
                   onPointerLeave={() => setHoveredRelationshipId(null)}
-                  onClick={(e) => {
+                  // Select on pointerdown, not click: letting pointerdown bubble
+                  // starts a marquee on the world layer, which captures the
+                  // pointer and retargets the click away from this line.
+                  // Pan gestures (middle button, Space+drag) still bubble.
+                  onPointerDown={(e) => {
+                    if (e.button !== 0 || spaceDown) return;
                     e.stopPropagation();
                     setSelectedRelationshipId(rel.id);
-                    openTab("relationships", "left");
+                    if (!readOnly) openTab("relationships", "left");
                   }}
                   className={cn("cursor-pointer", styles.rel, lit && styles.relLit, isNew && styles.relNew)}
                   data-motion={canvasStyle.motion}
