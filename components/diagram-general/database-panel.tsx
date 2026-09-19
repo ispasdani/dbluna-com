@@ -1,21 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Database,
-  Plus,
-} from "lucide-react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
+import { ChevronDown, Plus } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  useCanvasStore,
-  type CanvasProject,
-  type Table,
-} from "@/store/useCanvasStore";
+import { useCanvasStore, type CanvasProject, type Table } from "@/store/useCanvasStore";
+import { useDockStore } from "@/store/useDockStore";
+import { usePanelStyle } from "@/store/usePanelStyleStore";
 import { SQL_DIALECTS } from "@/lib/generator/sql-generator";
 import { tablesStructureSignature } from "@/lib/enum-usage";
 import {
@@ -29,56 +21,38 @@ import {
   validateSchemaName,
   type SchemaEditPlan,
 } from "@/lib/schema-namespace";
+import { cn } from "@/lib/utils";
 import { CommittedInput, useCommitOnUnmount } from "./committed-input";
+import { DatabaseGlyph, SchemaGlyph } from "./panel-glyphs";
+import styles from "./database-panel.module.scss";
 
-// ─── Collapsible section shell ───────────────────────────────────────────────
-// Open/closed is local state only — the dock store tracks tabs, not what's
-// expanded inside one.
+const ACCENT = { "--tc": "var(--primary)" } as CSSProperties;
+/** Tables listed on a closed schema card before the rest collapse into "+N". */
+const PREVIEW_TABLES = 5;
 
-interface SectionProps {
-  title: string;
-  description?: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}
+const onKey = (e: React.KeyboardEvent, fn: () => void) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    fn();
+  }
+};
 
-function Section({ title, description, defaultOpen = true, children }: SectionProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    // `bg-card` rather than no background: the dock ground is a faint grey
-    // (--dock-bg), so an unpainted section blended into it instead of reading
-    // as a distinct card. Same surface token TablesPanel gives its rows, so it
-    // is white in the light palettes and the dark surface in Tokyo Night.
-    <div className="bg-card border border-border">
-      {/* --muted and --accent resolve to the same value in the light palettes,
-          so the previous `bg-muted/50` was that colour at half strength and
-          barely registered against the card. `bg-accent` is what the rest of
-          the app uses for an interactive row (dropdown items, issue rows). */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className="w-full flex items-center gap-2 p-3 text-left select-none hover:bg-accent transition-colors"
-      >
-        {isOpen ? (
-          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-        )}
-        <div className="min-w-0 flex-1">
-          <span className="font-medium text-sm text-foreground">{title}</span>
-          {description && (
-            <p className="text-xs text-muted-foreground truncate">{description}</p>
-          )}
-        </div>
-      </button>
-
-      {isOpen && <div className="px-3 pb-3 pt-0">{children}</div>}
-    </div>
+/** Table colours keyed by id, subscribed as a string so a canvas drag doesn't re-render. */
+function useTableColors(): Map<string, string> {
+  const colorKey = useCanvasStore((s) => s.tables.map((t) => `${t.id}=${t.color}`).join("|"));
+  return useMemo(
+    () =>
+      new Map(
+        colorKey
+          .split("|")
+          .filter(Boolean)
+          .map((entry) => entry.split("=") as [string, string])
+      ),
+    [colorKey]
   );
 }
 
-// ─── Project section ─────────────────────────────────────────────────────────
+// ─── Project card ────────────────────────────────────────────────────────────
 
 interface ProjectDraft {
   name: string;
@@ -113,7 +87,7 @@ const sameProject = (a: CanvasProject | null, b: CanvasProject | null) =>
   (a?.databaseType ?? "") === (b?.databaseType ?? "") &&
   (a?.note ?? "") === (b?.note ?? "");
 
-function ProjectSection() {
+function ProjectFields() {
   const project = useCanvasStore((s) => s.project);
   const setProject = useCanvasStore((s) => s.setProject);
 
@@ -154,66 +128,126 @@ function ProjectSection() {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <label htmlFor="schema-project-name" className="text-xs font-medium text-muted-foreground">
-          Name
-        </label>
+    <>
+      <label className={styles.field}>
+        Name
         <Input
-          id="schema-project-name"
           value={draft.name}
           onChange={(e) => update({ name: e.target.value })}
           onBlur={handleBlur}
           placeholder="Database Documentation"
-          className="h-8 text-sm"
+          className={styles.input}
         />
-      </div>
+      </label>
 
-      <div className="space-y-1">
-        <label htmlFor="schema-project-db-type" className="text-xs font-medium text-muted-foreground">
-          Database type
-        </label>
+      <label className={styles.field}>
+        Database type
         {/* Free text with suggestions, not a fixed <select>: DBML's
             `database_type` is an arbitrary string, and narrowing it here would
             silently rewrite a value the parser round-trips fine. */}
         <Input
-          id="schema-project-db-type"
           list="schema-project-db-type-options"
           value={draft.databaseType}
           onChange={(e) => update({ databaseType: e.target.value })}
           onBlur={handleBlur}
           placeholder="PostgreSQL"
-          className="h-8 text-sm"
+          className={styles.input}
         />
         <datalist id="schema-project-db-type-options">
           {SQL_DIALECTS.map((d) => (
             <option key={d.value} value={d.label} />
           ))}
         </datalist>
-      </div>
+      </label>
 
-      <div className="space-y-1">
-        <label htmlFor="schema-project-note" className="text-xs font-medium text-muted-foreground">
-          Note
-        </label>
+      <label className={styles.field}>
+        Note
         <Textarea
-          id="schema-project-note"
           value={draft.note}
           onChange={(e) => update({ note: e.target.value })}
           onBlur={handleBlur}
           placeholder="Markdown overview shown at the top of your docs."
-          className="min-h-20 text-sm"
+          className={styles.noteInput}
         />
-        <p className="text-[11px] text-muted-foreground">
-          Markdown. Appears as the overview in Docs mode and as the{" "}
-          <code className="font-mono">Project</code> block in the generated DBML.
-        </p>
+        <span className={styles.hint}>
+          Markdown. Appears as the overview in Docs mode and as the Project block in the generated DBML.
+        </span>
+      </label>
+    </>
+  );
+}
+
+function ProjectCard() {
+  const project = useCanvasStore((s) => s.project);
+  // Numbers only, so a canvas drag never re-renders this card.
+  const tableCount = useCanvasStore((s) => s.tables.length);
+  const relationshipCount = useCanvasStore((s) => s.relationships.length);
+  const enumCount = useCanvasStore((s) => s.enums.length);
+  const schemaCount = useCanvasStore(
+    (s) =>
+      new Set(
+        s.tables.map((t) => splitSchemaName(t.name).schema).filter((schema): schema is string => schema !== null)
+      ).size
+  );
+  const [isOpen, setIsOpen] = useState(false);
+  const toggle = () => setIsOpen((v) => !v);
+
+  const name = project?.name?.trim();
+  const summary = [project?.databaseType, `${tableCount} table${tableCount === 1 ? "" : "s"}`]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className={cn(styles.tb, styles.card, !isOpen && styles.closed, isOpen && styles.cardOpen)} style={ACCENT}>
+      <div
+        className={styles.tbHead}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onClick={toggle}
+        onKeyDown={(e) => onKey(e, toggle)}
+      >
+        <span className={styles.chev}>
+          <ChevronDown className="w-3 h-3" />
+        </span>
+        <span className={styles.mk}>
+          <DatabaseGlyph />
+        </span>
+        <span className={cn(styles.tname, !name && styles.untitled)}>{name || "Untitled database"}</span>
+        <span className={styles.meta}>{project?.databaseType || "Project"}</span>
       </div>
+
+      {!isOpen && (
+        <div className={styles.closedBody} onClick={toggle}>
+          <span className={styles.summaryLine}>{summary}</span>
+          {project?.note && <p className={styles.notePreview}>{project.note}</p>}
+        </div>
+      )}
+
+      {isOpen && (
+        <div className={styles.settings}>
+          <div className={styles.stats}>
+            <div>
+              <b>{tableCount}</b>tables
+            </div>
+            <div>
+              <b>{relationshipCount}</b>relations
+            </div>
+            <div>
+              <b>{schemaCount}</b>schemas
+            </div>
+            <div>
+              <b>{enumCount}</b>enums
+            </div>
+          </div>
+          <ProjectFields />
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Schemas section ─────────────────────────────────────────────────────────
+// ─── Schemas ─────────────────────────────────────────────────────────────────
 
 /** Unique-ifies a proposed name against the existing ones (case-insensitive). */
 function uniqueName(base: string, taken: string[]): string {
@@ -230,16 +264,19 @@ function uniqueName(base: string, taken: string[]): string {
 // table is actually moved into it. Bucket key/label helpers come from
 // lib/schema-namespace so the Tables tab buckets rows identically.
 
-function SchemasSection() {
+function Schemas() {
   const tables = useCanvasStore((s) => s.tables);
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
+  const openTab = useDockStore((s) => s.openTab);
+  const colors = useTableColors();
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [draftSchemas, setDraftSchemas] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Drag-path guard, same as the other sections: group by prefix only when the
-  // structure actually changed. See release-1-0/schema-tab-plan.md §6.
+  // Drag-path guard: group by prefix only when the structure actually changed.
+  // See release-1-0/schema-tab-plan.md §6. Colours come from `colors`, since
+  // the signature doesn't cover them.
   const signature = useMemo(() => tablesStructureSignature(tables), [tables]);
   const groups = useMemo(
     () => groupTablesBySchema(tables),
@@ -295,199 +332,184 @@ function SchemasSection() {
     setError(null);
   };
 
-  const renderTableRow = (t: Table) => {
-    const { schema, table: bare } = splitSchemaName(t.name);
-    return (
-      <div key={t.id} className="flex items-center gap-1 px-2 py-1.5 text-xs">
-        <button
-          type="button"
-          onClick={() => setSelectedTableIds([t.id])}
-          className="font-mono truncate flex-1 text-left hover:underline"
-          title={`Select ${t.name}`}
-        >
-          {bare}
-        </button>
-        <select
-          value={schema ?? ""}
-          onChange={(e) => handleMove(t.id, e.target.value || null)}
-          className="h-6 text-[11px] bg-popover text-popover-foreground border border-border px-1 max-w-32"
-          aria-label={`Schema for ${t.name}`}
-        >
-          {/* Native selects inherit the OS popup background unless the options
-              carry one too, which reads as a stray dark strip in light mode.
-              Same treatment code-editor.tsx gives its language picker. */}
-          <option value="" className="bg-popover text-popover-foreground">
-            (no schema)
-          </option>
-          {allSchemaNames.map((name) => (
-            <option key={name} value={name} className="bg-popover text-popover-foreground">
-              {name}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
+  const showTable = (tableId: string) => {
+    openTab("tables");
+    setSelectedTableIds([tableId]);
   };
+
+  const tint = (t: Table) => ({ "--tc": colors.get(t.id) ?? t.color }) as CSSProperties;
 
   const sections: { schema: string | null; tables: Table[]; isDraft: boolean }[] = [
     ...groups.map((g) => ({ ...g, isDraft: false })),
     ...emptyDrafts.map((name) => ({ schema: name, tables: [] as Table[], isDraft: true })),
   ];
 
+  const renderSchema = ({ schema, tables: schemaTables, isDraft }: (typeof sections)[number]) => {
+    const key = schemaKey(schema);
+    const isOpen = expandedKey === key;
+    const isReserved = schema?.toLowerCase() === DEFAULT_SCHEMA;
+    const toggle = () => setExpandedKey(isOpen ? null : key);
+
+    return (
+      <div key={key} className={cn(styles.tb, styles.card, !isOpen && styles.closed, isOpen && styles.cardOpen)} style={ACCENT}>
+        <div
+          className={styles.tbHead}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isOpen}
+          onClick={toggle}
+          onKeyDown={(e) => onKey(e, toggle)}
+        >
+          <span className={styles.chev}>
+            <ChevronDown className="w-3 h-3" />
+          </span>
+          <span className={styles.mk}>
+            <SchemaGlyph />
+          </span>
+          <span className={cn(styles.tname, schema === null && styles.untitled)}>{schemaLabel(schema)}</span>
+          {isReserved && (
+            <span className={styles.tag} title="DBML drops a `public.` prefix on import, so it won't survive a round-trip.">
+              reserved
+            </span>
+          )}
+          <span className={styles.meta}>
+            {isDraft ? "empty" : `${schemaTables.length} table${schemaTables.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+
+        {/* Closed cards preview the tables inside. */}
+        {!isOpen && schemaTables.length > 0 && (
+          <div className={styles.closedBody} onClick={toggle}>
+            <div className={styles.tableChips}>
+              {schemaTables.slice(0, PREVIEW_TABLES).map((t) => (
+                <span key={t.id} className={styles.chip} style={tint(t)} title={t.name}>
+                  <i />
+                  <span className={styles.tname}>{splitSchemaName(t.name).table}</span>
+                </span>
+              ))}
+              {schemaTables.length > PREVIEW_TABLES && (
+                <span className={styles.more}>+{schemaTables.length - PREVIEW_TABLES}</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isOpen && (
+          <>
+            <div className={styles.tbBody}>
+              {schemaTables.length === 0 ? (
+                <p className={styles.emptyRows}>No tables yet. Move one here from another schema.</p>
+              ) : (
+                schemaTables.map((t) => {
+                  const bare = splitSchemaName(t.name).table;
+                  return (
+                    <div key={t.id} className={cn(styles.row, styles.tableRow)} style={tint(t)}>
+                      <i />
+                      <button
+                        type="button"
+                        className={styles.tableLink}
+                        title={`Open ${t.name} in the Tables tab`}
+                        onClick={() => showTable(t.id)}
+                      >
+                        {bare}
+                      </button>
+                      <select
+                        className={styles.moveSelect}
+                        value={splitSchemaName(t.name).schema ?? ""}
+                        onChange={(e) => handleMove(t.id, e.target.value || null)}
+                        aria-label={`Schema for ${t.name}`}
+                        title="Move to another schema"
+                      >
+                        <option value="">No schema</option>
+                        {allSchemaNames.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {schema !== null && (
+              <div className={styles.settings}>
+                <label className={styles.field}>
+                  Schema name
+                  <CommittedInput
+                    value={schema}
+                    onCommit={(next) => {
+                      if (isDraft) {
+                        const invalid = validateSchemaName(next);
+                        if (invalid) {
+                          setError(invalid);
+                          return;
+                        }
+                        setError(null);
+                        setDraftSchemas((prev) => prev.map((d) => (d === schema ? next.trim() : d)));
+                        setExpandedKey(schemaKey(next.trim()));
+                        return;
+                      }
+                      handleRename(schema, next);
+                    }}
+                    className={styles.input}
+                  />
+                  <span className={styles.hint}>
+                    Renaming rewrites every table in this schema and any table group that references them.
+                  </span>
+                </label>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Derived from the <code className="font-mono">schema.</code> prefix on table names.
-        </p>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1 px-2" onClick={addSchema}>
-          <Plus className="w-3 h-3" /> Schema
-        </Button>
+    <>
+      <div className={styles.sectionHead}>
+        Schemas
+        <span className={styles.sectionCount}>{allSchemaNames.length}</span>
+        <button type="button" className={styles.ghostBtn} onClick={addSchema}>
+          <Plus className="w-3 h-3" />
+          Add schema
+        </button>
       </div>
 
-      {error && (
-        <p className="text-xs text-destructive border border-destructive/30 px-2 py-1.5">
-          {error}
-        </p>
-      )}
+      {error && <p className={styles.error}>{error}</p>}
 
       {sections.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-2">
-          No tables yet. Add one, then give it a schema here.
-        </p>
+        <p className={styles.empty}>No tables yet. Add one, then give it a schema here.</p>
       ) : (
-        <div className="space-y-2">
-          {sections.map(({ schema, tables: schemaTables, isDraft }) => {
-            const key = schemaKey(schema);
-            const isExpanded = expandedKey === key;
-            const isReserved = schema?.toLowerCase() === DEFAULT_SCHEMA;
-
-            return (
-              <div key={key} className="border border-border">
-                <button
-                  type="button"
-                  onClick={() => setExpandedKey(isExpanded ? null : key)}
-                  className="w-full flex items-center gap-2 p-2 text-left select-none"
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span className="font-mono text-sm truncate flex-1">
-                    {schemaLabel(schema)}
-                  </span>
-                  {isReserved && (
-                    <span
-                      className="text-[11px] text-yellow-600 dark:text-yellow-500 shrink-0"
-                      title="DBML drops a `public.` prefix on import, so it won't survive a round-trip."
-                    >
-                      reserved
-                    </span>
-                  )}
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {isDraft ? "empty" : `${schemaTables.length}`}
-                  </span>
-                </button>
-
-                {isExpanded && (
-                  <div className="px-2 pb-2 space-y-2">
-                    {schema !== null && (
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Schema name
-                        </label>
-                        <CommittedInput
-                          value={schema}
-                          onCommit={(next) => {
-                            if (isDraft) {
-                              const invalid = validateSchemaName(next);
-                              if (invalid) {
-                                setError(invalid);
-                                return;
-                              }
-                              setError(null);
-                              setDraftSchemas((prev) =>
-                                prev.map((d) => (d === schema ? next.trim() : d))
-                              );
-                              setExpandedKey(schemaKey(next.trim()));
-                              return;
-                            }
-                            handleRename(schema, next);
-                          }}
-                          className="h-8 text-sm font-mono"
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Renaming rewrites every table in this schema and any table group
-                          that references them.
-                        </p>
-                      </div>
-                    )}
-
-                    {schemaTables.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-1">
-                        No tables. Assign one from another schema&apos;s list.
-                      </p>
-                    ) : (
-                      <div className="border border-border divide-y divide-border max-h-56 overflow-y-auto">
-                        {schemaTables.map(renderTableRow)}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        sections.map(renderSchema)
       )}
-    </div>
+    </>
   );
 }
 
 // ─── Panel ───────────────────────────────────────────────────────────────────
 
 export function DatabasePanel() {
-  const project = useCanvasStore((s) => s.project);
-  // Counts only distinct named prefixes — cheap enough to run on any store
-  // change, and returning a number means a canvas drag never re-renders the
-  // header (the selector's result is unchanged).
-  const namedSchemaCount = useCanvasStore(
-    (s) =>
-      new Set(
-        s.tables
-          .map((t) => splitSchemaName(t.name).schema)
-          .filter((schema): schema is string => schema !== null)
-      ).size
-  );
-
-  const projectSummary =
-    [project?.name, project?.databaseType].filter(Boolean).join(" · ") || "Not set";
-  const schemaSummary =
-    namedSchemaCount === 0
-      ? "None — every table is unqualified"
-      : `${namedSchemaCount} schema${namedSchemaCount === 1 ? "" : "s"}`;
+  const { variant } = usePanelStyle("database");
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-muted-foreground" />
-          <h2 className="font-semibold text-lg">Database</h2>
+    <div className={styles.panel} data-v={variant}>
+      <div className={styles.header}>
+        <div className={styles.titleRow}>
+          <h3>Database</h3>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          This diagram is one database. It holds schemas, which hold the tables
-          you edit in the Tables tab.
+        <p className={styles.intro}>
+          This diagram is one database. It holds schemas, which hold the tables you edit in the Tables tab.
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0">
-        <Section title="Project" description={projectSummary}>
-          <ProjectSection />
-        </Section>
-
-        <Section title="Schemas" description={schemaSummary} defaultOpen={false}>
-          <SchemasSection />
-        </Section>
+      <div className={styles.body}>
+        <div className={styles.list}>
+          <ProjectCard />
+          <Schemas />
+        </div>
       </div>
     </div>
   );

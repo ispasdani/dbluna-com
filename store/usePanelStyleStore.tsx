@@ -10,7 +10,7 @@ import {
 } from "@/components/diagram-general/panel-style";
 
 /** Dock tabs that have their own panel style. */
-export type StyledPanel = "tables" | "relationships" | "notes" | "areas" | "enums" | "templates" | "issues";
+export type StyledPanel = "tables" | "relationships" | "notes" | "areas" | "enums" | "templates" | "issues" | "database";
 export const STYLED_PANELS: { id: StyledPanel; label: string }[] = [
   { id: "tables", label: "Tables" },
   { id: "relationships", label: "Relationships" },
@@ -19,6 +19,7 @@ export const STYLED_PANELS: { id: StyledPanel; label: string }[] = [
   { id: "enums", label: "Enums" },
   { id: "templates", label: "Templates" },
   { id: "issues", label: "Issues" },
+  { id: "database", label: "Database" },
 ];
 
 type PanelStyles = Record<StyledPanel, PanelStyleId>;
@@ -31,6 +32,7 @@ const DEFAULTS: PanelStyles = {
   enums: DEFAULT_PANEL_STYLE,
   templates: DEFAULT_PANEL_STYLE,
   issues: DEFAULT_PANEL_STYLE,
+  database: DEFAULT_PANEL_STYLE,
 };
 
 /**

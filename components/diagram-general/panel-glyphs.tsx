@@ -79,3 +79,22 @@ export function TemplateGlyph() {
     </svg>
   );
 }
+
+/** Stacked cylinder — the database itself. */
+export function DatabaseGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+      <ellipse cx={6} cy={2.8} rx={4.2} ry={1.6} />
+      <path d="M1.8 2.8v6.4c0 .9 1.9 1.6 4.2 1.6s4.2-.7 4.2-1.6V2.8M1.8 6c0 .9 1.9 1.6 4.2 1.6s4.2-.7 4.2-1.6" />
+    </svg>
+  );
+}
+
+/** Folder — a schema holding tables. */
+export function SchemaGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinejoin="round">
+      <path d="M1.2 3.2a1 1 0 0 1 1-1h2.4l1.2 1.3h4a1 1 0 0 1 1 1v4.8a1 1 0 0 1-1 1H2.2a1 1 0 0 1-1-1Z" />
+    </svg>
+  );
+}
