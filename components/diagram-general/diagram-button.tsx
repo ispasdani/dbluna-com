@@ -23,13 +23,19 @@ import { cn } from "@/lib/utils";
  */
 const diagramButtonVariants = cva(
   [
-    "inline-flex items-center justify-center gap-1.5",
-    "rounded-[7px] border font-medium leading-none",
+    "flex items-center justify-center gap-1.5",
+    "rounded-[7px] border font-medium leading-normal",
     "transition-[background-color,color,border-color] duration-75",
     "cursor-pointer whitespace-nowrap select-none",
     "disabled:pointer-events-none disabled:opacity-40",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+    // Trim label boxes to cap-height → baseline so items-center lines the
+    // letters up with the icon's centre, not the font's uneven em box.
+    // The padding/negative-margin pair gives descenders (g, y, p) room inside
+    // `truncate`'s overflow clip without changing what gets centred.
+    "[&>:not(svg)]:[text-box:trim-both_cap_alphabetic]",
+    "[&>:not(svg):not(:empty)]:pb-[0.3em] [&>:not(svg):not(:empty)]:-mb-[0.3em]",
   ].join(" "),
   {
     variants: {
@@ -55,10 +61,9 @@ const diagramButtonVariants = cva(
         ].join(" "),
 
         /** Brand-coral fill — upgrade / brand moments */
-        brand: [
-          "border-brand bg-brand text-white",
-          "hover:opacity-90",
-        ].join(" "),
+        brand: ["border-brand bg-brand text-white", "hover:opacity-90"].join(
+          " ",
+        ),
 
         /** Dashed border — empty-state or additive actions */
         dashed: [
@@ -74,15 +79,15 @@ const diagramButtonVariants = cva(
         ].join(" "),
 
         /** Pre-active ghost — same hover state applied permanently */
-        "ghost-active": [
-          "border-transparent bg-muted text-foreground",
-        ].join(" "),
+        "ghost-active": ["border-transparent bg-muted text-foreground"].join(
+          " ",
+        ),
       },
 
       size: {
-        sm:   "h-7 gap-1 px-2.5 text-[11.5px]",
-        md:   "h-[30px] px-[10px] text-[12.5px]",
-        lg:   "h-9 px-4 text-[13px] rounded-[8px]",
+        sm: "h-7 gap-1 px-2.5 text-[11.5px]",
+        md: "h-[30px] px-[10px] text-[12.5px]",
+        lg: "h-9 px-4 text-[13px] rounded-[8px]",
         icon: "h-[30px] w-[30px] p-0 border-transparent",
       },
     },
@@ -90,11 +95,12 @@ const diagramButtonVariants = cva(
       variant: "ghost",
       size: "md",
     },
-  }
+  },
 );
 
 export interface DiagramButtonProps
-  extends React.ComponentProps<"button">,
+  extends
+    React.ComponentProps<"button">,
     VariantProps<typeof diagramButtonVariants> {
   asChild?: boolean;
 }
@@ -109,7 +115,7 @@ const DiagramButton = React.forwardRef<HTMLButtonElement, DiagramButtonProps>(
         {...props}
       />
     );
-  }
+  },
 );
 DiagramButton.displayName = "DiagramButton";
 

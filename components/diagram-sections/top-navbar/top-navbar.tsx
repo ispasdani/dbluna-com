@@ -3,8 +3,22 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, Database, Download, FileText, Upload, Share2, Sparkles, FileCode, UserPlus, History, FileSpreadsheet, FileArchive, CircleHelp, Terminal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  ChevronDown,
+  Database,
+  Download,
+  FileText,
+  Upload,
+  Share2,
+  Sparkles,
+  FileCode,
+  UserPlus,
+  History,
+  FileSpreadsheet,
+  FileArchive,
+  CircleHelp,
+  Terminal,
+} from "lucide-react";
 import { DiagramButton } from "@/components/diagram-general/diagram-button";
 import {
   DropdownMenu,
@@ -36,7 +50,11 @@ import {
   exportDiagramAsSvg,
   parseImportedDiagramJson,
 } from "@/lib/diagram-io";
-import { SQL_DIALECTS, dialectFromDatabaseType, type SqlDialect } from "@/lib/generator/sql-generator";
+import {
+  SQL_DIALECTS,
+  dialectFromDatabaseType,
+  type SqlDialect,
+} from "@/lib/generator/sql-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useOnboardingStore } from "@/store/useOnboardingStore";
 import { useCapabilities } from "@/components/diagram-general/capabilities-context";
@@ -56,7 +74,8 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   // Schema import (DB / CSV / BACPAC) — the tab is chosen by the Import menu
   // item the user picked, so each item opens straight onto its own source.
   const [isImportSchemaOpen, setIsImportSchemaOpen] = useState(false);
-  const [importSchemaTab, setImportSchemaTab] = useState<ImportSchemaTab>("postgresql");
+  const [importSchemaTab, setImportSchemaTab] =
+    useState<ImportSchemaTab>("postgresql");
 
   const { workspaceMode, setWorkspaceMode } = useViewStore();
   const { canUseDocsMode, planResolved } = useCapabilities();
@@ -80,7 +99,8 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const importDiagram = useCanvasStore((s) => s.importDiagram);
 
   const currentDiagramName =
-    (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) || "Untitled diagram";
+    (activeDiagramId && canvasDiagrams[activeDiagramId]?.name) ||
+    "Untitled diagram";
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,10 +112,16 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const currentDiagramData = useMemo(
     () => ({
       name: currentDiagramName,
-      updatedAt: (activeDiagramId && canvasDiagrams[activeDiagramId]?.updatedAt) || 0,
-      storage: (activeDiagramId && canvasDiagrams[activeDiagramId]?.storage) || "local",
-      cloudId: (activeDiagramId && canvasDiagrams[activeDiagramId]?.cloudId) || null,
-      lastSyncedAt: (activeDiagramId && canvasDiagrams[activeDiagramId]?.lastSyncedAt) || null,
+      updatedAt:
+        (activeDiagramId && canvasDiagrams[activeDiagramId]?.updatedAt) || 0,
+      storage:
+        (activeDiagramId && canvasDiagrams[activeDiagramId]?.storage) ||
+        "local",
+      cloudId:
+        (activeDiagramId && canvasDiagrams[activeDiagramId]?.cloudId) || null,
+      lastSyncedAt:
+        (activeDiagramId && canvasDiagrams[activeDiagramId]?.lastSyncedAt) ||
+        null,
       tables,
       notes,
       areas,
@@ -107,7 +133,21 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       snapToGrid,
       isFocusModeEnabled,
     }),
-    [activeDiagramId, canvasDiagrams, currentDiagramName, tables, notes, areas, relationships, enums, tableGroups, project, background, snapToGrid, isFocusModeEnabled]
+    [
+      activeDiagramId,
+      canvasDiagrams,
+      currentDiagramName,
+      tables,
+      notes,
+      areas,
+      relationships,
+      enums,
+      tableGroups,
+      project,
+      background,
+      snapToGrid,
+      isFocusModeEnabled,
+    ],
   );
 
   const handleExportJson = () => {
@@ -131,12 +171,21 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       useUpgradeToastStore.getState().trigger();
       return;
     }
-    const ok = exportDiagramAsSql(tables, relationships, dialect, currentDiagramName, {
-      project,
-      enums,
-      tableGroups,
-    });
-    if (!ok) alert("Couldn't generate SQL from this diagram — check the DBML editor for schema errors.");
+    const ok = exportDiagramAsSql(
+      tables,
+      relationships,
+      dialect,
+      currentDiagramName,
+      {
+        project,
+        enums,
+        tableGroups,
+      },
+    );
+    if (!ok)
+      alert(
+        "Couldn't generate SQL from this diagram — check the DBML editor for schema errors.",
+      );
   };
 
   const handleExportSvg = async () => {
@@ -144,8 +193,16 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       useUpgradeToastStore.getState().trigger();
       return;
     }
-    const ok = await exportDiagramAsSvg(tables, notes, areas, currentDiagramName);
-    if (!ok) alert("Couldn't export the diagram — try again after the canvas has finished loading.");
+    const ok = await exportDiagramAsSvg(
+      tables,
+      notes,
+      areas,
+      currentDiagramName,
+    );
+    if (!ok)
+      alert(
+        "Couldn't export the diagram — try again after the canvas has finished loading.",
+      );
   };
 
   const handleShareClick = () => {
@@ -202,7 +259,10 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4">
         {/* Left cluster — logo, diagram name, view helpers */}
         <div className="flex items-center gap-3">
-          <DbLunaFuturistic weight="bold" className="text-foreground w-[110px] h-[15px] shrink-0" />
+          <DbLunaFuturistic
+            weight="bold"
+            className="text-foreground w-[110px] h-[15px] shrink-0"
+          />
 
           {/* Logo / name divider */}
           <div className="w-px h-5 bg-border" />
@@ -214,14 +274,19 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             className="gap-1.5 max-w-[200px]"
           >
             <span className="truncate">{currentDiagramName}</span>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: "tomato" }} />
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ backgroundColor: "tomato" }}
+            />
           </DiagramButton>
 
           {planResolved && (
-            <Button
-              variant={workspaceMode === "docs" && canUseDocsMode ? "secondary" : "ghost"}
-              size="sm"
-              className="gap-2 cursor-pointer relative"
+            <DiagramButton
+              variant={
+                workspaceMode === "docs" && canUseDocsMode
+                  ? "ghost-active"
+                  : "ghost"
+              }
               onClick={() => {
                 if (!canUseDocsMode) {
                   useUpgradeToastStore.getState().trigger();
@@ -230,23 +295,23 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                 setWorkspaceMode(workspaceMode === "docs" ? "diagram" : "docs");
               }}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">DBML Docs</span>
               {!canUseDocsMode && (
                 <span className="ml-0.5 text-[9px] font-bold uppercase tracking-wider bg-primary/15 text-primary px-1 py-0.5 rounded leading-none">
                   Pro
                 </span>
               )}
-            </Button>
+            </DiagramButton>
           )}
 
           {readOnly && (
-            <Button asChild size="sm" variant="outline" className="gap-2 cursor-pointer">
+            <DiagramButton asChild variant="outlined">
               <Link href="/pricing">
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Upgrade to edit</span>
               </Link>
-            </Button>
+            </DiagramButton>
           )}
 
           <SavingIndicator />
@@ -285,11 +350,17 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                   </DiagramButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem onClick={handleExportJson} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={handleExportJson}
+                    className="gap-2"
+                  >
                     <FileText className="w-4 h-4" />
                     Export as JSON
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportDbml} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={handleExportDbml}
+                    className="gap-2"
+                  >
                     <Database className="w-4 h-4" />
                     Export as DBML
                   </DropdownMenuItem>
@@ -307,7 +378,9 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                         >
                           <span className="flex-1">{d.label}</span>
                           {d.value === projectDialect && (
-                            <span className="text-xs text-muted-foreground">✓</span>
+                            <span className="text-xs text-muted-foreground">
+                              ✓
+                            </span>
                           )}
                         </DropdownMenuItem>
                       ))}
@@ -331,7 +404,10 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                   </DiagramButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem onClick={handleImportClick} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={handleImportClick}
+                    className="gap-2"
+                  >
                     <FileText className="w-4 h-4" />
                     Import from JSON
                   </DropdownMenuItem>
@@ -342,23 +418,36 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
                       Import from Database
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="min-w-40">
-                      <DropdownMenuItem onClick={() => handleImportSchemaClick("postgresql")}>
+                      <DropdownMenuItem
+                        onClick={() => handleImportSchemaClick("postgresql")}
+                      >
                         PostgreSQL
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleImportSchemaClick("sqlserver")}>
+                      <DropdownMenuItem
+                        onClick={() => handleImportSchemaClick("sqlserver")}
+                      >
                         SQL Server
                       </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
-                  <DropdownMenuItem onClick={() => handleImportSchemaClick("sql")} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={() => handleImportSchemaClick("sql")}
+                    className="gap-2"
+                  >
                     <Terminal className="w-4 h-4" />
                     Paste SQL Script
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImportSchemaClick("csv")} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={() => handleImportSchemaClick("csv")}
+                    className="gap-2"
+                  >
                     <FileSpreadsheet className="w-4 h-4" />
                     Import from CSV
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleImportSchemaClick("bacpac")} className="gap-2">
+                  <DropdownMenuItem
+                    onClick={() => handleImportSchemaClick("bacpac")}
+                    className="gap-2"
+                  >
                     <FileArchive className="w-4 h-4" />
                     Import from BACPAC
                   </DropdownMenuItem>
@@ -370,7 +459,13 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
             </>
           )}
 
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
 
           <DiagramButton
             variant="ghost"
@@ -387,10 +482,26 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
         </div>
       </header>
 
-      <MyDiagramsDialog open={isMyDiagramsOpen} onOpenChange={setIsMyDiagramsOpen} readOnly={readOnly} />
-      <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} diagram={currentDiagramData} />
-      <InviteDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} localId={activeDiagramId} />
-      <HistoryDialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen} localId={activeDiagramId} />
+      <MyDiagramsDialog
+        open={isMyDiagramsOpen}
+        onOpenChange={setIsMyDiagramsOpen}
+        readOnly={readOnly}
+      />
+      <ShareDialog
+        open={isShareOpen}
+        onOpenChange={setIsShareOpen}
+        diagram={currentDiagramData}
+      />
+      <InviteDialog
+        open={isInviteOpen}
+        onOpenChange={setIsInviteOpen}
+        localId={activeDiagramId}
+      />
+      <HistoryDialog
+        open={isHistoryOpen}
+        onOpenChange={setIsHistoryOpen}
+        localId={activeDiagramId}
+      />
       <ImportSchemaDialog
         open={isImportSchemaOpen}
         onOpenChange={setIsImportSchemaOpen}
