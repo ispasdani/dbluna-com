@@ -47,3 +47,12 @@ export function NoteGlyph() {
     </svg>
   );
 }
+
+/** Dashed frame, like an area on the canvas. */
+export function AreaGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeDasharray="2.2 1.8">
+      <rect x={1.2} y={1.2} width={9.6} height={9.6} rx={2} />
+    </svg>
+  );
+}

@@ -108,3 +108,17 @@ export function focusNoteOnCanvas(noteId: string) {
     viewport.h / 2 - (note.y + note.height / 2) * camera.zoom
   );
 }
+
+/** Centres the camera on an area. */
+export function focusAreaOnCanvas(areaId: string) {
+  const area = useCanvasStore.getState().areas.find((a) => a.id === areaId);
+  if (!area) return;
+
+  const { camera, viewport, setCameraXY } = useEditorStore.getState();
+  if (viewport.w <= 1 || viewport.h <= 1) return;
+
+  setCameraXY(
+    viewport.w / 2 - (area.x + area.width / 2) * camera.zoom,
+    viewport.h / 2 - (area.y + area.height / 2) * camera.zoom
+  );
+}
