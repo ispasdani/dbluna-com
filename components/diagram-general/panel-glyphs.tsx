@@ -68,3 +68,14 @@ export function EnumGlyph() {
     </svg>
   );
 }
+
+/** Three tiles — a ready-made layout. */
+export function TemplateGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinejoin="round">
+      <rect x={1} y={1} width={4.2} height={4.2} rx={1.2} />
+      <rect x={6.8} y={1} width={4.2} height={4.2} rx={1.2} />
+      <rect x={1} y={6.8} width={10} height={4.2} rx={1.2} />
+    </svg>
+  );
+}
