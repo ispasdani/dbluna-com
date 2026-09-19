@@ -4,8 +4,11 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  Check,
   ChevronDown,
+  ChevronRight,
   Database,
+  Image as ImageIcon,
   Download,
   FileText,
   Upload,
@@ -19,17 +22,10 @@ import {
   CircleHelp,
   Terminal,
 } from "lucide-react";
+import { DropdownMenu as Menu } from "radix-ui";
 import { DiagramButton } from "@/components/diagram-general/diagram-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-} from "@/components/ui/dropdown-menu";
+import menu from "@/components/diagram-general/toolbar-menus.module.scss";
+import { cn } from "@/lib/utils";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
@@ -340,119 +336,160 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
               {/* Separator */}
               <div className="w-px h-5 bg-border mx-0.5" />
 
-              {/* Export dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              {/* Export */}
+              <Menu.Root>
+                <Menu.Trigger asChild>
                   <DiagramButton variant="outlined">
                     <Download className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Export</span>
                     <ChevronDown className="w-3 h-3 text-muted-foreground" />
                   </DiagramButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem
-                    onClick={handleExportJson}
-                    className="gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Export as JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleExportDbml}
-                    className="gap-2"
-                  >
-                    <Database className="w-4 h-4" />
-                    Export as DBML
-                  </DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="gap-2">
-                      <Database className="w-4 h-4" />
-                      Export as SQL
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="min-w-40">
-                      {SQL_DIALECTS.map((d) => (
-                        <DropdownMenuItem
-                          key={d.value}
-                          onClick={() => handleExportSql(d.value)}
-                          className="gap-2"
-                        >
-                          <span className="flex-1">{d.label}</span>
-                          {d.value === projectDialect && (
-                            <span className="text-xs text-muted-foreground">
-                              ✓
-                            </span>
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleExportSvg} className="gap-2">
-                    <FileCode className="w-4 h-4" />
-                    Export as SVG
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </Menu.Trigger>
+                <Menu.Portal>
+                  <Menu.Content align="end" sideOffset={6} className={cn(menu.menu, menu.io)}>
+                    <Menu.Label className={menu.group}>Schema</Menu.Label>
+                    <Menu.Item className={menu.item} onSelect={handleExportJson}>
+                      <span className={menu.icon}>
+                        <FileText className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        JSON
+                        <small>The whole diagram, re-importable</small>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Item className={menu.item} onSelect={handleExportDbml}>
+                      <span className={menu.icon}>
+                        <FileCode className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        DBML
+                        <small>Schema as code, for dbdiagram and docs</small>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Sub>
+                      <Menu.SubTrigger className={menu.item}>
+                        <span className={menu.icon}>
+                          <Database className="w-4 h-4" />
+                        </span>
+                        <span className={menu.text}>
+                          SQL
+                          <small>CREATE TABLE script</small>
+                        </span>
+                        <span className={menu.value}>
+                          {SQL_DIALECTS.find((d) => d.value === projectDialect)?.label}
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </Menu.SubTrigger>
+                      <Menu.Portal>
+                        <Menu.SubContent sideOffset={8} alignOffset={-6} className={cn(menu.menu, menu.sub)}>
+                          <Menu.Label className={menu.group}>Dialect</Menu.Label>
+                          {SQL_DIALECTS.map((d) => (
+                            <Menu.Item
+                              key={d.value}
+                              className={cn(menu.item, menu.plain)}
+                              onSelect={() => handleExportSql(d.value)}
+                            >
+                              <span className={menu.text}>{d.label}</span>
+                              {d.value === projectDialect && <Check className={cn("w-3.5 h-3.5", menu.tick)} />}
+                            </Menu.Item>
+                          ))}
+                        </Menu.SubContent>
+                      </Menu.Portal>
+                    </Menu.Sub>
 
-              {/* Import dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <DiagramButton variant="ghost">
+                    <Menu.Separator className={menu.sep} />
+
+                    <Menu.Label className={menu.group}>Image</Menu.Label>
+                    <Menu.Item className={menu.item} onSelect={handleExportSvg}>
+                      <span className={menu.icon}>
+                        <ImageIcon className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        SVG
+                        <small>A picture of the canvas, sharp at any size</small>
+                      </span>
+                    </Menu.Item>
+                  </Menu.Content>
+                </Menu.Portal>
+              </Menu.Root>
+
+              {/* Import */}
+              <Menu.Root>
+                <Menu.Trigger asChild>
+                  <DiagramButton variant="outlined">
                     <Upload className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Import</span>
                     <ChevronDown className="w-3 h-3 text-muted-foreground" />
                   </DiagramButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem
-                    onClick={handleImportClick}
-                    className="gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Import from JSON
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="gap-2">
-                      <Database className="w-4 h-4" />
-                      Import from Database
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="min-w-40">
-                      <DropdownMenuItem
-                        onClick={() => handleImportSchemaClick("postgresql")}
-                      >
+                </Menu.Trigger>
+                <Menu.Portal>
+                  <Menu.Content align="end" sideOffset={6} className={cn(menu.menu, menu.io)}>
+                    <Menu.Label className={menu.group}>From a file</Menu.Label>
+                    <Menu.Item className={menu.item} onSelect={handleImportClick}>
+                      <span className={menu.icon}>
+                        <FileText className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        JSON
+                        <small>A diagram exported from dbluna</small>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Item className={menu.item} onSelect={() => handleImportSchemaClick("csv")}>
+                      <span className={menu.icon}>
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        CSV
+                        <small>Tables and columns from a spreadsheet</small>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Item className={menu.item} onSelect={() => handleImportSchemaClick("bacpac")}>
+                      <span className={menu.icon}>
+                        <FileArchive className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        BACPAC
+                        <small>A SQL Server export file</small>
+                      </span>
+                    </Menu.Item>
+
+                    <Menu.Separator className={menu.sep} />
+
+                    <Menu.Label className={menu.group}>From a database</Menu.Label>
+                    <Menu.Item className={menu.item} onSelect={() => handleImportSchemaClick("postgresql")}>
+                      <span className={menu.icon}>
+                        <Database className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
                         PostgreSQL
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleImportSchemaClick("sqlserver")}
-                      >
+                        <small>Read the schema from a live database</small>
+                      </span>
+                    </Menu.Item>
+                    <Menu.Item className={menu.item} onSelect={() => handleImportSchemaClick("sqlserver")}>
+                      <span className={menu.icon}>
+                        <Database className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
                         SQL Server
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuItem
-                    onClick={() => handleImportSchemaClick("sql")}
-                    className="gap-2"
-                  >
-                    <Terminal className="w-4 h-4" />
-                    Paste SQL Script
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleImportSchemaClick("csv")}
-                    className="gap-2"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    Import from CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleImportSchemaClick("bacpac")}
-                    className="gap-2"
-                  >
-                    <FileArchive className="w-4 h-4" />
-                    Import from BACPAC
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        <small>Read the schema from a live database</small>
+                      </span>
+                    </Menu.Item>
+
+                    <Menu.Separator className={menu.sep} />
+
+                    <Menu.Label className={menu.group}>From code</Menu.Label>
+                    <Menu.Item className={menu.item} onSelect={() => handleImportSchemaClick("sql")}>
+                      <span className={menu.icon}>
+                        <Terminal className="w-4 h-4" />
+                      </span>
+                      <span className={menu.text}>
+                        SQL script
+                        <small>Paste CREATE TABLE statements</small>
+                      </span>
+                    </Menu.Item>
+                  </Menu.Content>
+                </Menu.Portal>
+              </Menu.Root>
 
               {/* Separator before identity */}
               <div className="w-px h-5 bg-border mx-0.5" />

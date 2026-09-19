@@ -1,0 +1,413 @@
+// Toolbar menus (View, Style, Tabs, Export, Import): one row pattern — icon
+// tile, label with a short hint, control on the right — shared by all of them.
+
+.trigValue {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.trigCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.menu {
+  --hover: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --sub: color-mix(in oklab, var(--foreground) 5%, var(--popover));
+  --faint: color-mix(in oklab, var(--muted-foreground) 65%, var(--popover));
+
+  z-index: 50;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
+  font-size: 13px;
+  outline: none;
+  animation: pop 0.12s ease;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    animation: none;
+  }
+}
+
+.view {
+  width: 272px;
+}
+
+.tabs {
+  width: 260px;
+}
+
+.style {
+  width: 440px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.group {
+  padding: 8px 8px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.sep {
+  height: 1px;
+  margin: 6px -6px;
+  background: var(--border);
+}
+
+// ─── Rows ────────────────────────────────────────────────────────────────
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+
+  &[data-highlighted] {
+    background: var(--hover);
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--sub);
+  color: var(--muted-foreground);
+}
+
+.item[data-state="checked"] .icon {
+  background: color-mix(in oklab, var(--primary) 13%, transparent);
+  color: var(--primary);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+
+  small {
+    font-size: 11.5px;
+    color: var(--muted-foreground);
+  }
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--foreground) 18%, var(--popover));
+  transition: background 0.15s ease;
+
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+    transition: transform 0.15s ease;
+  }
+}
+
+.item[data-state="checked"] .switch {
+  background: var(--primary);
+
+  &::after {
+    transform: translateX(12px);
+  }
+}
+
+.radio {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 22%, var(--popover));
+  border-radius: 50%;
+}
+
+.item[data-state="checked"] .radio {
+  border-color: var(--primary);
+
+  &::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+}
+
+// Inline either/or control inside a menu (background).
+.segmented {
+  display: flex;
+  gap: 2px;
+  margin: 2px 8px 6px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--sub);
+}
+
+.segItem {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  font-size: 12.5px;
+  cursor: pointer;
+  outline: none;
+
+  &[data-highlighted] {
+    color: var(--foreground);
+  }
+
+  &[data-state="checked"] {
+    background: var(--popover);
+    color: var(--foreground);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+    font-weight: 500;
+  }
+}
+
+// ─── Style: categories on the left, options on the right ─────────────────
+
+.split {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  min-height: 320px;
+}
+
+.cats {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  padding: 6px;
+  border-right: 1px solid var(--border);
+  background: color-mix(in oklab, var(--sub) 55%, var(--popover));
+}
+
+.catGroup {
+  padding: 8px 8px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.cat {
+  display: grid;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  outline: none;
+
+  small {
+    font-size: 11px;
+    color: var(--faint);
+  }
+
+  &[data-highlighted] {
+    background: var(--hover);
+    color: var(--foreground);
+  }
+}
+
+.catOn {
+  background: var(--popover);
+  color: var(--foreground);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+
+  small {
+    color: var(--primary);
+    font-weight: 400;
+  }
+
+  &[data-highlighted] {
+    background: var(--popover);
+  }
+}
+
+.opts {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  padding: 6px;
+}
+
+.optsHead {
+  padding: 6px 8px 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+
+  b {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+}
+
+.preview {
+  flex: none;
+  width: 48px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(var(--canvas-dots, rgb(0 0 0 / 0.12)) 0.8px, transparent 1px);
+  background-size: 6px 6px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// Code font: two "Aa" cards.
+.fontCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 2px 6px 6px;
+}
+
+.fontCard {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+
+  small {
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+
+  &[data-highlighted] {
+    border-color: color-mix(in oklab, var(--foreground) 20%, var(--border));
+  }
+
+  &[data-state="checked"] {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    background: color-mix(in oklab, var(--primary) 5%, var(--popover));
+  }
+}
+
+.aa {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.fontCard[data-state="checked"] .check {
+  display: grid;
+}
+
+.foot {
+  padding: 8px 8px 4px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+// ─── Export / Import ─────────────────────────────────────────────────────
+
+.io {
+  width: 288px;
+}
+
+.sub {
+  width: 200px;
+}
+
+.value {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+// Submenu trigger: highlighted while its submenu is open too.
+.item[data-state="open"] {
+  background: var(--hover);
+}
+
+.plain {
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.tick {
+  flex: none;
+  color: var(--primary);
+}

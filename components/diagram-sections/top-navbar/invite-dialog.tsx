@@ -3,28 +3,15 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
-import { Check, Link as LinkIcon, Loader2, UserPlus, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { AlertCircle, Check, CheckCircle2, Cloud, Copy, Eye, Loader2, Pencil, UserPlus, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useCloudSync } from "@/hooks/use-cloud-sync";
+import { cn } from "@/lib/utils";
+import styles from "./small-dialog.module.scss";
 
 interface InviteDialogProps {
   open: boolean;
@@ -33,6 +20,11 @@ interface InviteDialogProps {
 }
 
 type InviteRole = "editor" | "viewer";
+
+const ROLES: { id: InviteRole; label: string; hint: string; icon: typeof Pencil }[] = [
+  { id: "editor", label: "Editor", hint: "Can make changes", icon: Pencil },
+  { id: "viewer", label: "Viewer", hint: "Can only look", icon: Eye },
+];
 
 // Separate from ShareDialog on purpose (release-1-0/collaboration-plan.md
 // Phase A §2): ShareDialog produces an anonymous, read-only, no-account link.
@@ -46,6 +38,7 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
   const [role, setRole] = useState<InviteRole>("editor");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,6 +54,7 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
     setInvitedEmail("");
     setRole("editor");
     setCreatedLink(null);
+    setLinkCopied(false);
     setErrorMessage(null);
     setCopiedToken(null);
   };
@@ -82,12 +76,13 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
       const link = `${window.location.origin}/d/join?token=${result.token}`;
       setCreatedLink(link);
       await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
       setInvitedEmail("");
     } catch (err) {
       setErrorMessage(
         err instanceof ConvexError && typeof err.data === "string"
           ? err.data
-          : "Couldn't create the invite — please try again."
+          : "Couldn't create the invite. Try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -101,9 +96,18 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
+  const handleCopyCreated = async () => {
+    if (!createdLink) return;
+    await navigator.clipboard.writeText(createdLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   const handleRevoke = async (inviteId: Id<"diagramInvites">) => {
     await revokeInvite({ inviteId });
   };
+
+  const isCloud = !!diagram && storage === "cloud";
 
   return (
     <Dialog
@@ -113,114 +117,145 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
         if (!next) reset();
       }}
     >
-      <DialogContent className="sm:max-w-[460px]">
-        <DialogHeader>
-          <DialogTitle>Invite a collaborator</DialogTitle>
+      <DialogContent className={cn(styles.content, styles.medium)}>
+        <DialogHeader className={styles.header}>
+          <span className={styles.badge}>
+            <UserPlus className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <DialogTitle className={styles.title}>Invite a collaborator</DialogTitle>
+            <DialogDescription className={styles.subtitle}>
+              {diagram ? <b>{diagram.name}</b> : "Work on this diagram together"}
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         {!diagram ? null : storage === "local" ? (
-          <div className="py-2 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Inviting someone syncs <span className="font-medium text-foreground">{diagram.name}</span>{" "}
-              to the cloud so they can access it. You can still keep it local-only if you invite no one.
-            </p>
-            <Button onClick={handleSyncToCloud} disabled={isSyncing} className="gap-2">
-              {isSyncing && <Loader2 className="w-4 h-4 animate-spin" />}
-              Sync to cloud & continue
-            </Button>
-          </div>
-        ) : (
-          <div className="py-2 space-y-4">
-            {createdLink ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Invite link created and copied — send it to the person you invited.
+          <>
+            <div className={styles.body}>
+              <div className={styles.gate}>
+                <span className={styles.gateIcon}>
+                  <Cloud className="size-5" />
+                </span>
+                <span className={styles.gateTitle}>Sync to the cloud first</span>
+                <p>
+                  Inviting someone syncs <b>{diagram.name}</b> to the cloud so they can open it. If you invite no one,
+                  you can keep it on this device only.
                 </p>
-                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs font-mono break-all">
-                  {createdLink}
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setCreatedLink(null)}>
-                  Invite someone else
-                </Button>
               </div>
+            </div>
+            <div className={styles.foot}>
+              <span className={styles.spacer} />
+              <button type="button" className={styles.primary} onClick={handleSyncToCloud} disabled={isSyncing}>
+                {isSyncing ? <Loader2 className="size-4 animate-spin" /> : <Cloud className="size-4" />}
+                Sync to cloud and continue
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className={styles.body}>
+            {createdLink ? (
+              <>
+                <div className={cn(styles.note, styles.noteOk)}>
+                  <CheckCircle2 className="size-4" />
+                  <span>Invite created and the link is copied. Send it to the person you invited.</span>
+                </div>
+                <div className={styles.linkBox}>
+                  <code title={createdLink}>{createdLink}</code>
+                  <button type="button" className={cn(styles.secondary, styles.small)} onClick={handleCopyCreated}>
+                    {linkCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    {linkCopied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </>
             ) : (
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="invite-email" className="text-sm font-medium">
-                    Email
-                  </Label>
+              <>
+                <label className={styles.field}>
+                  <span className={styles.label}>Email</span>
                   <Input
-                    id="invite-email"
                     type="email"
                     value={invitedEmail}
                     onChange={(e) => setInvitedEmail(e.target.value)}
                     placeholder="teammate@example.com"
-                    className="mt-2"
+                    className={styles.input}
                     onKeyDown={(e) => e.key === "Enter" && handleCreateInvite()}
                     autoFocus
                   />
+                </label>
+
+                <div className={styles.field}>
+                  <span className={styles.label}>Role</span>
+                  <div className={styles.roles} role="radiogroup" aria-label="Role">
+                    {ROLES.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={role === r.id}
+                        className={styles.role}
+                        onClick={() => setRole(r.id)}
+                      >
+                        <span className={styles.roleHead}>
+                          <r.icon className="size-3.5" />
+                          {r.label}
+                        </span>
+                        <small>{r.hint}</small>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-sm font-medium">Role</Label>
-                  <Select value={role} onValueChange={(v) => setRole(v as InviteRole)}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="editor">Editor — can make changes</SelectItem>
-                      <SelectItem value="viewer">Viewer — read only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {role === "editor" && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      They&apos;ll need their own Pro plan to actually edit — Free accounts can view.
-                    </p>
-                  )}
-                </div>
-                {errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
-              </div>
+
+                {role === "editor" && (
+                  <div className={cn(styles.note, styles.noteInfo)}>
+                    <AlertCircle className="size-4" />
+                    <span>Editing needs their own Pro plan. On a Free plan they can view.</span>
+                  </div>
+                )}
+                {errorMessage && (
+                  <div className={cn(styles.note, styles.noteError)} role="alert">
+                    <AlertCircle className="size-4" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+              </>
             )}
 
             {pendingInvites && pendingInvites.length > 0 && (
-              <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-xs font-medium text-muted-foreground">Pending invites</p>
-                <ul className="space-y-1.5">
+              <div className={styles.field}>
+                <span className={styles.label}>Pending invites · {pendingInvites.length}</span>
+                <ul className={styles.people}>
                   {pendingInvites.map((invite) => (
-                    <li
-                      key={invite._id}
-                      className="flex items-center justify-between gap-2 text-sm"
-                    >
-                      <span className="truncate">
-                        {invite.invitedEmail}{" "}
-                        <span className="text-xs text-muted-foreground">
-                          ({invite.role}
-                          {invite.isExpired ? ", expired" : ""})
-                        </span>
+                    <li key={invite._id} className={styles.person}>
+                      <span className={styles.avatar} aria-hidden>
+                        {invite.invitedEmail.charAt(0)}
                       </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleCopyLink(invite.token)}
-                          title="Copy invite link"
-                        >
-                          {copiedToken === invite.token ? (
-                            <Check className="w-3.5 h-3.5" />
-                          ) : (
-                            <LinkIcon className="w-3.5 h-3.5" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleRevoke(invite._id)}
-                          title="Revoke invite"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+                      <span className={styles.personText}>
+                        <span title={invite.invitedEmail}>{invite.invitedEmail}</span>
+                        <small>
+                          <span className={cn(styles.tag, invite.role === "editor" && styles.tagAccent)}>
+                            {invite.role === "editor" ? "Editor" : "Viewer"}
+                          </span>
+                          {invite.isExpired && <span className={cn(styles.tag, styles.tagWarn)}>Expired</span>}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.iconBtn}
+                        onClick={() => handleCopyLink(invite.token)}
+                        title="Copy invite link"
+                        aria-label={`Copy invite link for ${invite.invitedEmail}`}
+                      >
+                        {copiedToken === invite.token ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(styles.iconBtn, styles.iconDanger)}
+                        onClick={() => handleRevoke(invite._id)}
+                        title="Revoke invite"
+                        aria-label={`Revoke invite for ${invite.invitedEmail}`}
+                      >
+                        <X className="size-3.5" />
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -229,21 +264,39 @@ export function InviteDialog({ open, onOpenChange, localId }: InviteDialogProps)
           </div>
         )}
 
-        {diagram && storage === "cloud" && !createdLink && (
-          <DialogFooter>
-            <Button
-              onClick={handleCreateInvite}
-              disabled={!invitedEmail.trim() || isSubmitting}
-              className="gap-2"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <UserPlus className="w-4 h-4" />
-              )}
-              Create invite link
-            </Button>
-          </DialogFooter>
+        {isCloud && (
+          <div className={styles.foot}>
+            {createdLink ? (
+              <>
+                <span className={styles.spacer} />
+                <button
+                  type="button"
+                  className={styles.secondary}
+                  onClick={() => {
+                    setCreatedLink(null);
+                    setLinkCopied(false);
+                  }}
+                >
+                  <UserPlus className="size-4" />
+                  Invite someone else
+                </button>
+              </>
+            ) : (
+              <>
+                <span className={styles.footInfo}>They&apos;ll get access once they sign in with this email.</span>
+                <span className={styles.spacer} />
+                <button
+                  type="button"
+                  className={styles.primary}
+                  onClick={handleCreateInvite}
+                  disabled={!invitedEmail.trim() || isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
+                  Create invite link
+                </button>
+              </>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

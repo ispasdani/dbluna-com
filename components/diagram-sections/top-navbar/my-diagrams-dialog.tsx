@@ -3,22 +3,21 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { Pencil, Copy, Trash2, Check, X, Cloud, CloudOff, ChevronDown, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Cloud,
+  CloudOff,
+  Copy,
+  Laptop,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
@@ -36,45 +35,53 @@ import { useCapabilities } from "@/components/diagram-general/capabilities-conte
 import { useCloudSync } from "@/hooks/use-cloud-sync";
 import { softDeleteCloudDiagram } from "@/lib/diagram-persistence";
 import { api } from "@/convex/_generated/api";
+import { SchemaThumb } from "@/components/diagram-general/schema-thumb";
+import { splitSchemaName } from "@/lib/schema-namespace";
+import { cn } from "@/lib/utils";
+import styles from "./my-diagrams-dialog.module.scss";
 
-// Per-row cloud action — a subcomponent so useCloudSync (a hook) can be
-// called once per row rather than inside the .map() callback directly.
-function CloudRowAction({ id, readOnly }: { id: string; readOnly: boolean }) {
+/** "12 min ago", "3 h ago", "yesterday", then a date. */
+function relativeTime(t: number): string {
+  const minutes = Math.round((Date.now() - t) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return new Date(t).toLocaleDateString();
+}
+
+// Cloud action for the selected diagram — a subcomponent so useCloudSync (a
+// hook) runs for exactly the diagram shown.
+function CloudAction({ id }: { id: string }) {
   const { storage, isBusy, saveToCloud, makeLocalOnly } = useCloudSync(id);
-  if (readOnly) return null;
 
   if (storage === "cloud") {
     return (
-      <Button
-        size="icon-sm"
-        variant="ghost"
+      <button
+        type="button"
+        className={styles.btn}
         disabled={isBusy}
-        title="Synced — click to make local-only"
-        onClick={(e) => {
-          e.stopPropagation();
+        title="Stop syncing and keep it on this device only"
+        onClick={() => {
           void makeLocalOnly().then((result) => {
             if (!result.ok && result.message) alert(result.message);
           });
         }}
       >
-        <Cloud className="w-3.5 h-3.5 text-primary" />
-      </Button>
+        <CloudOff className="w-3.5 h-3.5" />
+        Make local-only
+      </button>
     );
   }
 
   return (
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      disabled={isBusy}
-      title="Save to cloud"
-      onClick={(e) => {
-        e.stopPropagation();
-        void saveToCloud();
-      }}
-    >
-      <CloudOff className="w-3.5 h-3.5" />
-    </Button>
+    <button type="button" className={styles.btn} disabled={isBusy} onClick={() => void saveToCloud()}>
+      <Cloud className="w-3.5 h-3.5" />
+      Save to cloud
+    </button>
   );
 }
 
@@ -116,6 +123,9 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
   const [renameValue, setRenameValue] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isCloudSectionOpen, setIsCloudSectionOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // The diagram shown on the right; null falls back to the open one.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const diagramCount = Object.keys(rawDiagrams).length;
   const atDiagramCap = diagramCap != null && diagramCount >= diagramCap;
@@ -187,9 +197,19 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
     activeFocusMode,
   ]);
 
-  const rows = Object.entries(diagrams).sort(
-    ([, a], [, b]) => b.updatedAt - a.updatedAt
-  );
+  const rows = Object.entries(diagrams).sort(([, a], [, b]) => b.updatedAt - a.updatedAt);
+  const needle = query.trim().toLowerCase();
+  const visibleRows = needle ? rows.filter(([, d]) => d.name.toLowerCase().includes(needle)) : rows;
+
+  const shownId =
+    (selectedId && diagrams[selectedId] ? selectedId : null) ??
+    (activeDiagramId && diagrams[activeDiagramId] ? activeDiagramId : null) ??
+    rows[0]?.[0] ??
+    null;
+  const shown = shownId ? diagrams[shownId] : null;
+  const shownSchemas = shown
+    ? new Set(shown.tables.map((t) => splitSchemaName(t.name).schema).filter(Boolean)).size
+    : 0;
 
   const handleOpen = (id: string) => {
     onOpenChange(false);
@@ -225,7 +245,8 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
       useUpgradeToastStore.getState().trigger();
       return;
     }
-    duplicateDiagram(id);
+    const copyId = duplicateDiagram(id);
+    if (copyId) setSelectedId(copyId);
   };
 
   const handleDeleteClick = (id: string, e: React.MouseEvent) => {
@@ -266,187 +287,270 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
       router.push("/");
     }
     deleteDiagram(deleteTargetId);
+    if (selectedId === deleteTargetId) setSelectedId(null);
     setDeleteTargetId(null);
   };
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[640px]">
-          <DialogHeader className="flex flex-row items-center justify-between pr-8">
-            <DialogTitle>My Diagrams</DialogTitle>
-            {!readOnly && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-7 text-xs"
-                onClick={handleCreateNew}
-                disabled={atDiagramCap}
-                title={atDiagramCap ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited` : undefined}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New diagram
-              </Button>
-            )}
-          </DialogHeader>
-
-          {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              No diagrams yet.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Tables</TableHead>
-                  <TableHead>Last modified</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isCreating && (
-                  <TableRow>
-                    <TableCell colSpan={4}>
-                      <div className="flex items-center gap-1">
-                        <Input
-                          value={createName}
-                          onChange={(e) => setCreateName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") commitCreate();
-                            if (e.key === "Escape") cancelCreate();
-                          }}
-                          placeholder="Diagram name…"
-                          className="h-7 text-sm"
-                          autoFocus
-                        />
-                        <Button size="icon-sm" variant="ghost" onClick={commitCreate}>
-                          <Check className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button size="icon-sm" variant="ghost" onClick={cancelCreate}>
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+        <DialogContent className={styles.content}>
+          <div className={styles.header}>
+            <DialogTitle className={styles.title}>My diagrams</DialogTitle>
+            <DialogDescription className="sr-only">
+              Pick a diagram to see its details, then open, rename, duplicate or delete it.
+            </DialogDescription>
+            <span className={styles.spacer} />
+            {diagramCap != null && (
+              <span className={cn(styles.meter, atDiagramCap && styles.full)}>
+                <span className={styles.bar}>
+                  <i style={{ width: `${Math.min(100, (diagramCount / diagramCap) * 100)}%` }} />
+                </span>
+                {diagramCount} of {diagramCap} diagrams
+                {atDiagramCap && (
+                  <button type="button" className={styles.link} onClick={() => useUpgradeToastStore.getState().trigger()}>
+                    Upgrade
+                  </button>
                 )}
-                {rows.map(([id, diagram]) => (
-                  <TableRow
-                    key={id}
-                    className="cursor-pointer"
-                    onClick={() => renamingId !== id && handleOpen(id)}
-                  >
-                    <TableCell className="font-medium">
-                      {renamingId === id ? (
-                        <div
-                          className="flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Input
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") commitRename();
-                              if (e.key === "Escape") cancelRename();
-                            }}
-                            className="h-7 text-sm"
-                            autoFocus
-                          />
-                          <Button size="icon-sm" variant="ghost" onClick={commitRename}>
-                            <Check className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="icon-sm" variant="ghost" onClick={cancelRename}>
-                            <X className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="truncate">
-                          {diagram.name}
-                          {id === activeDiagramId && (
-                            <span className="ml-2 text-xs text-muted-foreground">(current)</span>
-                          )}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>{diagram.tables.length}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(diagram.updatedAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <CloudRowAction id={id} readOnly={readOnly} />
-                        {!readOnly && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={(e) => startRename(id, diagram.name, e)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        )}
-                        {!readOnly && (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={(e) => handleDuplicate(id, e)}
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        )}
-                        {!readOnly && (
-                        <Button
-                          size="icon-sm"
-                          variant="destructive"
-                          onClick={(e) => handleDeleteClick(id, e)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+              </span>
+            )}
+          </div>
 
-          {undiscoveredCloudDiagrams.length > 0 && (
-            <div className="mt-2 border-t border-border pt-3">
-              <button
-                type="button"
-                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setIsCloudSectionOpen((v) => !v)}
-              >
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform ${isCloudSectionOpen ? "" : "-rotate-90"}`}
+          <div className={styles.split}>
+            {/* ── List ── */}
+            <div className={styles.left}>
+              <label className={styles.search}>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search diagrams"
+                  aria-label="Search diagrams"
                 />
-                Cloud diagrams not on this device ({undiscoveredCloudDiagrams.length})
-              </button>
-              {isCloudSectionOpen && (
-                <div className="mt-2 space-y-1">
-                  {undiscoveredCloudDiagrams.map((d) => (
-                    <button
-                      key={d._id}
-                      type="button"
-                      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted transition-colors text-left"
-                      onClick={() => {
-                        onOpenChange(false);
-                        router.push(`/d/cloud/${d._id}`);
+              </label>
+
+              <div className={styles.rows} role="listbox" aria-label="Diagrams">
+                {isCreating && (
+                  <div className={styles.createRow}>
+                    <Input
+                      value={createName}
+                      onChange={(e) => setCreateName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitCreate();
+                        if (e.key === "Escape") cancelCreate();
                       }}
-                    >
-                      <span className="flex items-center gap-2 truncate">
-                        <Cloud className="w-3.5 h-3.5 text-primary shrink-0" />
-                        <span className="truncate">{d.name}</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {new Date(d.updatedAt).toLocaleDateString()}
-                      </span>
+                      placeholder="Name your diagram"
+                      aria-label="New diagram name"
+                      className={styles.nameInput}
+                      autoFocus
+                    />
+                    <button type="button" className={styles.btn} onClick={commitCreate} aria-label="Create">
+                      <Check className="w-3.5 h-3.5" />
                     </button>
-                  ))}
+                    <button type="button" className={styles.btn} onClick={cancelCreate} aria-label="Cancel">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {visibleRows.map(([id, diagram]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="option"
+                    aria-selected={id === shownId}
+                    className={cn(styles.row, id === shownId && styles.rowOn)}
+                    onClick={() => {
+                      setSelectedId(id);
+                      if (renamingId && renamingId !== id) cancelRename();
+                    }}
+                    onDoubleClick={() => handleOpen(id)}
+                    title="Double-click to open"
+                  >
+                    <span className={styles.mini}>
+                      <SchemaThumb
+                        tables={diagram.tables}
+                        relationships={diagram.relationships}
+                        height={28}
+                        padding={120}
+                        columns={false}
+                      />
+                    </span>
+                    <span className={styles.rowText}>
+                      <b>{diagram.name}</b>
+                      <small>
+                        {diagram.tables.length} table{diagram.tables.length === 1 ? "" : "s"} ·{" "}
+                        {relativeTime(diagram.updatedAt)}
+                      </small>
+                    </span>
+                    {diagram.storage === "cloud" && (
+                      <span className={styles.rowCloud} title="Saved to cloud">
+                        <Cloud className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                  </button>
+                ))}
+
+                {rows.length === 0 && !isCreating && <p className={styles.emptyList}>No diagrams yet.</p>}
+                {rows.length > 0 && visibleRows.length === 0 && (
+                  <p className={styles.emptyList}>No diagrams match “{query.trim()}”.</p>
+                )}
+              </div>
+
+              {!readOnly && (
+                <div className={styles.newRow}>
+                  <button
+                    type="button"
+                    className={styles.primary}
+                    onClick={handleCreateNew}
+                    disabled={atDiagramCap}
+                    title={atDiagramCap ? `${diagramCount}/${diagramCap} diagrams used — upgrade to Pro for unlimited` : undefined}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    New diagram
+                  </button>
+                </div>
+              )}
+
+              {undiscoveredCloudDiagrams.length > 0 && (
+                <div className={cn(styles.cloudSection, !isCloudSectionOpen && styles.cloudClosed)}>
+                  <button
+                    type="button"
+                    className={styles.cloudToggle}
+                    aria-expanded={isCloudSectionOpen}
+                    onClick={() => setIsCloudSectionOpen((v) => !v)}
+                  >
+                    <ChevronDown className={cn("w-3.5 h-3.5", styles.chev)} />
+                    <Cloud className="w-3.5 h-3.5" />
+                    Cloud diagrams not on this device ({undiscoveredCloudDiagrams.length})
+                  </button>
+                  {isCloudSectionOpen && (
+                    <div className={styles.cloudItems}>
+                      {undiscoveredCloudDiagrams.map((d) => (
+                        <button
+                          key={d._id}
+                          type="button"
+                          className={styles.cloudItem}
+                          onClick={() => {
+                            onOpenChange(false);
+                            router.push(`/d/cloud/${d._id}`);
+                          }}
+                        >
+                          <Cloud className="w-3.5 h-3.5" />
+                          <span>{d.name}</span>
+                          <span className={styles.cloudDate}>{relativeTime(d.updatedAt)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+
+            {/* ── Detail ── */}
+            <div className={styles.right}>
+              {shown && shownId ? (
+                <>
+                  <SchemaThumb
+                    tables={shown.tables}
+                    relationships={shown.relationships}
+                    height={220}
+                    className={styles.preview}
+                  />
+
+                  <div className={styles.detailTitle}>
+                    {renamingId === shownId ? (
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename();
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                        aria-label="Diagram name"
+                        className={styles.nameInput}
+                        autoFocus
+                      />
+                    ) : (
+                      <h4 title={shown.name}>{shown.name}</h4>
+                    )}
+                    {shownId === activeDiagramId && <span className={cn(styles.tag, styles.current)}>Open now</span>}
+                  </div>
+
+                  <div className={styles.stats}>
+                    <div>
+                      <b>{shown.tables.length}</b>tables
+                    </div>
+                    <div>
+                      <b>{shown.relationships.length}</b>relationships
+                    </div>
+                    <div>
+                      <b>{shownSchemas}</b>schemas
+                    </div>
+                    <div>
+                      <b>{shown.notes.length}</b>notes
+                    </div>
+                  </div>
+
+                  <dl className={styles.kv}>
+                    <dt>Storage</dt>
+                    <dd>
+                      {shown.storage === "cloud" ? (
+                        <span className={cn(styles.tag, styles.cloud)}>
+                          <Cloud className="w-3 h-3" />
+                          Cloud
+                        </span>
+                      ) : (
+                        <span className={cn(styles.tag, styles.local)}>
+                          <Laptop className="w-3 h-3" />
+                          This device
+                        </span>
+                      )}
+                    </dd>
+                    <dt>Last edited</dt>
+                    <dd>
+                      {relativeTime(shown.updatedAt)} ·{" "}
+                      {new Date(shown.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                    </dd>
+                  </dl>
+
+                  <div className={styles.actions}>
+                    <button
+                      type="button"
+                      className={styles.primary}
+                      onClick={() => (shownId === activeDiagramId ? onOpenChange(false) : handleOpen(shownId))}
+                    >
+                      {shownId === activeDiagramId ? "Back to diagram" : "Open diagram"}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    {!readOnly && (
+                      <>
+                        <button type="button" className={styles.btn} onClick={(e) => startRename(shownId, shown.name, e)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Rename
+                        </button>
+                        <button type="button" className={styles.btn} onClick={(e) => handleDuplicate(shownId, e)}>
+                          <Copy className="w-3.5 h-3.5" />
+                          Duplicate
+                        </button>
+                        <CloudAction id={shownId} />
+                        <button
+                          type="button"
+                          className={cn(styles.btn, styles.danger)}
+                          onClick={(e) => handleDeleteClick(shownId, e)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className={styles.emptyDetail}>Create a diagram to get started.</p>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -455,7 +559,9 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this diagram?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes it from local storage permanently. This can&apos;t be undone.
+              {deleteTargetId && diagrams[deleteTargetId]?.storage === "cloud"
+                ? "It's removed from this device and moved to trash in the cloud. This can't be undone here."
+                : "It's removed from this device permanently. This can't be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

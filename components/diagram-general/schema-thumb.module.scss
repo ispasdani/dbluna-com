@@ -1,0 +1,12 @@
+// Miniature of a schema on a dotted canvas ground. Used by the Templates tab
+// and the My diagrams dialog.
+
+.thumb {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--canvas-bg);
+  background-image: radial-gradient(var(--canvas-dots, rgb(0 0 0 / 0.1)) 1px, transparent 1.2px);
+  background-size: 12px 12px;
+}

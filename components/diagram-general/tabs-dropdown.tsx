@@ -1,30 +1,26 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { DropdownMenu as Menu } from "radix-ui";
 import {
+  AlertCircle,
+  ChevronDown,
   Code,
   Database,
-  AlertCircle,
   LayoutTemplate,
-  Table,
-  ChevronDown,
   Link,
-  StickyNote,
-  Square,
   ListOrdered,
+  PanelsTopLeft,
+  Square,
+  StickyNote,
+  Table,
 } from "lucide-react";
 
 import { DiagramButton } from "./diagram-button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-import { TABS, useDockStore } from "@/store/useDockStore";
+import { TABS, useDockStore, type TabId } from "@/store/useDockStore";
 import { useCapabilities } from "./capabilities-context";
+import { cn } from "@/lib/utils";
+import menu from "./toolbar-menus.module.scss";
 
 const iconMap = {
   Code,
@@ -38,53 +34,66 @@ const iconMap = {
   ListOrdered,
 };
 
+/**
+ * Show or hide each dock tab. A switch per tab, since every entry is an
+ * on/off choice: on opens it (on `side` if it isn't open yet), off closes it
+ * from whichever side it's on.
+ */
 export function TabsDropdown({ side = "left" }: { side?: "left" | "right" }) {
-  const { leftTabs, rightTabs, openTab } = useDockStore();
+  const { leftTabs, rightTabs, openTab, closeTab } = useDockStore();
   const { visibleTabs } = useCapabilities();
 
-  const openSet = useMemo(
-    () => new Set([...leftTabs, ...rightTabs]),
-    [leftTabs, rightTabs]
-  );
+  const tabs = useMemo(() => TABS.filter((t) => visibleTabs.includes(t.id)), [visibleTabs]);
+  const openCount = tabs.filter((t) => leftTabs.includes(t.id) || rightTabs.includes(t.id)).length;
 
-  const tabs = useMemo(
-    () => TABS.filter((t) => visibleTabs.includes(t.id)),
-    [visibleTabs]
-  );
+  const toggle = (id: TabId) => {
+    if (leftTabs.includes(id)) closeTab(id, "left");
+    else if (rightTabs.includes(id)) closeTab(id, "right");
+    else openTab(id, side);
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Menu.Root>
+      <Menu.Trigger asChild>
         <DiagramButton variant="outlined">
+          <PanelsTopLeft className="w-3.5 h-3.5" />
           Tabs
+          <span className={menu.trigCount}>{openCount}</span>
           <ChevronDown className="w-3 h-3 text-muted-foreground" />
         </DiagramButton>
-      </DropdownMenuTrigger>
+      </Menu.Trigger>
 
-      <DropdownMenuContent align="center" className="w-56">
-        <DropdownMenuLabel className="text-muted-foreground">
-          Open a tab
-        </DropdownMenuLabel>
-
-        {tabs.map((tab) => {
-          const Icon = iconMap[tab.icon as keyof typeof iconMap];
-          const isOpen = openSet.has(tab.id);
-
-          return (
-            <DropdownMenuItem
-              key={tab.id}
-              onClick={() => openTab(tab.id, side)}
-              className="gap-2"
-            >
-              <Icon className="h-4 w-4" />
-              <span className="flex-1">{tab.label}</span>
-              {isOpen && (
-                <span className="text-xs text-muted-foreground">✓</span>
-              )}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <Menu.Portal>
+        <Menu.Content align="start" sideOffset={6} className={cn(menu.menu, menu.tabs)}>
+          <Menu.Label className={menu.group}>Show in the dock</Menu.Label>
+          {tabs.map((tab) => {
+            const Icon = iconMap[tab.icon as keyof typeof iconMap];
+            const where = leftTabs.includes(tab.id) ? "Left" : rightTabs.includes(tab.id) ? "Right" : null;
+            return (
+              <Menu.CheckboxItem
+                key={tab.id}
+                className={menu.item}
+                checked={where !== null}
+                onCheckedChange={() => toggle(tab.id)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span className={menu.icon}>
+                  <Icon className="w-4 h-4" />
+                </span>
+                <span className={menu.text}>
+                  {tab.label}
+                  {where === "Right" && <small>Right side</small>}
+                </span>
+                <span className={menu.switch} aria-hidden />
+              </Menu.CheckboxItem>
+            );
+          })}
+          <Menu.Separator className={menu.sep} />
+          <p className={menu.foot}>
+            {openCount} of {tabs.length} shown
+          </p>
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }

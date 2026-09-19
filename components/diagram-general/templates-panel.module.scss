@@ -3,20 +3,6 @@
 // Templates tab. Cards come from _panel-card.scss; each carries a miniature of
 // the template's layout, drawn from its own table positions and colours.
 
-.thumb {
-  display: block;
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background-color: var(--canvas-bg);
-  background-image: radial-gradient(var(--canvas-dots, rgb(0 0 0 / 0.1)) 1px, transparent 1.2px);
-  background-size: 12px 12px;
-}
-
-.panel[data-v="dense"] .thumb {
-  border-radius: 4px;
-}
-
 .closedBody {
   display: grid;
   gap: 10px;

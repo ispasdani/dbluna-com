@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,14 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useCanvasStore, Table as CanvasTable, TABLE_COLORS } from "@/store/useCanvasStore";
 import {
@@ -47,11 +39,15 @@ import {
   Eye,
   EyeOff,
   Check,
-  Link2,
   Terminal,
   X,
+  ArrowLeft,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react";
+import { SchemaThumb } from "@/components/diagram-general/schema-thumb";
+import { usePanelStyleStore } from "@/store/usePanelStyleStore";
+import styles from "./import-schema-dialog.module.scss";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Types
@@ -126,7 +122,12 @@ const SOURCES: { id: ImportSchemaTab; label: string; icon: LucideIcon; blurb: st
 /* ─────────────────────────────────────────────────────────────────────────────
    Utility: layout tables with dagre and push to canvas
 ───────────────────────────────────────────────────────────────────────────── */
-function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
+/** Positions tables left-to-right along their relationships. Used both for the
+    review preview and for the actual import, so the preview is what you get. */
+/** Either a store relationship or the `{ sourceId, targetId }` shape the DB tabs produce. */
+type EdgeLike = { sourceId?: string; targetId?: string; sourceTableId?: string; targetTableId?: string };
+
+function layoutTables(tables: CanvasTable[], relationships?: EdgeLike[]): CanvasTable[] {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "LR", ranksep: 220, nodesep: 80 });
   g.setDefaultEdgeLabel(() => ({}));
@@ -140,15 +141,21 @@ function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
 
   for (const rel of relationships ?? []) {
     // If it's a legacy map `{sourceId, targetId}` use that, otherwise use `sourceTableId` / `targetTableId`
-    g.setEdge(rel.sourceId || rel.sourceTableId, rel.targetId || rel.targetTableId);
+    const from = rel.sourceId || rel.sourceTableId;
+    const to = rel.targetId || rel.targetTableId;
+    if (from && to) g.setEdge(from, to);
   }
 
   dagre.layout(g);
 
-  const positioned = tables.map((t) => {
+  return tables.map((t) => {
     const node = g.node(t.id);
     return { ...t, x: node.x - NODE_WIDTH / 2, y: node.y - node.height / 2 };
   });
+}
+
+function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
+  const positioned = layoutTables(tables, relationships);
 
   useCanvasStore.setState((s) => {
     const newRelationships = (relationships ?? []).map(r => {
@@ -1000,65 +1007,28 @@ function BacpacImportTab() {
 ───────────────────────────────────────────────────────────────────────────── */
 
 /** Small inline checkbox — the design system has no checkbox primitive yet. */
-function CheckToggle({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="group flex items-start gap-2.5 text-left"
-    >
-      <span
-        className={cn(
-          "mt-px flex size-4 shrink-0 items-center justify-center border transition-colors",
-          checked
-            ? "border-foreground bg-foreground text-background"
-            : "border-input bg-background group-hover:border-ring"
-        )}
-      >
-        {checked && <Check className="size-3" strokeWidth={3} />}
-      </span>
-      <span className="min-w-0">
-        <span className="text-xs text-foreground">{label}</span>
-        {hint && (
-          <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-            {hint}
-          </span>
-        )}
-      </span>
-    </button>
-  );
-}
-
-function SqlScriptImportTab() {
+function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
   const [sql, setSql] = useState("");
   const [dialect, setDialect] = useState<SqlDialect | "auto">("auto");
+  const [step, setStep] = useState<1 | 2>(1);
   const [includePlaceholders, setIncludePlaceholders] = useState(true);
+  // Table ids the user unticked on the review step.
+  const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
   const [isDragging, setIsDragging] = useState(false);
-  const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState("");
-  const [issues, setIssues] = useState<SqlImportIssue[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
+  const [error, setError] = useState<{ message: string; issues: SqlImportIssue[] } | null>(null);
   const [parsed, setParsed] = useState<SqlImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+  const codeFont = usePanelStyleStore((s) => s.codeFont);
 
-  // Any edit invalidates the parse below it, so the Import button can never act
-  // on a result that no longer matches what's in the box.
+  // Any edit invalidates the parse, so the review can never show a result that
+  // no longer matches the script.
   const resetParse = () => {
     setParsed(null);
-    setStatus("idle");
-    setMessage("");
-    setIssues([]);
+    setError(null);
+    setSkipped(new Set());
   };
 
   const handleSqlChange = (value: string) => {
@@ -1066,14 +1036,12 @@ function SqlScriptImportTab() {
     resetParse();
   };
 
-  const handleDialectChange = (value: string) => {
-    setDialect(value as SqlDialect | "auto");
+  const pickDialect = (value: SqlDialect | "auto") => {
+    setDialect(value);
     resetParse();
   };
 
-  const loadFile = async (file: File) => {
-    handleSqlChange(await file.text());
-  };
+  const loadFile = async (file: File) => handleSqlChange(await file.text());
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1082,235 +1050,335 @@ function SqlScriptImportTab() {
     if (file) void loadFile(file);
   };
 
-  const handleParse = () => {
-    setStatus("loading");
-    setMessage("");
-    setIssues([]);
-    setParsed(null);
-
+  const toReview = () => {
+    setIsParsing(true);
+    setError(null);
     // Parsing a few hundred tables is CPU-bound and synchronous; yield a frame
-    // first so the button actually renders its spinner.
+    // first so the button actually shows it's working.
     setTimeout(() => {
       try {
-        // The success summary is derived from `parsed` below rather than stored,
-        // so the counts follow the placeholder toggle instead of freezing here.
         setParsed(importSqlSchema(sql, { dialect }));
-        setStatus("success");
+        setSkipped(new Set());
+        setStep(2);
       } catch (err) {
-        setStatus("error");
-        if (err instanceof SqlImportError) {
-          setMessage(err.message);
-          setIssues(err.issues);
-        } else {
-          setMessage(err instanceof Error ? err.message : "Could not parse this SQL script.");
-        }
+        if (err instanceof SqlImportError) setError({ message: err.message, issues: err.issues });
+        else setError({ message: err instanceof Error ? err.message : "Could not read this SQL script.", issues: [] });
+      } finally {
+        setIsParsing(false);
       }
     }, 0);
   };
 
-  const handleImport = () => {
-    if (!selection) return;
-    layoutAndImport(selection.tables, selection.relationships);
+  // What the review acts on: the parse, minus placeholders if they're switched
+  // off, minus anything unticked (and the relationships that touch it).
+  const base = parsed ? (includePlaceholders ? parsed : dropPlaceholderTables(parsed)) : null;
+  const placeholderIds = new Set(parsed?.placeholderTableIds ?? []);
+  const allTables = base?.tables ?? [];
+  const chosenTables = allTables.filter((t) => !skipped.has(t.id));
+  const chosenIds = new Set(chosenTables.map((t) => t.id));
+  const chosenRelationships = (base?.relationships ?? []).filter(
+    (r) => chosenIds.has(r.sourceTableId) && chosenIds.has(r.targetTableId)
+  );
+  const columnCount = chosenTables.reduce((n, t) => n + t.columns.length, 0);
+  const preview = useMemo(
+    () => (chosenTables.length ? layoutTables(chosenTables, chosenRelationships) : []),
+    // Recomputed when the selection changes, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parsed, includePlaceholders, skipped]
+  );
 
-    setStatus("success");
-    setMessage(
-      `Imported ${selection.tables.length} table(s) and ${selection.relationships.length} relationship(s).`
-    );
-    setParsed(null);
+  const toggleTable = (id: string) =>
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleImport = () => {
+    if (!chosenTables.length) return;
+    layoutAndImport(chosenTables, chosenRelationships);
+    onImported();
     setSql("");
+    resetParse();
+    setStep(1);
   };
 
-  const placeholderCount = parsed?.placeholderTableIds.length ?? 0;
-  const placeholderIds = new Set(parsed?.placeholderTableIds ?? []);
-  // What the buttons below act on: the parse, minus the placeholders if they're
-  // switched off. Recomputed on every render so the toggle stays live.
-  const selection = parsed && !includePlaceholders ? dropPlaceholderTables(parsed) : parsed;
-  const preview = selection?.tables ?? [];
-  const banner = selection
-    ? `Found ${selection.tables.length} table(s) and ${selection.relationships.length} relationship(s)` +
-      (selection.autoDetected ? ` — read as ${sqlDialectLabel(selection.dialect)}.` : ".")
-    : message;
+  const lineCount = Math.max(1, sql.split(/\r?\n/).length);
+  const badLines = new Set(error?.issues.map((i) => i.line).filter(Boolean));
+  const outsideNames = (parsed?.tables ?? []).filter((t) => placeholderIds.has(t.id)).map((t) => t.name);
 
   return (
-    <TabShell
-      actions={
-        <>
-          <Button
-            onClick={handleParse}
-            disabled={!sql.trim() || status === "loading"}
-            variant="outline"
-            size="lg"
-            className="gap-2"
-          >
-            {status === "loading" ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" />
-                Parsing…
-              </>
-            ) : (
-              <>
-                <Terminal className="size-3.5" />
-                Parse script
-              </>
-            )}
-          </Button>
-          <Button
-            onClick={handleImport}
-            disabled={preview.length === 0}
-            size="lg"
-            className={IMPORT_ACTION}
-          >
-            <Upload className="size-3.5" />
-            Import to canvas
-          </Button>
-        </>
-      }
-    >
-      {/* Dialect picker */}
-      <Field label="Dialect">
-        <Select value={dialect} onValueChange={handleDialectChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="auto">Auto-detect</SelectItem>
-            {SQL_DIALECTS.map((d) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      {/* Script box — paste, or drop a .sql file onto it */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Script
-          </Label>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="text-[11px] font-medium text-foreground underline underline-offset-2 decoration-foreground/30 transition-colors hover:decoration-foreground"
-          >
-            Load .sql file
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".sql,.ddl,.txt"
-            className="sr-only"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void loadFile(file);
-              // Allow re-picking the same file after an edit.
-              e.target.value = "";
-            }}
-          />
+    <div className={styles.flow} data-font={codeFont}>
+      <div className={styles.body}>
+        <div className={styles.steps} aria-label="Steps">
+          <span className={cn(styles.step, step === 1 ? styles.stepOn : styles.stepDone)}>
+            <span className={styles.stepNum}>{step === 1 ? 1 : <Check className="size-3" strokeWidth={3} />}</span>
+            Paste script
+          </span>
+          <span className={styles.stepBar} />
+          <span className={cn(styles.step, step === 2 && styles.stepOn)}>
+            <span className={styles.stepNum}>2</span>
+            Review and import
+          </span>
         </div>
 
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          className="relative"
-        >
-          <Textarea
-            value={sql}
-            onChange={(e) => handleSqlChange(e.target.value)}
-            spellCheck={false}
-            placeholder={"CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"}
-            // `field-sizing-fixed` overrides the Textarea default, which would
-            // otherwise grow the box to the full height of a long dump.
-            className={cn(
-              "h-56 resize-y bg-background font-mono text-[11px] leading-relaxed field-sizing-fixed",
-              isDragging && "border-foreground ring-1 ring-foreground"
-            )}
-          />
-          {isDragging && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-foreground/5">
-              <span className="border border-foreground bg-foreground px-2 py-1 text-[11px] font-medium text-background">
-                Drop .sql file to load
-              </span>
+        {step === 1 ? (
+          <>
+            <div className={styles.label}>Dialect</div>
+            <div className={styles.chips} role="group" aria-label="Dialect">
+              {[{ id: "auto" as const, label: "Auto-detect" }, ...SQL_DIALECTS].map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  aria-pressed={dialect === d.id}
+                  className={styles.chip}
+                  onClick={() => pickDialect(d.id)}
+                >
+                  {d.label}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
 
-        <p className="text-[11px] text-muted-foreground">
-          {sql.trim()
-            ? `${sql.split(/\r?\n/).length} lines · ${(new Blob([sql]).size / 1024).toFixed(1)} KB`
-            : "Paste your CREATE TABLE statements, or drop a .sql file here."}
-        </p>
+            <div className={styles.label}>Script</div>
+            <div
+              className={styles.editor}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
+              }}
+              onDrop={handleDrop}
+            >
+              <div className={styles.gutter} ref={gutterRef} aria-hidden>
+                {Array.from({ length: lineCount }, (_, i) => (
+                  <div key={i} className={badLines.has(i + 1) ? styles.badLine : undefined}>
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
+              <textarea
+                ref={textRef}
+                className={styles.textarea}
+                value={sql}
+                onChange={(e) => handleSqlChange(e.target.value)}
+                onScroll={(e) => {
+                  if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+                }}
+                spellCheck={false}
+                aria-label="SQL script"
+                placeholder={"CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"}
+              />
+              {isDragging && <div className={styles.dropOverlay}>Drop your .sql file to load it</div>}
+            </div>
+
+            <div className={styles.meta}>
+              <span>
+                {sql.trim()
+                  ? `${lineCount} lines · ${(new Blob([sql]).size / 1024).toFixed(1)} KB`
+                  : "Paste CREATE TABLE statements, or drop a .sql file on the box."}
+              </span>
+              <span className={styles.spacer} />
+              <button type="button" className={styles.link} onClick={() => fileRef.current?.click()}>
+                Load .sql file
+              </button>
+              {sql && (
+                <button type="button" className={styles.link} onClick={() => handleSqlChange("")}>
+                  Clear
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".sql,.ddl,.txt"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void loadFile(file);
+                  // Allow re-picking the same file after an edit.
+                  e.target.value = "";
+                }}
+              />
+            </div>
+
+            {error && (
+              <div className={cn(styles.status, styles.statusErr)} role="alert">
+                <AlertCircle className="size-4" />
+                <div>
+                  <span>{error.message}</span>
+                  {error.issues.length > 0 && (
+                    <ul>
+                      {error.issues.slice(0, 5).map((issue, i) => (
+                        <li key={i}>
+                          {issue.line ? `Line ${issue.line}: ` : ""}
+                          {issue.message}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {dialect === "auto" && (
+                    <div className={styles.statusHint}>If the script looks right, try picking its dialect above.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          parsed && (
+            <div className={styles.review}>
+              <div className={styles.col}>
+                <SchemaThumb tables={preview} relationships={chosenRelationships} height={210} className={styles.thumb} />
+                <div className={styles.stats}>
+                  <div>
+                    <b>{chosenTables.length}</b>tables
+                  </div>
+                  <div>
+                    <b>{chosenRelationships.length}</b>relationships
+                  </div>
+                  <div>
+                    <b>{columnCount}</b>columns
+                  </div>
+                </div>
+                <div className={cn(styles.status, styles.statusOk)}>
+                  <CheckCircle2 className="size-4" />
+                  <span>
+                    Found {parsed.tables.length - placeholderIds.size} tables and {parsed.relationships.length}{" "}
+                    relationships{parsed.autoDetected ? `, read as ${sqlDialectLabel(parsed.dialect)}` : ""}.
+                  </span>
+                </div>
+                {placeholderIds.size > 0 && (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={includePlaceholders}
+                    className={styles.toggle}
+                    onClick={() => {
+                      setIncludePlaceholders((v) => !v);
+                      setSkipped(new Set());
+                    }}
+                  >
+                    <span className={styles.toggleText}>
+                      Add {placeholderIds.size} placeholder {placeholderIds.size === 1 ? "table" : "tables"} for outside
+                      references
+                      <small>
+                        Foreign keys point at <b>{outsideNames.join(", ")}</b>, which this script doesn&apos;t define. Keep
+                        them to see those relationships.
+                      </small>
+                    </span>
+                    <span className={styles.switch} aria-hidden />
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.col}>
+                <div className={styles.label}>
+                  Tables to import
+                  <span className={styles.spacer} />
+                  <button
+                    type="button"
+                    className={styles.link}
+                    onClick={() => setSkipped(skipped.size ? new Set() : new Set(allTables.map((t) => t.id)))}
+                  >
+                    {skipped.size ? "Select all" : "Select none"}
+                  </button>
+                </div>
+                <div className={styles.checklist}>
+                  {allTables.map((t) => {
+                    const isPlaceholder = placeholderIds.has(t.id);
+                    const on = !skipped.has(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={on}
+                        className={styles.checkRow}
+                        style={{ "--tc": t.color } as React.CSSProperties}
+                        onClick={() => toggleTable(t.id)}
+                      >
+                        <span className={styles.box} aria-hidden>
+                          {on && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                        <span className={styles.dot} aria-hidden />
+                        <span className={styles.rowName} title={t.name}>
+                          {t.name}
+                          {isPlaceholder && <span className={styles.tag}>placeholder</span>}
+                        </span>
+                        <span className={styles.rowMeta}>
+                          {isPlaceholder ? "outside" : `${t.columns.length} cols`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )
+        )}
       </div>
 
-      {/* Placeholder toggle — only meaningful once we know the script has dangling FKs */}
-      {placeholderCount > 0 && (
-        <div className="border border-border bg-muted/40 px-3 py-2.5">
-          <CheckToggle
-            checked={includePlaceholders}
-            onChange={setIncludePlaceholders}
-            label={`Add ${placeholderCount} placeholder table(s) for external references`}
-            hint="This script has foreign keys pointing at tables it doesn't define. Keep them to see those relationships on the canvas, or leave them out to import only what's in the script."
-          />
-        </div>
-      )}
-
-      {banner && (
-        <StatusBanner status={status} message={banner}>
-          {issues.length > 0 && (
-            <ul className="mt-1.5 space-y-0.5 font-mono text-[11px] opacity-80">
-              {issues.slice(0, 5).map((issue, i) => (
-                <li key={i} className="truncate">
-                  {issue.line ? `Line ${issue.line}: ` : ""}
-                  {issue.message}
-                </li>
-              ))}
-            </ul>
-          )}
-          {status === "error" && dialect === "auto" && (
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Try picking the dialect explicitly above.
-            </p>
-          )}
-        </StatusBanner>
-      )}
-
-      {preview.length > 0 && (
-        <ResultPanel title="Tables found" meta={`${preview.length} tables`}>
-          {preview.map((t) => {
-            const isPlaceholder = placeholderIds.has(t.id);
-            return (
-              <ResultRow
-                key={t.id}
-                icon={isPlaceholder ? Link2 : Database}
-                iconClassName={isPlaceholder ? "text-amber-500" : undefined}
-                name={t.name}
-                badge={isPlaceholder ? "placeholder" : undefined}
-                detail={
-                  <>
-                    {t.columns
-                      .slice(0, 5)
-                      .map((c) => c.name)
-                      .join(", ")}
-                    {t.columns.length > 5 ? ` +${t.columns.length - 5} more` : ""}
-                  </>
-                }
-              />
-            );
-          })}
-        </ResultPanel>
-      )}
-    </TabShell>
+      <div className={styles.foot}>
+        {step === 1 ? (
+          <>
+            <span className={styles.footInfo}>
+              {sql.trim() ? "Next, check what was found before anything reaches the canvas." : "Nothing to read yet."}
+            </span>
+            <span className={styles.spacer} />
+            <button type="button" className={styles.primary} onClick={toReview} disabled={!sql.trim() || isParsing}>
+              {isParsing ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Reading…
+                </>
+              ) : (
+                <>
+                  Review tables
+                  <ArrowRight className="size-3.5" />
+                </>
+              )}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className={styles.secondary} onClick={() => setStep(1)}>
+              <ArrowLeft className="size-3.5" />
+              Edit script
+            </button>
+            <span className={styles.spacer} />
+            <span className={styles.footInfo}>
+              <b>{chosenTables.length}</b> of {allTables.length} tables selected
+            </span>
+            <button type="button" className={styles.primary} onClick={handleImport} disabled={!chosenTables.length}>
+              <Upload className="size-3.5" />
+              Import {chosenTables.length} to canvas
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Main Dialog
 ───────────────────────────────────────────────────────────────────────────── */
+/** The source rail, grouped the way the Import menu groups them. */
+const SOURCE_GROUPS: { label: string; ids: ImportSchemaTab[] }[] = [
+  { label: "Live database", ids: ["postgresql", "sqlserver"] },
+  { label: "From code", ids: ["sql"] },
+  { label: "From a file", ids: ["csv", "bacpac"] },
+];
+
+const SOURCE_HINTS: Record<ImportSchemaTab, string> = {
+  postgresql: "Connect and read",
+  sqlserver: "Connect and read",
+  sql: "Paste or drop .sql",
+  csv: "One file per table",
+  bacpac: "SQL Server export",
+};
+
 export function ImportSchemaDialog({
   open,
   onOpenChange,
@@ -1333,50 +1401,46 @@ export function ImportSchemaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="shrink-0 gap-0 border-b border-border bg-sidebar px-5 py-3.5">
-          <div className="flex items-center gap-3 pr-8">
-            <span className="flex size-8 shrink-0 items-center justify-center bg-foreground text-background">
-              <Upload className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <DialogTitle className="text-sm font-semibold leading-tight text-foreground">
-                Import schema
-              </DialogTitle>
-              {/* The blurb follows the rail selection, so the header always
-                  describes the source the user is actually looking at. */}
-              <DialogDescription className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
-                {active.blurb}
-              </DialogDescription>
-            </div>
+      <DialogContent className={styles.content}>
+        <DialogHeader className={styles.header}>
+          <span className={styles.badge}>
+            <Upload className="size-4" />
+          </span>
+          <div className="min-w-0 text-left">
+            <DialogTitle className={styles.title}>Import schema</DialogTitle>
+            {/* The blurb follows the rail selection, so the header always
+                describes the source the user is actually looking at. */}
+            <DialogDescription className={styles.subtitle}>{active.blurb}</DialogDescription>
           </div>
         </DialogHeader>
 
-        {/* Vertical rail instead of five cramped top tabs: the sources have
-            unequal weight (two live connections, three file formats) and read
-            better as a list, and it leaves the full width for each form. */}
         <Tabs
           orientation="vertical"
           value={tab}
           onValueChange={(v) => setTab(v as ImportSchemaTab)}
           className="flex min-h-0 flex-1 items-stretch gap-0"
         >
-          <div className="flex w-13 shrink-0 flex-col border-r border-border bg-sidebar p-1.5 sm:w-52">
-            <TabsList className="h-auto w-full flex-col items-stretch justify-start gap-0.5 bg-transparent p-0">
-              {SOURCES.map(({ id, label, icon: Icon }) => (
-                <TabsTrigger
-                  key={id}
-                  value={id}
-                  title={label}
-                  className={cn(
-                    "h-auto min-h-9 flex-none justify-center gap-2.5 px-0 py-2 text-xs sm:justify-start sm:px-2.5",
-                    "data-active:bg-background data-active:font-medium data-active:text-foreground",
-                    "data-active:shadow-[inset_2px_0_0_var(--foreground)]"
-                  )}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="hidden truncate sm:inline">{label}</span>
-                </TabsTrigger>
+          <div className={styles.rail}>
+            <TabsList className={styles.railList}>
+              {SOURCE_GROUPS.map((group) => (
+                <div key={group.label} className="contents">
+                  <span className={styles.railGroup}>{group.label}</span>
+                  {group.ids.map((id) => {
+                    const source = SOURCES.find((s) => s.id === id)!;
+                    const Icon = source.icon;
+                    return (
+                      <TabsTrigger key={id} value={id} title={source.label} className={styles.source}>
+                        <span className={styles.sourceIcon}>
+                          <Icon className="size-4" />
+                        </span>
+                        <span className={styles.sourceText}>
+                          {source.label}
+                          <small>{SOURCE_HINTS[id]}</small>
+                        </span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </div>
               ))}
             </TabsList>
           </div>
@@ -1389,7 +1453,7 @@ export function ImportSchemaDialog({
             ))}
 
             <TabsContent value="sql" className="min-h-0 flex-1">
-              <SqlScriptImportTab />
+              <SqlScriptImportTab onImported={() => onOpenChange(false)} />
             </TabsContent>
 
             <TabsContent value="csv" className="min-h-0 flex-1">

@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Check, ChevronDown, ChevronsDownUp, Plus, Search } from "lucide-react";
 
 import { useCanvasStore, type Relationship, type Table } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { usePanelStyle } from "@/store/usePanelStyleStore";
-import { useCanvasStyle } from "@/store/useCanvasStyleStore";
-import { TABLE_GEOMETRY, tableHeight, type TableGeometry } from "@/components/diagram-sections/canvas/canvas-style";
 import { TEMPLATES, type Template } from "@/constants/templates";
 import { cn } from "@/lib/utils";
 import { TemplateGlyph } from "./panel-glyphs";
+import { SchemaThumb } from "./schema-thumb";
 import styles from "./templates-panel.module.scss";
 
 const TEMPLATE_TINT = { "--tc": "var(--primary)" } as CSSProperties;
@@ -57,84 +56,9 @@ function applyTemplate(template: Template): string[] {
   return newTables.map((t) => t.id);
 }
 
-/** Miniature of the template's layout: tables in their colours, links as lines. */
-function TemplateThumb({ template, geo, height }: { template: Template; geo: TableGeometry; height: number }) {
-  const { boxes, viewBox } = useMemo(() => {
-    const b = template.tables.map((t) => ({ t, w: geo.width, h: tableHeight(geo, t.columns.length) }));
-    const pad = 40;
-    const minX = Math.min(...b.map((x) => x.t.x)) - pad;
-    const minY = Math.min(...b.map((x) => x.t.y)) - pad;
-    const maxX = Math.max(...b.map((x) => x.t.x + x.w)) + pad;
-    const maxY = Math.max(...b.map((x) => x.t.y + x.h)) + pad;
-    return { boxes: b, viewBox: `${minX} ${minY} ${maxX - minX} ${maxY - minY}` };
-  }, [template, geo]);
-
-  const byId = new Map(boxes.map((b) => [b.t.id, b]));
-  const centre = (id: string) => {
-    const b = byId.get(id);
-    return b ? { x: b.t.x + b.w / 2, y: b.t.y + b.h / 2 } : null;
-  };
-
-  return (
-    <svg className={styles.thumb} viewBox={viewBox} height={height} preserveAspectRatio="xMidYMid meet" aria-hidden>
-      {template.relationships.map((r) => {
-        const a = centre(r.sourceTableId);
-        const z = centre(r.targetTableId);
-        if (!a || !z) return null;
-        return (
-          <line
-            key={r.id}
-            x1={a.x}
-            y1={a.y}
-            x2={z.x}
-            y2={z.y}
-            stroke="var(--muted-foreground)"
-            strokeOpacity={0.45}
-            strokeWidth={1.2}
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-      {boxes.map(({ t, w, h }) => (
-        <g key={t.id}>
-          <rect x={t.x} y={t.y} width={w} height={h} rx={geo.radius} fill="var(--table-bg)" />
-          <rect
-            x={t.x}
-            y={t.y}
-            width={w}
-            height={h}
-            rx={geo.radius}
-            fill={t.color}
-            fillOpacity={0.1}
-            stroke={t.color}
-            strokeOpacity={0.7}
-            strokeWidth={1.2}
-            vectorEffect="non-scaling-stroke"
-          />
-          <rect x={t.x} y={t.y} width={w} height={geo.headerHeight} rx={geo.radius} fill={t.color} fillOpacity={0.85} />
-          <rect x={t.x} y={t.y + geo.headerHeight / 2} width={w} height={geo.headerHeight / 2} fill={t.color} fillOpacity={0.85} />
-          {t.columns.map((c, i) => (
-            <rect
-              key={c.id}
-              x={t.x + 14}
-              y={t.y + geo.headerHeight + geo.padTop + i * geo.rowHeight + geo.rowHeight / 2 - 3}
-              width={c.isPrimaryKey ? w * 0.35 : w * (0.45 + ((i * 37) % 25) / 100)}
-              height={6}
-              rx={3}
-              fill={c.isPrimaryKey ? t.color : "var(--muted-foreground)"}
-              fillOpacity={c.isPrimaryKey ? 0.6 : 0.22}
-            />
-          ))}
-        </g>
-      ))}
-    </svg>
-  );
-}
-
 export function TemplatesPanel() {
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const { variant } = usePanelStyle("templates");
-  const geo = TABLE_GEOMETRY[useCanvasStyle().table];
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addedId, setAddedId] = useState<string | null>(null);
@@ -207,14 +131,14 @@ export function TemplatesPanel() {
         {/* Closed cards show the layout and the pitch; the compact style stays one line. */}
         {!isOpen && variant !== "dense" && (
           <div className={styles.closedBody} onClick={toggle}>
-            <TemplateThumb template={template} geo={geo} height={110} />
+            <SchemaThumb tables={template.tables} relationships={template.relationships} height={110} />
             <p className={cn(styles.description, styles.clamp)}>{template.description}</p>
           </div>
         )}
 
         {isOpen && (
           <div className={styles.settings}>
-            <TemplateThumb template={template} geo={geo} height={170} />
+            <SchemaThumb tables={template.tables} relationships={template.relationships} height={170} />
             <p className={styles.description}>{template.description}</p>
 
             <div className={styles.stats}>
