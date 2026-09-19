@@ -1,23 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   Info,
   Search,
   Table2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { Issue, IssueSeverity } from "@/lib/diagram-issues";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
+import { usePanelStyle } from "@/store/usePanelStyleStore";
+import { TableGlyph } from "./panel-glyphs";
 import { focusTableOnCanvas, useDiagramIssues } from "./use-diagram-issues";
+import styles from "./issues-panel.module.scss";
 
 type GroupBy = "table" | "severity" | "category";
 
@@ -38,56 +41,58 @@ const CATEGORY_LABEL: Record<Issue["category"], string> = {
   enums: "Enums",
 };
 
-// One place for the severity palette so the icon, the filter chip and the row
-// accent can never drift apart. Amber rather than `text-yellow-600`: the old
-// value was close to unreadable against the Tokyo Night dock surface.
-const SEVERITY_STYLES: Record<
-  IssueSeverity,
-  { icon: typeof AlertCircle; text: string; accent: string; chipOn: string }
-> = {
-  error: {
-    icon: AlertCircle,
-    text: "text-destructive",
-    accent: "border-l-destructive",
-    chipOn: "bg-destructive/10 text-destructive border-destructive/30",
-  },
-  warning: {
-    icon: AlertTriangle,
-    text: "text-amber-600 dark:text-amber-400",
-    accent: "border-l-amber-500",
-    chipOn:
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
-  },
-  info: {
-    icon: Info,
-    text: "text-sky-600 dark:text-sky-400",
-    accent: "border-l-sky-500",
-    chipOn: "bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30",
-  },
+// One place for the severity icon and colour, so the filter chip, the group
+// counts and the row icon can never drift apart.
+const SEVERITY_ICON: Record<IssueSeverity, LucideIcon> = {
+  error: AlertCircle,
+  warning: AlertTriangle,
+  info: Info,
 };
+const sev = (severity: IssueSeverity) => ({ "--sc": `var(--sev-${severity})` }) as CSSProperties;
+
+const GROUP_BY: { id: GroupBy; label: string }[] = [
+  { id: "table", label: "Table" },
+  { id: "severity", label: "Severity" },
+  { id: "category", label: "Category" },
+];
 
 interface IssueGroup {
   key: string;
   label: string;
   issues: Issue[];
-  /** Set when the group is a table, so the header itself can navigate. */
+  /** Set when the group is a table, so the card takes the table's colour. */
   tableId?: string;
+  /** Set when grouping by severity. */
+  severity?: IssueSeverity;
 }
 
 export function IssuesPanel() {
   const { issues, counts } = useDiagramIssues();
-  const hasTables = useCanvasStore((s) => s.tables.length > 0);
+  // Only ids and colours, as a string, so dragging tables (which replaces the
+  // array every pointermove) doesn't re-render the whole issue list.
+  const colorKey = useCanvasStore((s) => s.tables.map((t) => `${t.id}=${t.color}`).join("|"));
+  const hasTables = colorKey !== "";
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
   const openTab = useDockStore((s) => s.openTab);
+  const { variant } = usePanelStyle("issues");
 
-  const [mutedSeverities, setMutedSeverities] = useState<Set<IssueSeverity>>(
-    () => new Set()
-  );
+  const [mutedSeverities, setMutedSeverities] = useState<Set<IssueSeverity>>(() => new Set());
   const [query, setQuery] = useState("");
   const [groupBy, setGroupBy] = useState<GroupBy>("table");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
+
+  const tableColor = useMemo(
+    () =>
+      new Map(
+        colorKey
+          .split("|")
+          .filter(Boolean)
+          .map((entry) => entry.split("=") as [string, string])
+      ),
+    [colorKey]
+  );
 
   const visibleIssues = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -106,16 +111,16 @@ export function IssuesPanel() {
     const byKey = new Map<string, IssueGroup>();
 
     for (const issue of visibleIssues) {
-      const [key, label, tableId] =
+      const group: Omit<IssueGroup, "issues"> =
         groupBy === "table"
-          ? [issue.groupKey, issue.groupLabel, issue.tableId]
+          ? { key: issue.groupKey, label: issue.groupLabel, tableId: issue.tableId }
           : groupBy === "severity"
-            ? [issue.severity, SEVERITY_LABEL[issue.severity].many, undefined]
-            : [issue.category, CATEGORY_LABEL[issue.category], undefined];
+            ? { key: issue.severity, label: SEVERITY_LABEL[issue.severity].many, severity: issue.severity }
+            : { key: issue.category, label: CATEGORY_LABEL[issue.category] };
 
-      const existing = byKey.get(key);
+      const existing = byKey.get(group.key);
       if (existing) existing.issues.push(issue);
-      else byKey.set(key, { key, label, issues: [issue], tableId });
+      else byKey.set(group.key, { ...group, issues: [issue] });
     }
 
     const list = [...byKey.values()];
@@ -125,30 +130,29 @@ export function IssuesPanel() {
     }
     // Worst-first, so the group that needs attention is at the top of a long list.
     const worst = (g: IssueGroup) =>
-      g.issues.some((i) => i.severity === "error")
-        ? 0
-        : g.issues.some((i) => i.severity === "warning")
-          ? 1
-          : 2;
+      g.issues.some((i) => i.severity === "error") ? 0 : g.issues.some((i) => i.severity === "warning") ? 1 : 2;
     return list.sort((a, b) => worst(a) - worst(b) || a.label.localeCompare(b.label));
   }, [visibleIssues, groupBy]);
 
-  const toggleSeverity = (severity: IssueSeverity) => {
+  const toggleSeverity = (severity: IssueSeverity) =>
     setMutedSeverities((prev) => {
       const next = new Set(prev);
       if (next.has(severity)) next.delete(severity);
       else next.add(severity);
       return next;
     });
-  };
 
-  const toggleGroup = (key: string) => {
+  const toggleGroup = (key: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+
+  const clearFilters = () => {
+    setQuery("");
+    setMutedSeverities(new Set());
   };
 
   /**
@@ -180,197 +184,187 @@ export function IssuesPanel() {
     if (issue.rule === "table-group-unknown-member") openTab("code");
   };
 
+  const groupTint = (group: IssueGroup): CSSProperties => {
+    if (group.tableId) return { "--tc": tableColor.get(group.tableId) ?? "var(--primary)" } as CSSProperties;
+    if (group.severity) return { "--tc": `var(--sev-${group.severity})` } as CSSProperties;
+    return { "--tc": "var(--primary)" } as CSSProperties;
+  };
+
+  const onKey = (e: React.KeyboardEvent, fn: () => void) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn();
+    }
+  };
+
   const isFiltered = mutedSeverities.size > 0 || query.trim() !== "";
 
-  return (
-    <div className="h-full flex flex-col bg-background">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="shrink-0 border-b border-border">
-        <div className="p-4 pb-3 space-y-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h3 className="font-medium text-foreground">Issues</h3>
-            <span className="text-xs text-muted-foreground">
-              {counts.total === 0
-                ? "Schema is clean"
-                : `${counts.total} ${counts.total === 1 ? "finding" : "findings"}`}
-            </span>
-          </div>
+  const renderGroup = (group: IssueGroup) => {
+    const isCollapsed = collapsed.has(group.key);
+    const GroupIcon = group.severity ? SEVERITY_ICON[group.severity] : null;
 
-          {/* Severity filters double as the count summary — one control instead
-              of a static legend the user can't act on. */}
-          <div className="flex flex-wrap gap-1.5">
+    return (
+      <div
+        key={group.key}
+        className={cn(styles.tb, styles.card, styles.group, isCollapsed && styles.closed)}
+        style={groupTint(group)}
+      >
+        <div
+          className={styles.tbHead}
+          role="button"
+          tabIndex={0}
+          aria-expanded={!isCollapsed}
+          onClick={() => toggleGroup(group.key)}
+          onKeyDown={(e) => onKey(e, () => toggleGroup(group.key))}
+        >
+          <span className={styles.chev}>
+            <ChevronDown className="w-3 h-3" />
+          </span>
+          <span className={styles.mk}>
+            {GroupIcon ? <GroupIcon className="w-3 h-3" /> : <TableGlyph />}
+          </span>
+          <span className={styles.tname} title={group.label}>
+            {group.label}
+          </span>
+          <span className={styles.sevCounts}>
             {SEVERITIES.map((severity) => {
-              const style = SEVERITY_STYLES[severity];
-              const Icon = style.icon;
-              const count = counts[severity];
-              const muted = mutedSeverities.has(severity);
+              const n = group.issues.filter((i) => i.severity === severity).length;
+              if (n === 0) return null;
+              const Icon = SEVERITY_ICON[severity];
+              return (
+                <span key={severity} className={styles.sevCount} style={sev(severity)} title={SEVERITY_LABEL[severity].many}>
+                  <Icon className="w-3 h-3" />
+                  <span className={styles.trim}>{n}</span>
+                </span>
+              );
+            })}
+          </span>
+        </div>
+
+        {!isCollapsed && (
+          <div className={styles.issues}>
+            {group.issues.map((issue) => {
+              const Icon = SEVERITY_ICON[issue.severity];
               return (
                 <button
-                  key={severity}
+                  key={issue.id}
                   type="button"
-                  aria-pressed={!muted}
-                  onClick={() => toggleSeverity(severity)}
-                  title={
-                    muted
-                      ? `Show ${SEVERITY_LABEL[severity].many.toLowerCase()}`
-                      : `Hide ${SEVERITY_LABEL[severity].many.toLowerCase()}`
-                  }
-                  className={cn(
-                    "inline-flex items-center gap-1.5 border px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
-                    muted
-                      ? "border-border text-muted-foreground/60 hover:text-muted-foreground"
-                      : style.chipOn
-                  )}
+                  className={cn(styles.issue, issue.id === activeIssueId && styles.activeIssue)}
+                  style={sev(issue.severity)}
+                  onClick={() => handleIssueClick(issue)}
                 >
-                  <Icon className={cn("w-3.5 h-3.5", muted && "opacity-50")} />
-                  <span className="tabular-nums">{count}</span>
-                  <span>
-                    {count === 1
-                      ? SEVERITY_LABEL[severity].one
-                      : SEVERITY_LABEL[severity].many}
+                  <Icon className="w-3.5 h-3.5" aria-label={SEVERITY_LABEL[issue.severity].one} />
+                  <span className={styles.issueText}>
+                    <span className={styles.message}>{issue.message}</span>
+                    {issue.hint && <span className={styles.hintText}>{issue.hint}</span>}
+                    {groupBy !== "table" && <span className={styles.scope}>{issue.groupLabel}</span>}
                   </span>
                 </button>
               );
             })}
           </div>
+        )}
+      </div>
+    );
+  };
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Filter issues…"
-                aria-label="Filter issues"
-                className="w-full h-8 border border-input bg-background pl-7 pr-7 text-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear filter"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+  return (
+    <div className={styles.panel} data-v={variant}>
+      <div className={styles.header}>
+        <div className={styles.titleRow}>
+          <h3>Issues</h3>
+          {counts.total > 0 && <span className={styles.count}>{counts.total}</span>}
+          <span className={styles.spacer} />
+          {counts.total === 0 && hasTables && (
+            <span className={cn(styles.summary, styles.clean)}>Schema is clean</span>
+          )}
+        </div>
+
+        {counts.total > 0 && (
+          <>
+            {/* Severity filters double as the count summary — one control
+                instead of a static legend the user can't act on. */}
+            <div className={styles.sevChips}>
+              {SEVERITIES.map((severity) => {
+                const Icon = SEVERITY_ICON[severity];
+                const count = counts[severity];
+                const muted = mutedSeverities.has(severity);
+                const label = count === 1 ? SEVERITY_LABEL[severity].one : SEVERITY_LABEL[severity].many;
+                return (
+                  <button
+                    key={severity}
+                    type="button"
+                    style={sev(severity)}
+                    aria-pressed={!muted}
+                    title={`${muted ? "Show" : "Hide"} ${SEVERITY_LABEL[severity].many.toLowerCase()}`}
+                    onClick={() => toggleSeverity(severity)}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <b className={styles.trim}>{count}</b>
+                    <span className={styles.trim}>{label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            <select
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-              aria-label="Group issues by"
-              className="h-8 shrink-0 border border-input bg-background px-2 text-xs text-muted-foreground outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
-            >
-              <option value="table">By table</option>
-              <option value="severity">By severity</option>
-              <option value="category">By category</option>
-            </select>
-          </div>
-        </div>
+            <div className={styles.filterRow}>
+              <label className={styles.search}>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Filter issues"
+                  aria-label="Filter issues"
+                />
+                {query && (
+                  <button type="button" className={styles.clearBtn} onClick={() => setQuery("")} aria-label="Clear filter">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </label>
+              <div className={styles.seg} role="group" aria-label="Group issues by">
+                {GROUP_BY.map(({ id, label }) => (
+                  <button key={id} type="button" aria-pressed={groupBy === id} onClick={() => setGroupBy(id)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* ── Body ────────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className={styles.body}>
         {!hasTables ? (
           <EmptyState
-            icon={<Table2 className="w-10 h-10 text-muted-foreground/40" />}
+            icon={<Table2 className={cn("w-9 h-9", styles.emptyIcon)} />}
             title="Nothing to check yet"
             body="Add a table to the canvas and this tab will start reviewing your schema."
           />
         ) : issues.length === 0 ? (
           <EmptyState
-            icon={<CheckCircle2 className="w-10 h-10 text-emerald-500/60" />}
+            icon={<CheckCircle2 className={cn("w-9 h-9", styles.emptyIconClean)} />}
             title="No issues found"
             body="Names, keys, types and relationships all check out."
           />
         ) : visibleIssues.length === 0 ? (
           <EmptyState
-            icon={<Search className="w-10 h-10 text-muted-foreground/40" />}
+            icon={<Search className={cn("w-9 h-9", styles.emptyIcon)} />}
             title="No matching issues"
             body={`${counts.total} ${counts.total === 1 ? "issue is" : "issues are"} hidden by the current filter.`}
             action={
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setMutedSeverities(new Set());
-                }}
-                className="text-xs font-medium text-primary hover:underline cursor-pointer"
-              >
+              <button type="button" className={styles.textLink} onClick={clearFilters}>
                 Clear filters
               </button>
             }
           />
         ) : (
-          <div className="p-2 space-y-2">
-            {groups.map((group) => {
-              const isCollapsed = collapsed.has(group.key);
-              return (
-                <div key={group.key} className="border border-border">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.key)}
-                    aria-expanded={!isCollapsed}
-                    className="w-full flex items-center gap-2 p-2 bg-card text-left select-none hover:bg-accent transition-colors cursor-pointer"
-                  >
-                      {isCollapsed ? (
-                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                      )}
-                      <span className="text-sm font-medium truncate">{group.label}</span>
-                      <span className="ml-auto shrink-0 flex items-center gap-1.5 pl-2">
-                        {SEVERITIES.map((severity) => {
-                          const n = group.issues.filter(
-                            (i) => i.severity === severity
-                          ).length;
-                          if (n === 0) return null;
-                          const Icon = SEVERITY_STYLES[severity].icon;
-                          return (
-                            <span
-                              key={severity}
-                              className={cn(
-                                "inline-flex items-center gap-0.5 text-xs tabular-nums",
-                                SEVERITY_STYLES[severity].text
-                              )}
-                            >
-                              <Icon className="w-3 h-3" />
-                              {n}
-                            </span>
-                          );
-                        })}
-                    </span>
-                  </button>
-
-                  {!isCollapsed && (
-                    <ul className="border-t border-border">
-                      {group.issues.map((issue) => (
-                        <IssueRow
-                          key={issue.id}
-                          issue={issue}
-                          isActive={issue.id === activeIssueId}
-                          showScope={groupBy !== "table"}
-                          onSelect={handleIssueClick}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-
+          <div className={styles.list}>
+            {groups.map(renderGroup)}
             {isFiltered && (
-              <p className="px-1 py-2 text-xs text-muted-foreground">
+              <p className={styles.footnote}>
                 Showing {visibleIssues.length} of {counts.total}.{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    setMutedSeverities(new Set());
-                  }}
-                  className="font-medium text-primary hover:underline cursor-pointer"
-                >
+                <button type="button" className={styles.textLink} onClick={clearFilters}>
                   Clear filters
                 </button>
               </p>
@@ -379,52 +373,6 @@ export function IssuesPanel() {
         )}
       </div>
     </div>
-  );
-}
-
-function IssueRow({
-  issue,
-  isActive,
-  showScope,
-  onSelect,
-}: {
-  issue: Issue;
-  isActive: boolean;
-  showScope: boolean;
-  onSelect: (issue: Issue) => void;
-}) {
-  const style = SEVERITY_STYLES[issue.severity];
-  const Icon = style.icon;
-
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => onSelect(issue)}
-        className={cn(
-          "w-full text-left px-2 py-2 border-l-2 text-sm transition-colors hover:bg-accent cursor-pointer",
-          style.accent,
-          isActive ? "bg-accent" : "bg-background"
-        )}
-      >
-        <div className="flex items-start gap-2">
-          <Icon className={cn("w-4 h-4 shrink-0 mt-0.5", style.text)} />
-          <div className="min-w-0 flex-1">
-            <p className="text-foreground/90 break-words">{issue.message}</p>
-            {issue.hint && (
-              <p className="mt-0.5 text-xs text-muted-foreground break-words">
-                {issue.hint}
-              </p>
-            )}
-            {showScope && (
-              <p className="mt-1 text-[11px] uppercase tracking-wide text-muted-foreground/70">
-                {issue.groupLabel}
-              </p>
-            )}
-          </div>
-        </div>
-      </button>
-    </li>
   );
 }
 
@@ -440,10 +388,10 @@ function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+    <div className={styles.emptyState}>
       {icon}
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="text-xs text-muted-foreground max-w-[34ch]">{body}</p>
+      <p className={styles.emptyTitle}>{title}</p>
+      <p>{body}</p>
       {action}
     </div>
   );

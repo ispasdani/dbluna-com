@@ -396,8 +396,11 @@
     transform: rotate(-90deg);
   }
 
+  // Keep the 1px border, just hide it: dropping it changes the header's inner
+  // height, which re-centres its content by half a pixel on open/close and
+  // makes text jitter against the pixel-snapped icons.
   .tbHead {
-    border-bottom: 0;
+    border-bottom-color: transparent;
   }
 }
 
