@@ -26,7 +26,7 @@ import {
   CANVAS_STYLE_ORDER,
   isCanvasStyleId,
 } from "./canvas/canvas-style";
-import { STYLED_PANELS, usePanelStyleStore, type StyledPanel } from "@/store/usePanelStyleStore";
+import { CODE_FONTS, STYLED_PANELS, usePanelStyleStore, type StyledPanel } from "@/store/usePanelStyleStore";
 import {
   PANEL_STYLES,
   PANEL_STYLE_ORDER,
@@ -73,6 +73,8 @@ function PanelStyleSubmenu({ panel, label }: { panel: StyledPanel; label: string
 function CanvasStyleMenu() {
   const styleId = useCanvasStyleStore((s) => s.styleId);
   const setStyleId = useCanvasStyleStore((s) => s.setStyleId);
+  const codeFont = usePanelStyleStore((s) => s.codeFont);
+  const setCodeFont = usePanelStyleStore((s) => s.setCodeFont);
 
   return (
     <DropdownMenu>
@@ -112,6 +114,28 @@ function CanvasStyleMenu() {
         {STYLED_PANELS.map(({ id, label }) => (
           <PanelStyleSubmenu key={id} panel={id} label={label} />
         ))}
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Code font
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={codeFont}
+          onValueChange={(v) => {
+            const font = CODE_FONTS.find((f) => f.id === v);
+            if (font) setCodeFont(font.id);
+          }}
+        >
+          {CODE_FONTS.map((f) => (
+            <DropdownMenuRadioItem key={f.id} value={f.id} className="items-start py-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm">{f.label}</span>
+                <span className="text-xs text-muted-foreground">{f.description}</span>
+              </div>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

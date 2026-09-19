@@ -40,9 +40,19 @@ const DEFAULTS: PanelStyles = {
  * stored under their own key so they never influence the canvas. Each tab has
  * its own style so users can mix them freely.
  */
+/** Typeface of the Code tab's editor. Inter matches the rest of the app. */
+export type CodeFont = "sans" | "mono";
+export const CODE_FONTS: { id: CodeFont; label: string; description: string }[] = [
+  { id: "sans", label: "Inter", description: "Same typeface as the rest of the app" },
+  { id: "mono", label: "Monospace", description: "Fixed-width, columns line up" },
+];
+const isCodeFont = (v: unknown): v is CodeFont => v === "sans" || v === "mono";
+
 type PanelStyleState = {
   styles: PanelStyles;
   setStyle: (panel: StyledPanel, id: PanelStyleId) => void;
+  codeFont: CodeFont;
+  setCodeFont: (font: CodeFont) => void;
 };
 
 export const usePanelStyleStore = create<PanelStyleState>()(
@@ -50,20 +60,24 @@ export const usePanelStyleStore = create<PanelStyleState>()(
     (set) => ({
       styles: DEFAULTS,
       setStyle: (panel, id) => set((s) => ({ styles: { ...s.styles, [panel]: id } })),
+      codeFont: "sans",
+      setCodeFont: (codeFont) => set({ codeFont }),
     }),
     {
       name: "dbluna-panel-style",
       // Drops unknown ids, and upgrades the old single `styleId` (one style for
       // every tab) by applying it to each tab.
       merge: (persisted, current) => {
-        const p = persisted as { styles?: Partial<Record<string, unknown>>; styleId?: unknown } | undefined;
+        const p = persisted as
+          | { styles?: Partial<Record<string, unknown>>; styleId?: unknown; codeFont?: unknown }
+          | undefined;
         const legacy = isPanelStyleId(p?.styleId) ? p.styleId : null;
         const styles = { ...DEFAULTS };
         for (const key of Object.keys(DEFAULTS) as StyledPanel[]) {
           const id = p?.styles?.[key];
           styles[key] = isPanelStyleId(id) ? id : legacy ?? DEFAULT_PANEL_STYLE;
         }
-        return { ...current, styles };
+        return { ...current, styles, codeFont: isCodeFont(p?.codeFont) ? p.codeFont : "sans" };
       },
     }
   )

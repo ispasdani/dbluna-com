@@ -7,7 +7,7 @@ import { json } from "@codemirror/lang-json";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { Parser } from "@dbml/core";
-import { Copy, Download, FileCode, Check, ChevronDown } from "lucide-react";
+import { AlertCircle, Check, Copy, Download, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
@@ -19,8 +19,11 @@ import {
   parsedRefsToCanvasRelationships,
 } from "@/lib/parser/dsl-parser";
 import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
+import { tableColorDots } from "@/lib/codemirror/table-color-dots";
+import { usePanelStyleStore } from "@/store/usePanelStyleStore";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useCapabilities } from "./capabilities-context";
+import styles from "./code-editor.module.scss";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -32,6 +35,60 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export type EditorLanguage = "dbml" | "json" | "mermaid";
+
+const FORMATS: { id: EditorLanguage; label: string }[] = [
+  { id: "dbml", label: "DBML" },
+  { id: "json", label: "JSON" },
+  { id: "mermaid", label: "Mermaid" },
+];
+
+/** A parse problem in the editor. `from` is absent when the parser gives no position. */
+interface Problem {
+  message: string;
+  from?: number;
+  to?: number;
+  line?: number;
+  col?: number;
+}
+
+interface DbmlPos {
+  offset: number;
+  line: number;
+  column: number;
+}
+interface DbmlDiag {
+  message?: string;
+  location?: { start?: DbmlPos; end?: DbmlPos };
+}
+
+/**
+ * DBML parse errors with their positions. Shared by the inline linter and the
+ * problems list, so the squiggles and the list always agree.
+ */
+function dbmlProblems(code: string): Problem[] {
+  if (!code.trim()) return [];
+  try {
+    Parser.parse(code, "dbml");
+    return [];
+  } catch (caught) {
+    // The DBML parser reports an object with a `diags` array; older error
+    // shapes carry a single `location` instead.
+    const err = caught as DbmlDiag & { diags?: DbmlDiag[] };
+    const diags: DbmlDiag[] = Array.isArray(err?.diags) ? err.diags : err?.location ? [err] : [];
+    if (diags.length === 0) return [{ message: err?.message || "Syntax error" }];
+    return diags.map((d) => {
+      const start = d.location?.start;
+      const end = d.location?.end;
+      return {
+        message: d.message || "Syntax error",
+        from: start?.offset,
+        to: end?.offset,
+        line: start?.line,
+        col: start?.column,
+      };
+    });
+  }
+}
 
 interface CodeEditorProps {
   readOnly?: boolean;
@@ -61,58 +118,34 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
   const debouncedCode = useDebounce(code, 400);
   const isTypingRef = useRef(false);
+  const viewRef = useRef<EditorView | null>(null);
+  const [problems, setProblems] = useState<Problem[]>([]);
+  // Mirrors isTypingRef for rendering: true from a keystroke until the edit
+  // reaches the canvas, so the status bar can say "Syncing…" only for the
+  // user's own edits (canvas-driven regeneration also changes `code`).
+  const [isTyping, setIsTyping] = useState(false);
+  const [cursor, setCursor] = useState({ line: 1, col: 1 });
+  const codeFont = usePanelStyleStore((s) => s.codeFont);
 
-  // Custom Linter (Only for DBML currently)
+  // Inline squiggles (DBML only), from the same source as the problems list.
   const dbmlLinterSource = useCallback((view: EditorView): Diagnostic[] => {
     if (language !== "dbml") return [];
-
-    const doc = view.state.doc;
-    const currentCode = doc.toString();
-
-    // If empty, no errors
-    if (!currentCode.trim()) return [];
-
-    try {
-      Parser.parse(currentCode, "dbml");
-      return [];
-    } catch (err: any) {
-      // Handle DBML Parser errors which are returned as an object with a 'diags' array
-      if (err.diags && Array.isArray(err.diags)) {
-        return err.diags.map((d: any) => {
-          const from = d.location.start.offset;
-          const to = d.location.end.offset;
-          return {
-            from,
-            to: Math.max(to, from + 1), // Ensure at least 1 char width
-            severity: "error",
-            message: d.message,
-            source: "DBML Parser"
-          };
-        });
-      }
-
-      // Fallback for simple errors that might have location directly (legacy or different error types)
-      if (err.location) {
-        try {
-          const from = err.location.start.offset;
-          const to = err.location.end.offset;
-          return [{
-            from,
-            to,
-            severity: "error",
-            message: err.message || "Syntax Error",
-            source: "DBML Parser"
-          }];
-        } catch (e) { return [] }
-      }
-
-      return [];
-    }
+    return dbmlProblems(view.state.doc.toString())
+      .filter((p) => p.from !== undefined)
+      .map((p) => ({
+        from: p.from!,
+        to: Math.max(p.to ?? p.from!, p.from! + 1), // Ensure at least 1 char width
+        severity: "error",
+        message: p.message,
+        source: "DBML Parser",
+      }));
   }, [language]);
 
   // 1. Canvas -> Code (One-way init or update)
   useEffect(() => {
     if (isTypingRef.current) return;
+    // Generated code is always valid, so nothing is left to report.
+    setProblems([]);
 
     try {
       if (language === "json") {
@@ -147,7 +180,14 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
     try {
       if (language === "json") {
-        const newTables = jsonToTables(debouncedCode);
+        let newTables;
+        try {
+          newTables = jsonToTables(debouncedCode);
+        } catch (err) {
+          setProblems([{ message: err instanceof Error ? err.message : "Invalid JSON" }]);
+          return;
+        }
+        setProblems([]);
         if (overCap(newTables.length)) {
           setCapError(
             `The Free plan is capped at ${tableCap} tables per diagram. This schema defines ${newTables.length} — remove some or upgrade to Pro.`
@@ -156,6 +196,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         }
         setCapError(null);
         isTypingRef.current = false;
+        setIsTyping(false);
         setTables(newTables);
         return;
       }
@@ -168,7 +209,11 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       // DBML Parsing (shared parser). Returns null on invalid syntax — the
       // linter surfaces the errors, so we keep the editor authoritative.
       const parsed = parseDbml(debouncedCode);
-      if (!parsed) return;
+      if (!parsed) {
+        setProblems(dbmlProblems(debouncedCode));
+        return;
+      }
+      setProblems([]);
 
       if (overCap(parsed.tables.length)) {
         setCapError(
@@ -221,6 +266,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       // Clear the typing flag BEFORE the store writes so the Canvas->Code effect
       // doesn't immediately overwrite the editor on the next render.
       isTypingRef.current = false;
+      setIsTyping(false);
       setTables(newTables);
       setRelationships(newRelationships);
       setEnums(meta.enums);
@@ -235,6 +281,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   const handleChange = useCallback((val: string) => {
     if (readOnly) return;
     isTypingRef.current = true;
+    setIsTyping(true);
     setCode(val);
   }, [readOnly]);
 
@@ -265,11 +312,31 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     URL.revokeObjectURL(url);
   };
 
+  // Table colours by the name each format writes, so the dots can find them.
+  // Keyed on a string so a canvas drag (which replaces `tables`) doesn't
+  // reconfigure the editor.
+  const colorKey = useMemo(() => JSON.stringify(tables.map((t) => [t.name, t.color])), [tables]);
+  const colorOf = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const [name, color] of JSON.parse(colorKey) as [string, string][]) {
+      byName.set(name.toLowerCase(), color);
+      byName.set(name.replace(/\s+/g, "_").toLowerCase(), color); // Mermaid's safe name
+    }
+    return (name: string) => byName.get(name.toLowerCase());
+  }, [colorKey]);
+
   // Extensions array memoized
   const extensions = useMemo(() => {
     const exts = [
       lintGutter(),
-      linter(dbmlLinterSource)
+      linter(dbmlLinterSource),
+      tableColorDots(language, colorOf),
+      EditorView.updateListener.of((update) => {
+        if (!update.selectionSet && !update.docChanged) return;
+        const head = update.state.selection.main.head;
+        const line = update.state.doc.lineAt(head);
+        setCursor({ line: line.number, col: head - line.from + 1 });
+      }),
     ];
 
     if (language === "json") {
@@ -279,66 +346,83 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       exts.push(sql());
     }
     return exts;
-  }, [dbmlLinterSource, language]);
+  }, [dbmlLinterSource, language, colorOf]);
+
+  const jumpTo = (problem: Problem) => {
+    const view = viewRef.current;
+    if (!view || problem.from === undefined) return;
+    const pos = Math.min(problem.from, view.state.doc.length);
+    view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+    view.focus();
+  };
+
+  // What the status bar says about the canvas, most important first.
+  const pending = isTyping && code !== debouncedCode;
+  const sync = readOnly
+    ? { tone: styles.quiet, label: "Read only" }
+    : language === "mermaid"
+      ? { tone: styles.quiet, label: "Export only · not synced", title: "Mermaid is export-only; edits here don't reach the canvas." }
+      : problems.length > 0
+        ? { tone: styles.err, label: `${problems.length} ${problems.length === 1 ? "problem" : "problems"} · canvas paused` }
+        : capError
+          ? { tone: styles.paused, label: "Paused · table limit" }
+          : pending
+            ? { tone: styles.busy, label: "Syncing…" }
+            : { tone: styles.ok, label: "Synced with canvas" };
 
   return (
-    <div className="h-full w-full bg-dock-bg text-foreground flex flex-col relative group">
+    <div className={styles.root} data-font={codeFont}>
       {/* Toolbar */}
-      <div className="flex-none h-10 px-3 flex items-center justify-between border-b border-border bg-dock-header select-none">
-        <div className="flex items-center gap-2 text-muted-foreground relative">
-          <FileCode className="w-4 h-4" />
-          <div className="relative flex items-center">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as EditorLanguage)}
-              className="bg-transparent text-xs font-mono outline-none cursor-pointer appearance-none pr-5 hover:text-foreground transition-colors"
+      <div className={styles.bar}>
+        <div className={styles.formats} role="group" aria-label="Format">
+          {FORMATS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={language === f.id}
+              onClick={() => setLanguage(f.id)}
             >
-              <option value="dbml" className="bg-dock-bg text-foreground">schema.dbml</option>
-              <option value="json" className="bg-dock-bg text-foreground">schema.json</option>
-              <option value="mermaid" className="bg-dock-bg text-foreground">schema.mermaid</option>
-            </select>
-            <ChevronDown className="w-3 h-3 absolute right-0 pointer-events-none opacity-70" />
-          </div>
+              {f.label}
+            </button>
+          ))}
         </div>
-        <div className="flex items-center gap-1">
-          {!readOnly && (
-          <button
-            onClick={handleCopy}
-            className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
-            title="Copy to Clipboard"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+        <span className={styles.spacer} />
+        {!readOnly && (
+          <button type="button" className={styles.iconBtn} onClick={handleCopy} title="Copy to clipboard" aria-label="Copy to clipboard">
+            {copied ? <Check className={cn("w-3.5 h-3.5", styles.copied)} /> : <Copy className="w-3.5 h-3.5" />}
           </button>
-          )}
-          {!readOnly && (
+        )}
+        {!readOnly && (
           <button
+            type="button"
+            className={styles.iconBtn}
             onClick={handleDownload}
-            className="p-1.5 hover:bg-accent rounded-md text-muted-foreground hover:text-foreground transition-colors"
-            title={`Download ${language.toUpperCase()}`}
+            title={`Download schema.${language}`}
+            aria-label={`Download schema.${language}`}
           >
             <Download className="w-3.5 h-3.5" />
           </button>
-          )}
-        </div>
+        )}
       </div>
 
       {capError && (
-        <div
-          role="alert"
-          className="flex-none px-3 py-2 text-xs leading-relaxed border-b border-destructive/40 bg-destructive/10 text-destructive"
-        >
-          {capError}
+        <div role="alert" className={styles.banner}>
+          <TriangleAlert className="w-3.5 h-3.5" />
+          <span>{capError}</span>
         </div>
       )}
 
       {/* Editor */}
-      <div className="flex-1 overflow-auto relative">
+      <div className={styles.editor}>
         <CodeMirror
           value={code}
           height="100%"
           theme={dbmlCodeMirrorTheme}
           extensions={extensions}
           onChange={handleChange}
+          onCreateEditor={(view) => {
+            viewRef.current = view;
+          }}
           editable={!readOnly}
           className="h-full text-[13px]"
           basicSetup={{
@@ -348,6 +432,42 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
             lintKeymap: true, // Enable linting keymap
           }}
         />
+      </div>
+
+      {problems.length > 0 && (
+        <div className={styles.problems} role="list" aria-label="Problems">
+          {problems.map((p, i) => (
+            <button
+              key={i}
+              type="button"
+              role="listitem"
+              className={styles.problem}
+              disabled={p.from === undefined}
+              onClick={() => jumpTo(p)}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span className={styles.loc}>{p.line ? `Ln ${p.line}` : "—"}</span>
+              <span className={styles.message}>{p.message}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Status bar */}
+      <div className={styles.status}>
+        <span className={cn(styles.pill, sync.tone)} title={sync.title} role="status">
+          <i />
+          {sync.label}
+        </span>
+        <span className={styles.facts}>
+          <span>
+            <b>{tables.length}</b> tables · <b>{relationships.length}</b> refs
+          </span>
+          <span>
+            Ln {cursor.line}, Col {cursor.col}
+          </span>
+          <span>{FORMATS.find((f) => f.id === language)?.label}</span>
+        </span>
       </div>
     </div>
   );
