@@ -18,6 +18,8 @@ import { splitSchemaName } from "@/lib/schema-namespace";
 import { cn } from "@/lib/utils";
 import type { PanelLine, PanelVariant } from "./panel-style";
 import { CommittedInput } from "./committed-input";
+import { KeyGlyph, LinkGlyph, TableGlyph } from "./panel-glyphs";
+import { foreignKeyIsSource } from "./relationship-direction";
 import { focusRelationshipOnCanvas, useDiagramIssues } from "./use-diagram-issues";
 import styles from "./relationships-panel.module.scss";
 
@@ -45,18 +47,6 @@ interface ResolvedRel {
   fkIsSource: boolean;
 }
 
-/**
- * Which stored end holds the foreign key. The referenced end is nearly always a
- * primary key, so that decides it when it can; imported diagrams don't agree on
- * which way the cardinality label reads. Otherwise this falls back to the DBML
- * generator's convention, where only "Many to one" puts the FK on the target.
- */
-function foreignKeyIsSource(rel: Relationship, source: Column, target: Column): boolean {
-  if (target.isPrimaryKey && !source.isPrimaryKey) return true;
-  if (source.isPrimaryKey && !target.isPrimaryKey) return false;
-  return rel.cardinality !== "Many to one";
-}
-
 /** End roles in display order (FK end first), for any stored cardinality. */
 function orientedRoles(cardinality: Cardinality, fkIsSource: boolean): [EndRole, EndRole] {
   const { source, target } = relationshipRoles(cardinality);
@@ -71,35 +61,7 @@ function bareName(name: string) {
 
 const tc = (table: Table) => ({ "--tc": table.color }) as CSSProperties;
 
-// ─── Glyphs (same strokes as TableNode) ──────────────────────────────────────
-
-function TableGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
-      <rect x={1} y={1.5} width={10} height={9} rx={2} />
-      <path d="M1 4.8H11M4.6 4.8V10.5" />
-    </svg>
-  );
-}
-
-function KeyGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--tc)" strokeWidth={1.4} strokeLinecap="round">
-      <circle cx={3.6} cy={6} r={2.6} />
-      <path d="M6.2 6H11.4M9.6 6V8.2M11.4 6V7.8" />
-    </svg>
-  );
-}
-
-function LinkGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
-      <path d="M4.6 7.4 7.4 4.6" />
-      <path d="M6.2 3.2 7.3 2.1a2.3 2.3 0 0 1 3.3 3.3L9.5 6.5" />
-      <path d="M5.8 8.8 4.7 9.9a2.3 2.3 0 0 1-3.3-3.3L2.5 5.5" />
-    </svg>
-  );
-}
+// ─── Glyphs ──────────────────────────────────────────────────────────────────
 
 /** Small crow's-foot line: bar = one, fork = many. */
 function CrowGlyph({ roles, width = 22 }: { roles: [EndRole, EndRole]; width?: number }) {
@@ -481,7 +443,7 @@ export function RelationshipsPanel() {
   const relationships = useCanvasStore((s) => s.relationships);
   const selectedRelationshipId = useCanvasStore((s) => s.selectedRelationshipId);
   const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
-  const { variant, line } = usePanelStyle();
+  const { variant, line } = usePanelStyle("relationships");
   const { issues } = useDiagramIssues();
 
   const [query, setQuery] = useState("");

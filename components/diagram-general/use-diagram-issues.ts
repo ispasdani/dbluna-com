@@ -94,3 +94,17 @@ export function focusRelationshipOnCanvas(sourceTableId: string, targetTableId: 
     viewport.h / 2 - ((ca.y + cb.y) / 2) * camera.zoom
   );
 }
+
+/** Centres the camera on a sticky note. */
+export function focusNoteOnCanvas(noteId: string) {
+  const note = useCanvasStore.getState().notes.find((n) => n.id === noteId);
+  if (!note) return;
+
+  const { camera, viewport, setCameraXY } = useEditorStore.getState();
+  if (viewport.w <= 1 || viewport.h <= 1) return;
+
+  setCameraXY(
+    viewport.w / 2 - (note.x + note.width / 2) * camera.zoom,
+    viewport.h / 2 - (note.y + note.height / 2) * camera.zoom
+  );
+}

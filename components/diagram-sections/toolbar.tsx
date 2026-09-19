@@ -11,6 +11,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -23,23 +26,53 @@ import {
   CANVAS_STYLE_ORDER,
   isCanvasStyleId,
 } from "./canvas/canvas-style";
-import { usePanelStyleStore } from "@/store/usePanelStyleStore";
+import { STYLED_PANELS, usePanelStyleStore, type StyledPanel } from "@/store/usePanelStyleStore";
 import {
   PANEL_STYLES,
   PANEL_STYLE_ORDER,
   isPanelStyleId,
 } from "../diagram-general/panel-style";
 
+/** One dock tab's style picker, as a submenu of the Style menu. */
+function PanelStyleSubmenu({ panel, label }: { panel: StyledPanel; label: string }) {
+  const styleId = usePanelStyleStore((s) => s.styles[panel]);
+  const setStyle = usePanelStyleStore((s) => s.setStyle);
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="gap-2">
+        <span className="flex-1">{label}</span>
+        <span className="text-xs text-muted-foreground">{PANEL_STYLES[styleId].label}</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-72">
+        <DropdownMenuRadioGroup
+          value={styleId}
+          onValueChange={(v) => isPanelStyleId(v) && setStyle(panel, v)}
+        >
+          {PANEL_STYLE_ORDER.map((id) => (
+            <DropdownMenuRadioItem key={id} value={id} className="items-start py-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm">{PANEL_STYLES[id].label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {PANEL_STYLES[id].description}
+                </span>
+              </div>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
+
 /**
- * Switches the look of the canvas (tables, relationship lines) and, in its own
- * section, of the dock panels. The two are separate settings that never
- * affect each other; they only share a menu to keep the toolbar narrow.
+ * Switches the look of the canvas (tables, relationship lines) and, per dock
+ * tab, of the panels. Every one of these is a separate setting that never
+ * affects the others; they only share a menu to keep the toolbar narrow.
  */
 function CanvasStyleMenu() {
   const styleId = useCanvasStyleStore((s) => s.styleId);
   const setStyleId = useCanvasStyleStore((s) => s.setStyleId);
-  const panelStyleId = usePanelStyleStore((s) => s.styleId);
-  const setPanelStyleId = usePanelStyleStore((s) => s.setStyleId);
 
   return (
     <DropdownMenu>
@@ -74,23 +107,11 @@ function CanvasStyleMenu() {
         <DropdownMenuSeparator />
 
         <DropdownMenuLabel className="text-xs text-muted-foreground">
-          Panel style
+          Panel styles
         </DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={panelStyleId}
-          onValueChange={(v) => isPanelStyleId(v) && setPanelStyleId(v)}
-        >
-          {PANEL_STYLE_ORDER.map((id) => (
-            <DropdownMenuRadioItem key={id} value={id} className="items-start py-2">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm">{PANEL_STYLES[id].label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {PANEL_STYLES[id].description}
-                </span>
-              </div>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        {STYLED_PANELS.map(({ id, label }) => (
+          <PanelStyleSubmenu key={id} panel={id} label={label} />
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

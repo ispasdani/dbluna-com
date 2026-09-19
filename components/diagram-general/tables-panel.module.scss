@@ -1,0 +1,303 @@
+@use "./panel-card";
+
+// Tables tab. The panel shell, table cards and inline editor come from
+// _panel-card.scss; this file adds schema sections, column rows, the column
+// editor and the table settings.
+
+// ─── Schema sections ─────────────────────────────────────────────────────
+
+.schemaGroup {
+  display: grid;
+  gap: 10px;
+}
+
+.schemaHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--foreground);
+  }
+
+  .chev {
+    color: inherit;
+  }
+}
+
+.schemaCount {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.schemaClosed .chev {
+  transform: rotate(-90deg);
+}
+
+// ─── Column rows ─────────────────────────────────────────────────────────
+
+.colRow {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}
+
+.colOpen {
+  background: color-mix(in oklab, var(--primary) 13%, transparent);
+
+  &:hover {
+    background: color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+}
+
+.flags {
+  display: inline-flex;
+  gap: 3px;
+  flex: none;
+
+  span {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--foreground) 6%, var(--table-bg));
+    color: var(--muted-foreground);
+  }
+}
+
+.nullMark {
+  color: var(--faint);
+}
+
+.addCol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--rh);
+  width: 100%;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--primary);
+    background: var(--hover);
+  }
+}
+
+.panel[data-v="soft"] .addCol,
+.panel[data-v="chips"] .addCol {
+  margin: 0 5px;
+  width: calc(100% - 10px);
+  padding: 0 7px;
+  border-radius: 6px;
+}
+
+.panel[data-v="header"] .addCol,
+.panel[data-v="dense"] .addCol {
+  border-top: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+}
+
+// ─── Column editor + table settings ──────────────────────────────────────
+
+.columnEditor {
+  gap: 10px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.nameGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 8px;
+}
+
+.toggles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 5px 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--muted-foreground);
+    font-size: 10.5px;
+    line-height: 1.2;
+    cursor: pointer;
+
+    b {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    &:hover {
+      border-color: color-mix(in oklab, var(--foreground) 20%, var(--border));
+      color: var(--foreground);
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: color-mix(in oklab, var(--primary) 9%, var(--card));
+    }
+  }
+}
+
+.panel[data-v="dense"] .toggles button {
+  border-radius: 4px;
+}
+
+.panel[data-v="chips"] .toggles button {
+  border-radius: 10px;
+}
+
+.ref {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+
+  button {
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.editorFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  font-size: 11.5px;
+  color: var(--destructive);
+}
+
+.linkDanger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--destructive);
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--danger-bg);
+  }
+}
+
+.newSchema {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+
+  > :first-child {
+    flex: 1;
+  }
+}
+
+.nameBlock {
+  display: grid;
+  gap: 5px;
+}
+
+.relChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 2px 8px 2px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--sub);
+    color: var(--foreground);
+    font-size: 11.5px;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in oklab, var(--primary) 12%, var(--sub));
+    }
+
+    i {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+      background: var(--tc);
+      flex: none;
+    }
+  }
+}
+
+.dir {
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+}
+
+.comment {
+  min-height: 64px;
+  font-size: 12.5px;
+  resize: vertical;
+}

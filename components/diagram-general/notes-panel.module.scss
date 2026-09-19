@@ -1,0 +1,72 @@
+@use "./panel-card";
+
+// Notes tab. Cards come from _panel-card.scss; each is tinted with the note's
+// colour, like the sticky note on the canvas.
+
+.note {
+  background: color-mix(in oklab, var(--tc) 9%, var(--table-bg));
+  border-color: color-mix(in oklab, var(--tc) 30%, var(--border));
+}
+
+.panel[data-v="dense"] .note {
+  background: var(--table-bg);
+  border-color: var(--border);
+}
+
+// Canvas notes carry a stronger strip along the top; the soft and expressive
+// cards echo it with a tinted header.
+.panel[data-v="soft"] .note .tbHead,
+.panel[data-v="chips"] .note .tbHead {
+  background: color-mix(in oklab, var(--tc) 16%, var(--table-bg));
+  border-bottom-color: color-mix(in oklab, var(--tc) 25%, var(--border));
+}
+
+.untitled {
+  color: var(--muted-foreground);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.preview {
+  margin: 0;
+  padding: 8px 12px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.previewEmpty {
+  font-style: italic;
+}
+
+.content {
+  min-height: 140px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.wordCount {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-align: right;
+}
+
+.emptyState {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted-foreground);
+
+  svg {
+    opacity: 0.35;
+  }
+}

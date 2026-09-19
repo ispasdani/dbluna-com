@@ -9,32 +9,56 @@ import {
   type PanelStyleId,
 } from "@/components/diagram-general/panel-style";
 
+/** Dock tabs that have their own panel style. */
+export type StyledPanel = "tables" | "relationships" | "notes";
+export const STYLED_PANELS: { id: StyledPanel; label: string }[] = [
+  { id: "tables", label: "Tables" },
+  { id: "relationships", label: "Relationships" },
+  { id: "notes", label: "Notes" },
+];
+
+type PanelStyles = Record<StyledPanel, PanelStyleId>;
+
+const DEFAULTS: PanelStyles = {
+  tables: DEFAULT_PANEL_STYLE,
+  relationships: DEFAULT_PANEL_STYLE,
+  notes: DEFAULT_PANEL_STYLE,
+};
+
 /**
- * The dock panel look is a personal viewing preference, like the canvas style,
- * but stored under its own key so the two never influence each other.
+ * Dock panel looks are a personal viewing preference, like the canvas style,
+ * stored under their own key so they never influence the canvas. Each tab has
+ * its own style so users can mix them freely.
  */
 type PanelStyleState = {
-  styleId: PanelStyleId;
-  setStyleId: (id: PanelStyleId) => void;
+  styles: PanelStyles;
+  setStyle: (panel: StyledPanel, id: PanelStyleId) => void;
 };
 
 export const usePanelStyleStore = create<PanelStyleState>()(
   persist(
     (set) => ({
-      styleId: DEFAULT_PANEL_STYLE,
-      setStyleId: (id) => set({ styleId: id }),
+      styles: DEFAULTS,
+      setStyle: (panel, id) => set((s) => ({ styles: { ...s.styles, [panel]: id } })),
     }),
     {
       name: "dbluna-panel-style",
-      // Drop an unknown id (e.g. a style that was later removed).
+      // Drops unknown ids, and upgrades the old single `styleId` (one style for
+      // every tab) by applying it to each tab.
       merge: (persisted, current) => {
-        const id = (persisted as Partial<PanelStyleState> | undefined)?.styleId;
-        return { ...current, styleId: isPanelStyleId(id) ? id : DEFAULT_PANEL_STYLE };
+        const p = persisted as { styles?: Partial<Record<string, unknown>>; styleId?: unknown } | undefined;
+        const legacy = isPanelStyleId(p?.styleId) ? p.styleId : null;
+        const styles = { ...DEFAULTS };
+        for (const key of Object.keys(DEFAULTS) as StyledPanel[]) {
+          const id = p?.styles?.[key];
+          styles[key] = isPanelStyleId(id) ? id : legacy ?? DEFAULT_PANEL_STYLE;
+        }
+        return { ...current, styles };
       },
     }
   )
 );
 
-export function usePanelStyle(): PanelStyle {
-  return PANEL_STYLES[usePanelStyleStore((s) => s.styleId)];
+export function usePanelStyle(panel: StyledPanel): PanelStyle {
+  return PANEL_STYLES[usePanelStyleStore((s) => s.styles[panel])];
 }

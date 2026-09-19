@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * Runs `fn` once, on unmount, always with its latest identity.
@@ -65,6 +66,49 @@ export function CommittedInput({
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
+/** Textarea counterpart of `CommittedInput`: same draft/commit-on-blur rules. */
+export function CommittedTextarea({
+  value,
+  onCommit,
+  className,
+  ...props
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+} & Omit<React.ComponentProps<typeof Textarea>, "value" | "onChange" | "onBlur">) {
+  const [draft, setDraft] = useState(value);
+  const [isEditing, setIsEditing] = useState(false);
+  const [lastValue, setLastValue] = useState(value);
+
+  if (value !== lastValue) {
+    setLastValue(value);
+    if (!isEditing) setDraft(value);
+  }
+
+  const commit = useCallback(() => {
+    if (draft === value) return;
+    onCommit(draft);
+  }, [draft, value, onCommit]);
+
+  useCommitOnUnmount(commit);
+
+  return (
+    <Textarea
+      {...props}
+      className={className}
+      value={draft}
+      onChange={(e) => {
+        setIsEditing(true);
+        setDraft(e.target.value);
+      }}
+      onBlur={() => {
+        setIsEditing(false);
+        commit();
       }}
     />
   );
