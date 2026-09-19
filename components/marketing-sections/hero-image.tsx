@@ -1,9 +1,9 @@
 "use client";
 import React, { useRef } from "react";
-import Image from "next/image";
 import { motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { Container } from "../marketing-general/container";
 import { Dot } from "../marketing-general/dot";
+import { HeroEditor } from "./hero-editor/hero-editor";
 
 const springConfig = {
   stiffness: 300,
@@ -70,15 +70,7 @@ export const HeroImage = () => {
             translateY,
           }}
         >
-          <Image
-            src="/images/dashboard@3x.png"
-            alt="Hero Image"
-            className="w-full"
-            priority
-            width={1000}
-            height={1000}
-            draggable={false}
-          />
+          <HeroEditor />
         </motion.div>
         <div className="absolute inset-0 z-0 m-auto h-[90%] w-[95%] rounded-lg border border-(--pattern-fg) bg-[image:repeating-linear-gradient(315deg,_var(--pattern-fg)_0,_var(--pattern-fg)_1px,_transparent_0,_transparent_50%)] bg-[size:10px_10px] bg-local"></div>
       </div>
