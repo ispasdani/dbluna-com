@@ -1,29 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { useQuery } from "convex/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  WandSparkles,
-  Send,
-  Lock,
-  Loader2,
-  Check,
-  X,
-  Coins,
-  CircleSlash,
-  Table,
-  ShoppingCart,
-  Link,
-  Clock,
+  AlertCircle,
+  ArrowUp,
   ArrowUpRight,
+  Check,
+  CircleSlash,
+  Clock,
+  Coins,
+  Columns3,
+  Link,
+  Loader2,
+  Lock,
+  Pencil,
+  ShoppingCart,
+  Square,
+  StickyNote,
+  Table,
+  Trash2,
+  WandSparkles,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
@@ -31,45 +34,101 @@ import { useAiChatStore } from "@/store/useAiChatStore";
 import { applyToolCall } from "@/lib/ai/tool-executor";
 import { useCloudAiChatSync } from "@/hooks/use-cloud-ai-chat-sync";
 import { api } from "@/convex/_generated/api";
+import styles from "./ai-chat.module.scss";
 
 type MessagePart = UIMessage["parts"][number];
 
-function ToolCallPill({ part }: { part: MessagePart & { type: string } }) {
+const isToolPart = (part: MessagePart) => part.type === "dynamic-tool" || part.type.startsWith("tool-");
+
+// Icon and in-progress wording per tool. The finished line is the tool's own
+// output string ("Added table "users" with 4 column(s).").
+const TOOL_META: Record<string, { icon: LucideIcon; verb: string }> = {
+  add_table: { icon: Table, verb: "Adding table" },
+  update_table: { icon: Pencil, verb: "Updating table" },
+  delete_table: { icon: Trash2, verb: "Deleting table" },
+  add_column: { icon: Columns3, verb: "Adding a column to" },
+  update_column: { icon: Pencil, verb: "Updating a column on" },
+  delete_column: { icon: Trash2, verb: "Deleting a column from" },
+  add_relationship: { icon: Link, verb: "Connecting" },
+  add_note: { icon: StickyNote, verb: "Adding a note" },
+  add_area: { icon: Square, verb: "Adding an area" },
+};
+
+/** One change Luna made (or is making) to the canvas. */
+function ToolAction({ part }: { part: MessagePart }) {
   const toolName =
-    part.type === "dynamic-tool"
-      ? (part as { toolName: string }).toolName
-      : part.type.replace(/^tool-/, "");
+    part.type === "dynamic-tool" ? (part as { toolName: string }).toolName : part.type.replace(/^tool-/, "");
   const state = (part as { state?: string }).state;
   const errorText = (part as { errorText?: string }).errorText;
   const output = (part as { output?: unknown }).output;
+  const input = (part as { input?: Record<string, unknown> }).input ?? {};
 
   const isRunning = state === "input-streaming" || state === "input-available";
-  const isError = state === "output-error" || !!errorText;
+  const isError = state === "output-error" || !!errorText || (typeof output === "string" && output.startsWith("Error"));
+  const meta = TOOL_META[toolName];
+  const Icon = meta?.icon ?? WandSparkles;
+
+  const subject = [input.name, input.tableName, input.sourceTable, input.title].find(
+    (v): v is string => typeof v === "string" && v.length > 0
+  );
+  const text = isRunning
+    ? `${meta?.verb ?? toolName}${subject ? ` ${subject}` : ""}…`
+    : isError
+      ? (errorText ?? String(output)).replace(/^Error:\s*/, "")
+      : typeof output === "string"
+        ? output
+        : toolName;
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs border",
-        isError
-          ? "border-destructive/40 text-destructive"
-          : isRunning
-          ? "border-border text-muted-foreground"
-          : "border-primary/30 text-foreground"
-      )}
-    >
-      {isRunning ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : isError ? (
-        <X className="w-3 h-3" />
-      ) : (
-        <Check className="w-3 h-3" />
-      )}
-      <span className="font-mono">{toolName}</span>
-      {typeof output === "string" && !isError && (
-        <span className="text-muted-foreground truncate">{output}</span>
-      )}
-      {isError && errorText && <span className="truncate">{errorText}</span>}
+    <div className={styles.action} data-state={isRunning ? "running" : isError ? "error" : "done"}>
+      <span className={styles.actionIcon}>
+        <Icon className="size-3" />
+      </span>
+      <span className={styles.actionText} title={text}>
+        {text}
+      </span>
+      <span className={styles.actionState}>
+        {isRunning ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : isError ? (
+          <X className="size-2.5" strokeWidth={3} />
+        ) : (
+          <Check className="size-2.5" strokeWidth={3} />
+        )}
+      </span>
     </div>
+  );
+}
+
+/** Luna's turn: text parts as markdown, runs of tool calls as one card. */
+function AssistantParts({ parts }: { parts: MessagePart[] }) {
+  const blocks: ({ kind: "text"; text: string } | { kind: "tools"; parts: MessagePart[] })[] = [];
+  for (const part of parts) {
+    if (part.type === "text") {
+      if (part.text.trim()) blocks.push({ kind: "text", text: part.text });
+    } else if (isToolPart(part)) {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "tools") last.parts.push(part);
+      else blocks.push({ kind: "tools", parts: [part] });
+    }
+  }
+
+  return (
+    <>
+      {blocks.map((block, i) =>
+        block.kind === "text" ? (
+          <div key={i} className={styles.prose}>
+            <ReactMarkdown>{block.text}</ReactMarkdown>
+          </div>
+        ) : (
+          <div key={i} className={styles.actions}>
+            {block.parts.map((part, j) => (
+              <ToolAction key={j} part={part} />
+            ))}
+          </div>
+        )
+      )}
+    </>
   );
 }
 
@@ -119,7 +178,7 @@ export function AiChatPanel({ readOnly = false, onClose }: AiChatPanelProps) {
   const hasHydrated = useAiChatStore((s) => s.hasHydrated);
 
   if (!hasHydrated) {
-    return <div className="h-full w-full bg-dock-bg" />;
+    return <div className={styles.panel} />;
   }
 
   return (
@@ -219,63 +278,49 @@ function AiChatPanelInner({
     setInput("");
   };
 
+  const last = messages[messages.length - 1];
+  const waiting = status === "submitted" && last?.role === "user";
+
   return (
-    <div className="h-full w-full bg-dock-bg text-foreground flex flex-col">
-      {/* Header */}
-      <div className="flex-none h-10 px-3 flex items-center gap-2 border-b border-border bg-dock-header select-none">
-        <WandSparkles className="w-4 h-4 text-[#f0543c]" />
-        <span className="text-xs font-medium text-foreground">Luna AI</span>
+    <div className={styles.panel}>
+      <div className={styles.header}>
+        <span className={styles.mark}>
+          <WandSparkles className="size-4" />
+        </span>
+        <span className={styles.headText}>
+          <b>Luna AI</b>
+          <small>Edits this diagram as you chat</small>
+        </span>
         {plan?.isPro && (
-          <span
-            className={cn(
-              "ml-auto flex items-center gap-1 text-xs",
-              outOfCredits ? "text-destructive" : "text-muted-foreground"
-            )}
-            title="AI chat credits remaining this period"
-          >
-            <Coins className="w-3 h-3" />
+          <span className={styles.credits} data-empty={outOfCredits} title="AI chat credits left this period">
+            <Coins className="size-3.5" />
             {plan.credits}
           </span>
         )}
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn(
-              "h-7 w-7 -mr-1 flex items-center justify-center rounded-md cursor-pointer",
-              "text-muted-foreground hover:bg-muted hover:text-foreground transition-colors",
-              !plan?.isPro && "ml-auto"
-            )}
-            title="Close"
-            aria-label="Close Luna AI"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className={styles.iconBtn} title="Close" aria-label="Close Luna AI">
+            <X className="size-4" />
           </button>
         )}
       </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+      <div ref={scrollRef} className={styles.scroll}>
         {messages.length === 0 && (
-          <div className="h-full flex flex-col justify-center gap-5 px-1">
-            <div className="flex flex-col gap-2">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center text-white bg-gradient-to-br from-[#ff8a5c] to-[#e5392a] shadow-md shadow-[#e5392a]/20">
-                <WandSparkles className="w-4.5 h-4.5" />
-              </div>
-              <p className="text-base font-semibold text-foreground leading-snug">
-                Describe it, Luna draws it.
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Ask for new tables, changes to existing ones, or questions about
-                how your schema fits together.
+          <div className={styles.empty}>
+            <div className={styles.intro}>
+              <span className={`${styles.mark} ${styles.markLg}`}>
+                <WandSparkles className="size-5" />
+              </span>
+              <h3>Describe it, Luna draws it.</h3>
+              <p>
+                Ask for new tables, changes to existing ones, or questions about how your schema fits together. Changes
+                land straight on the canvas.
               </p>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Try one of these
-              </span>
-              <div className="flex flex-col divide-y divide-border rounded-xl border border-border overflow-hidden">
+            <div>
+              <span className={styles.label}>Try one of these</span>
+              <div className={styles.starters}>
                 {SUGGESTIONS.map(({ icon: Icon, title, hint, prompt }) => (
                   <button
                     key={title}
@@ -288,71 +333,86 @@ function AiChatPanelInner({
                       setInput(prompt);
                       inputRef.current?.focus();
                     }}
-                    className="group flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/60 transition-colors cursor-pointer"
+                    className={styles.starter}
                   >
-                    <span className="h-7 w-7 shrink-0 rounded-lg flex items-center justify-center bg-[#ff6347]/10 text-[#e5392a]">
-                      <Icon className="w-3.5 h-3.5" />
+                    <span className={styles.starterIcon}>
+                      <Icon className="size-3.5" />
                     </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm text-foreground">{title}</span>
-                      <span className="block text-xs text-muted-foreground truncate">{hint}</span>
+                    <span className={styles.starterText}>
+                      <b>{title}</b>
+                      <small>{hint}</small>
                     </span>
-                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ArrowUpRight className={`size-3.5 ${styles.starterArrow}`} />
                   </button>
                 ))}
               </div>
             </div>
           </div>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm max-w-[90%] break-words",
-              message.role === "user"
-                ? "bg-primary/10 ml-auto"
-                : "bg-muted mr-auto"
-            )}
-          >
-            {message.parts.map((part, i) => {
-              if (part.type === "text") {
-                return (
-                  <div key={i} className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{part.text}</ReactMarkdown>
-                  </div>
-                );
-              }
-              if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
-                return <ToolCallPill key={i} part={part} />;
-              }
-              return null;
-            })}
+
+        {messages.map((message) =>
+          message.role === "user" ? (
+            <div key={message.id} className={styles.user}>
+              {message.parts.map((part, i) => (part.type === "text" ? <Fragment key={i}>{part.text}</Fragment> : null))}
+            </div>
+          ) : (
+            <div key={message.id} className={styles.assistant}>
+              <span className={styles.mark}>
+                <WandSparkles className="size-3" />
+              </span>
+              <div className={styles.assistantBody}>
+                <AssistantParts parts={message.parts} />
+              </div>
+            </div>
+          )
+        )}
+
+        {waiting && (
+          <div className={styles.assistant}>
+            <span className={styles.mark}>
+              <WandSparkles className="size-3" />
+            </span>
+            <div className={styles.typing} aria-label="Luna is thinking">
+              <span />
+              <span />
+              <span />
+            </div>
           </div>
-        ))}
+        )}
+
         {error && (
-          <div className="text-xs text-destructive px-1">{error.message}</div>
+          <div className={styles.error}>
+            <AlertCircle className="size-3.5" />
+            {error.message}
+          </div>
         )}
       </div>
 
-      {/* Composer */}
-      <div className="flex-none border-t border-border p-2">
+      <div className={styles.composerWrap}>
         {readOnly ? (
-          <button
-            type="button"
-            onClick={() => useUpgradeToastStore.getState().trigger()}
-            className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2 rounded-md hover:bg-accent transition-colors"
-          >
-            <Lock className="w-3 h-3" />
-            Upgrade to chat with AI
+          <button type="button" onClick={() => useUpgradeToastStore.getState().trigger()} className={styles.notice}>
+            <span className={styles.noticeIcon}>
+              <Lock className="size-3.5" />
+            </span>
+            <span>
+              Chat is on Pro
+              <small>Upgrade to let Luna edit your diagrams.</small>
+            </span>
+            <span className={styles.noticeCta}>Upgrade</span>
           </button>
         ) : outOfCredits ? (
-          <div className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1.5 py-2">
-            <CircleSlash className="w-3 h-3" />
-            Out of AI credits for this period
+          <div className={styles.notice}>
+            <span className={styles.noticeIcon}>
+              <CircleSlash className="size-3.5" />
+            </span>
+            <span>
+              Out of AI credits
+              <small>Credits refill at the start of your next period.</small>
+            </span>
           </div>
         ) : (
-          <div className="flex items-end gap-2">
-            <Textarea
+          <div className={styles.composer}>
+            <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -363,17 +423,23 @@ function AiChatPanelInner({
                 }
               }}
               placeholder="Describe a table, a change, or a question…"
-              className="min-h-9 max-h-32 resize-none text-sm"
               rows={1}
             />
-            <Button
-              size="sm"
-              className="h-9 w-9 p-0 shrink-0"
-              onClick={handleSend}
-              disabled={isBusy || !input.trim() || outOfCredits}
-            >
-              <Send className="w-3.5 h-3.5" />
-            </Button>
+            <div className={styles.composerFoot}>
+              <span>
+                <kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line
+              </span>
+              <button
+                type="button"
+                className={styles.send}
+                onClick={handleSend}
+                disabled={isBusy || !input.trim() || outOfCredits}
+                title="Send"
+                aria-label="Send"
+              >
+                {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUp className="size-4" />}
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { WandSparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useViewStore } from "@/store/useViewStore";
 import { AiChatPanel } from "./ai-chat-panel";
+import styles from "./ai-chat.module.scss";
 
 // Floating "Luna AI" button, pinned to the canvas's bottom-right corner just
-// above the minimap (minimap: 160px tall at bottom-4, so 16 + 160 + 12 gap).
+// above the minimap. Same glass surface as the floating toolbar.
 export function AiChatLauncher() {
   const isOpen = useViewStore((s) => s.isAiChatOpen);
   const toggleAiChat = useViewStore((s) => s.toggleAiChat);
@@ -19,16 +19,12 @@ export function AiChatLauncher() {
       title="Luna AI"
       aria-label="Luna AI"
       aria-expanded={isOpen}
-      className={cn(
-        "absolute right-4 bottom-[188px] z-20 h-11 w-11 rounded-2xl",
-        "flex items-center justify-center cursor-pointer text-white",
-        "bg-gradient-to-br from-[#ff8a5c] via-[#ff6347] to-[#e5392a] shadow-lg shadow-[#e5392a]/30",
-        "transition-[transform,opacity] duration-150 hover:scale-105 active:scale-95",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
-        isOpen && "pointer-events-none opacity-0",
-      )}
+      className={styles.launcher}
     >
-      <WandSparkles className="h-5 w-5" />
+      <span className={styles.mark}>
+        <WandSparkles className="size-4" />
+      </span>
+      Ask Luna
     </button>
   );
 }
@@ -50,16 +46,7 @@ export function AiChatSidebar({ readOnly = false }: AiChatSidebarProps) {
   if (!hasOpened) return null;
 
   return (
-    <aside
-      aria-label="Luna AI"
-      inert={!isOpen}
-      className={cn(
-        "absolute inset-y-0 right-0 z-30 w-[400px] max-w-full",
-        "border-l border-border bg-dock-bg shadow-xl",
-        "transition-transform duration-200 ease-out",
-        isOpen ? "translate-x-0" : "translate-x-full shadow-none",
-      )}
-    >
+    <aside aria-label="Luna AI" inert={!isOpen} data-open={isOpen} className={styles.sidebar}>
       <AiChatPanel readOnly={readOnly} onClose={() => setAiChatOpen(false)} />
     </aside>
   );

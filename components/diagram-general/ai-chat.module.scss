@@ -1,0 +1,695 @@
+// Luna AI: the floating launcher on the canvas and the right-docked chat
+// sidebar. Same surfaces as the floating toolbar and the dock panels.
+
+// ─── Launcher ────────────────────────────────────────────────────────────
+
+// Pinned above the minimap (minimap: 160px tall at bottom 16px, plus a 12px gap).
+.launcher {
+  position: absolute;
+  right: 16px;
+  bottom: 188px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--dock-header) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.1), 0 1px 3px rgb(0 0 0 / 0.08);
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+
+    .mark {
+      transform: rotate(-8deg) scale(1.06);
+    }
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 45%, transparent);
+    outline-offset: 2px;
+  }
+
+  &[aria-expanded="true"] {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+// The Luna mark: a primary tile with the wand. Used by the launcher, the
+// header and the empty state.
+.mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, color-mix(in oklab, var(--primary) 75%, white), var(--primary));
+  color: var(--primary-foreground);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--primary) 35%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+  transition: transform 0.2s ease;
+}
+
+.markLg {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+// ─── Sidebar shell ───────────────────────────────────────────────────────
+
+.sidebar {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 30;
+  width: 400px;
+  max-width: 100%;
+  border-left: 1px solid var(--border);
+  background: var(--dock-bg);
+  box-shadow: -12px 0 32px rgb(0 0 0 / 0.08);
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+
+  &[data-open="false"] {
+    transform: translateX(100%);
+    box-shadow: none;
+  }
+}
+
+.panel {
+  --hover: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --sub: color-mix(in oklab, var(--foreground) 5%, var(--dock-header));
+  --faint: color-mix(in oklab, var(--muted-foreground) 65%, var(--dock-bg));
+  --ok: color-mix(in oklab, #10b981 80%, var(--foreground));
+  --ok-bg: color-mix(in oklab, #10b981 13%, transparent);
+
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--dock-bg);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+// ─── Header ──────────────────────────────────────────────────────────────
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--dock-header);
+  user-select: none;
+
+  .mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+  }
+}
+
+.headText {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+
+  b {
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  small {
+    font-size: 11.5px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+// Credits left this period, as a chip like the save status.
+.credits {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+
+  &[data-empty="true"] {
+    border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
+    color: var(--destructive);
+  }
+}
+
+.iconBtn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+    color: var(--foreground);
+  }
+}
+
+// ─── Messages ────────────────────────────────────────────────────────────
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+// Empty state: intro, then starter prompts as cards.
+.empty {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  h3 {
+    margin: 6px 0 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--muted-foreground);
+  }
+}
+
+.label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.starters {
+  display: grid;
+  gap: 6px;
+}
+
+.starter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--dock-header);
+  color: var(--foreground);
+  text-align: left;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
+
+    .starterArrow {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+
+    .starterIcon {
+      background: color-mix(in oklab, var(--primary) 14%, transparent);
+      color: var(--primary);
+    }
+  }
+}
+
+.starterIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--sub);
+  color: var(--muted-foreground);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.starterText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+
+  b {
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  small {
+    font-size: 11.5px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.starterArrow {
+  flex: none;
+  color: var(--primary);
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+// User turns: a primary bubble on the right.
+.user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+// Luna's turns: no bubble, the mark on the left and text beside it.
+.assistant {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+
+  > .mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    box-shadow: none;
+  }
+}
+
+.assistantBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.prose {
+  font-size: 13px;
+  line-height: 1.6;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p,
+  ul,
+  ol {
+    margin: 0 0 8px;
+  }
+
+  ul,
+  ol {
+    padding-left: 18px;
+  }
+
+  ul {
+    list-style: disc;
+  }
+
+  ol {
+    list-style: decimal;
+  }
+
+  li + li {
+    margin-top: 2px;
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  code {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--sub);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  pre {
+    margin: 0 0 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--dock-header);
+    overflow-x: auto;
+    font-size: 12px;
+
+    code {
+      padding: 0;
+      background: none;
+      font-weight: 400;
+    }
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+// Changes Luna made to the canvas, grouped in one card per turn.
+.actions {
+  display: grid;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--dock-header);
+  overflow: hidden;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 12px;
+
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+}
+
+.actionIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--sub);
+  color: var(--muted-foreground);
+}
+
+.actionText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionState {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.action[data-state="running"] {
+  color: var(--muted-foreground);
+
+  .actionState {
+    background: transparent;
+    color: var(--primary);
+  }
+}
+
+.action[data-state="error"] {
+  .actionText {
+    color: var(--destructive);
+  }
+
+  .actionState {
+    background: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--destructive);
+  }
+}
+
+// Three dots while waiting for the first token.
+.typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 8px 0;
+
+  span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted-foreground);
+    animation: typing 1.2s ease-in-out infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in oklab, var(--destructive) 35%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--destructive) 8%, transparent);
+  color: var(--destructive);
+  font-size: 12px;
+  line-height: 1.45;
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+  }
+}
+
+// ─── Composer ────────────────────────────────────────────────────────────
+
+.composerWrap {
+  flex: none;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--dock-bg);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--dock-header);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+  &:focus-within {
+    border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    max-height: 160px;
+    padding: 10px 12px 4px;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    field-sizing: content;
+
+    &:focus {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--faint);
+    }
+  }
+}
+
+.composerFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 6px 12px;
+  font-size: 11px;
+  color: var(--faint);
+
+  kbd {
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 10.5px;
+  }
+}
+
+.send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  cursor: pointer;
+  transition: opacity 0.12s ease, filter 0.12s ease;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: none;
+  }
+}
+
+// Read-only / out-of-credits replacements for the composer.
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--dock-header);
+  color: var(--foreground);
+  font-size: 12.5px;
+  text-align: left;
+
+  small {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted-foreground);
+  }
+}
+
+button.notice {
+  cursor: pointer;
+
+  &:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  }
+}
+
+.noticeIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--sub);
+  color: var(--muted-foreground);
+}
+
+.noticeCta {
+  margin-left: auto;
+  flex: none;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing span {
+    animation: none;
+  }
+
+  .sidebar,
+  .launcher,
+  .mark {
+    transition: none;
+  }
+}
