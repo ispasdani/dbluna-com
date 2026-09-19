@@ -79,7 +79,8 @@ export default function BlogPage() {
       </Container>
       <DivideX />
       <Container className="border-divide border-x">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        {/* -mb-px tucks the last row's bottom border under the DivideX below */}
+        <div className="-mb-px grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {articles.map((article) => (
             <BlogCard key={article.slug} article={article} />
           ))}

@@ -6,7 +6,7 @@ export const BlogCard = ({ article }: { article: Article }) => {
   return (
     <Link
       href={`/blog/${article.slug}`}
-      className="group border-divide flex flex-col border p-6 transition-colors hover:bg-gray-50 dark:hover:bg-neutral-900/50 md:p-8"
+      className="group border-divide flex flex-col border-b p-6 transition-colors md:border-r md:max-lg:even:border-r-0 lg:[&:nth-child(3n)]:border-r-0 hover:bg-gray-50 dark:hover:bg-neutral-900/50 md:p-8"
     >
       <span className="bg-brand/10 text-brand mb-4 inline-block w-fit rounded-full px-2.5 py-1 text-xs font-medium">
         {TAG_LABELS[article.tag]}
