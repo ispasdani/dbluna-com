@@ -77,7 +77,7 @@ export const Footer = () => {
               visitor to Clerk sign-up/in and returns them here, where a
               diagram is auto-created (see app/(diagram)/d/page.tsx). */}
           <Button className="mt-4 mb-8 lg:mb-0" as={Link} href="/d">
-            Start building
+            Open editor
           </Button>
         </div>
         <div className="col-span-1 mb-4 flex flex-col gap-2 md:col-span-1 md:mb-0">

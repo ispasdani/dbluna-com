@@ -5,7 +5,7 @@ import { Container } from "../marketing-general/container";
 import { Badge } from "../marketing-general/badge";
 import { Heading } from "../marketing-general/heading";
 import { SubHeading } from "../marketing-general/subHeading";
-import { ButtonWithIdGenerator } from "../marketing-general/buttonWithIdGenerator";
+import { OpenEditorButton } from "../marketing-general/open-editor-button";
 import { Button } from "../marketing-general/button";
 
 export const Hero = () => {
@@ -23,7 +23,7 @@ export const Hero = () => {
       </SubHeading>
 
       <div className="mt-6 flex items-center gap-4">
-        <ButtonWithIdGenerator>Start building</ButtonWithIdGenerator>
+        <OpenEditorButton>Try it now</OpenEditorButton>
         <Button variant="secondary" as={Link} href="/pricing">
           View pricing
         </Button>

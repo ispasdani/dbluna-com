@@ -182,6 +182,9 @@ type CanvasState = {
   codeReadOnly: boolean;
   setCodeReadOnly: (v: boolean) => void;
   activeDiagramId: string | null;
+  // Persisted (unlike activeDiagramId) so /d can reopen exactly the diagram
+  // the user last had open on this browser, not just the last one written.
+  lastOpenedDiagramId: string | null;
   diagrams: Record<string, DiagramData>;
   setDiagramId: (id: string) => void;
   createDiagram: (name: string) => string;
@@ -291,6 +294,7 @@ export const useCanvasStore = create<CanvasState>()(
       codeReadOnly: false,
       setCodeReadOnly: (v) => set({ codeReadOnly: v }),
       activeDiagramId: null,
+      lastOpenedDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
         const { activeDiagramId, diagrams } = get();
@@ -323,6 +327,7 @@ export const useCanvasStore = create<CanvasState>()(
 
         set({
           activeDiagramId: id,
+          lastOpenedDiagramId: id,
           diagrams: newDiagrams,
           ...toCanvasFields(target),
           selectedTableIds: [],
@@ -385,10 +390,13 @@ export const useCanvasStore = create<CanvasState>()(
         set((s) => {
           const newDiagrams = { ...s.diagrams };
           delete newDiagrams[id];
+          const lastOpenedDiagramId =
+            s.lastOpenedDiagramId === id ? null : s.lastOpenedDiagramId;
           if (id === s.activeDiagramId) {
             const fresh = createDefaultDiagram();
             return {
               diagrams: newDiagrams,
+              lastOpenedDiagramId,
               activeDiagramId: null,
               ...toCanvasFields(fresh),
               selectedTableIds: [],
@@ -397,7 +405,7 @@ export const useCanvasStore = create<CanvasState>()(
               selectedAreaIds: [],
             };
           }
-          return { diagrams: newDiagrams };
+          return { diagrams: newDiagrams, lastOpenedDiagramId };
         });
       },
       // Neutral write primitive — trusts `data` as given. Untrusted external
@@ -934,7 +942,7 @@ export const useCanvasStore = create<CanvasState>()(
         useCanvasStore.setState({ hasHydrated: true });
       },
       partialize: (state) => {
-        const { activeDiagramId, diagrams } = state;
+        const { activeDiagramId, lastOpenedDiagramId, diagrams } = state;
         const newDiagrams = { ...diagrams };
         if (activeDiagramId) {
           const existing = diagrams[activeDiagramId];
@@ -951,7 +959,7 @@ export const useCanvasStore = create<CanvasState>()(
         }
         // savingStatus/hasHydrated/readOnly/codeReadOnly/cloudSyncStatus/
         // cloudSyncErrorReason are intentionally NOT here — runtime-only.
-        return { diagrams: newDiagrams };
+        return { diagrams: newDiagrams, lastOpenedDiagramId };
       },
     }
   )

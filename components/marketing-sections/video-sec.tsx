@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Container } from "../marketing-general/container";
 import { SectionHeading } from "../marketing-general/section-heading";
 import { SubHeading } from "../marketing-general/subHeading";
-import { ButtonWithIdGenerator } from "../marketing-general/buttonWithIdGenerator";
+import { OpenEditorButton } from "../marketing-general/open-editor-button";
 import { Button } from "../marketing-general/button";
 
 const VideoSec = () => {
@@ -17,7 +17,7 @@ const VideoSec = () => {
         Start on the free plan, or jump straight into building with Pro.
       </SubHeading>
       <div className="relative z-10 mt-8 flex items-center gap-4">
-        <ButtonWithIdGenerator>Start building</ButtonWithIdGenerator>
+        <OpenEditorButton>Try it now</OpenEditorButton>
         <Button variant="secondary" as={Link} href="/pricing">
           View pricing
         </Button>

@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import React from "react";
 
-export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
+// Every marketing CTA goes through /d, which reopens the user's last diagram
+// (or creates their first) — never a fresh random id per click.
+export const OpenEditorButton = <T extends React.ElementType = "button">({
   children,
   variant = "primary",
   className,
@@ -24,12 +26,9 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
 
   const router = useRouter();
 
-  const handleStartBuilding = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent) => {
     if (typeof onClick === "function") onClick(e);
-
-    const diagramId = crypto.randomUUID();
-
-    router.push(`/d/${diagramId}`);
+    router.push("/d");
   };
 
   return (
@@ -44,7 +43,7 @@ export const ButtonWithIdGenerator = <T extends React.ElementType = "button">({
             : "border-divide border bg-white text-black transition duration-200 hover:bg-gray-300 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:bg-neutral-800",
         className
       )}
-      onClick={handleStartBuilding}
+      onClick={handleClick}
     >
       {children}
     </Component>

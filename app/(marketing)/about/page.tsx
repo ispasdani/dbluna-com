@@ -4,7 +4,7 @@ import { Container } from "@/components/marketing-general/container";
 import { SectionHeading } from "@/components/marketing-general/section-heading";
 import { SubHeading } from "@/components/marketing-general/subHeading";
 import { Button } from "@/components/marketing-general/button";
-import { ButtonWithIdGenerator } from "@/components/marketing-general/buttonWithIdGenerator";
+import { OpenEditorButton } from "@/components/marketing-general/open-editor-button";
 
 export const metadata: Metadata = {
   title: "About | DBLuna",
@@ -49,7 +49,7 @@ export default function AboutPage() {
       </div>
 
       <div className="mt-16 flex flex-col items-center gap-4">
-        <ButtonWithIdGenerator>Start building</ButtonWithIdGenerator>
+        <OpenEditorButton>Try it now</OpenEditorButton>
         <Button variant="secondary" as={Link} href="/contact">
           Get in touch
         </Button>
