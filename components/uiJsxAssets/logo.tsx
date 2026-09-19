@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DbLunaFuturistic } from "./dbluna-logo";
 
 export const LogoSVG = (props: React.SVGProps<SVGSVGElement>) => {
   return (
@@ -19,13 +20,18 @@ export const LogoSVG = (props: React.SVGProps<SVGSVGElement>) => {
   );
 };
 
-export const Logo = () => {
+// Same wordmark as the diagram editor's top navbar.
+export const Logo = ({ className = "" }: { className?: string }) => {
   return (
-    <Link href="/" className="flex items-center justify-center gap-1">
-      <LogoSVG />
-      <span className="text-xl font-bold">
-        <span className="text-brand">DB</span>LUNA
-      </span>
+    <Link
+      href="/"
+      aria-label="DBLUNA home"
+      className={`flex items-center ${className}`}
+    >
+      <DbLunaFuturistic
+        weight="bold"
+        className="h-[18px] w-[132px] shrink-0 text-neutral-900 dark:text-white"
+      />
     </Link>
   );
 };
