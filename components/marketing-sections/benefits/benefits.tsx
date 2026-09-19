@@ -12,14 +12,24 @@ import { RocketIcon } from "../../uiJsxAssets/rocket-icon";
 import { ReuseBrainIcon } from "../../uiJsxAssets/reuse-brain-icon";
 import { ShieldIcon } from "../../uiJsxAssets/shield-icon";
 import { ScreenCogIcon } from "../../uiJsxAssets/screen-cog-icon";
-import { DivideX } from "../../marketing-general/divideX";
 import { BellIcon } from "../../uiJsxAssets/bell-icon";
 import { LogoSVG } from "../../uiJsxAssets/logo";
 import { RealtimeSyncIcon } from "../../uiJsxAssets/real-time-sync-icon";
 import { HorizontalLine } from "../../uiJsxAssets/horizontal-line";
 import { VerticalLine } from "../../uiJsxAssets/vertical-line";
-import { TableBlock } from "../../marketing-general/table-block";
 import { MiniTable } from "./skeletons";
+import { AlertCircle, Cloud, Code, Link2, Table } from "lucide-react";
+import {
+  SCENE_STYLE,
+  SceneLink,
+  SceneRowHighlight,
+  SceneTableCard,
+  TABLE_W,
+  rowY,
+  route,
+  type SceneLinkDef,
+  type SceneTable,
+} from "../../marketing-general/canvas-scene";
 
 export const Benefits = () => {
   const benefits = [
@@ -90,6 +100,39 @@ export const Benefits = () => {
   );
 };
 
+// The editor window in the middle card: users → orders, the line "hovered".
+const WINDOW_SCENE: SceneTable[] = [
+  {
+    name: "users",
+    color: "#6366f1",
+    x: 16,
+    y: 18,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "email", type: "text", kind: "uq" },
+      { name: "name", type: "text" },
+    ],
+  },
+  {
+    name: "orders",
+    color: "#f59e0b",
+    x: 236,
+    y: 56,
+    cols: [
+      { name: "id", type: "int", kind: "pk" },
+      { name: "user_id", type: "int", kind: "fk" },
+      { name: "total", type: "numeric" },
+    ],
+  },
+];
+
+const WINDOW_LINK: SceneLinkDef = {
+  d: route(WINDOW_SCENE[0].x + TABLE_W, rowY(WINDOW_SCENE[0], 0), WINDOW_SCENE[1].x, rowY(WINDOW_SCENE[1], 1), 208),
+  oneAt: [WINDOW_SCENE[0].x + TABLE_W + 8, rowY(WINDOW_SCENE[0], 0)],
+  manyAt: [WINDOW_SCENE[1].x, rowY(WINDOW_SCENE[1], 1)],
+  manyDir: 1,
+};
+
 const MiddleCard = () => {
   const texts = [
     "Schema exported",
@@ -109,7 +152,7 @@ const MiddleCard = () => {
       <div className="absolute inset-0 bg-[radial-gradient(var(--color-dots)_1px,transparent_1px)] mask-radial-from-10% [background-size:10px_10px] shadow-xl"></div>
 
       <div className="flex items-center justify-center">
-        <TableBlock icon={<MiniTable label="users" compact />} />
+        <MiniTable label="users" />
 
         <HorizontalLine />
 
@@ -123,13 +166,15 @@ const MiddleCard = () => {
 
         <HorizontalLine />
 
-        <TableBlock icon={<MiniTable label="orders" compact />} />
+        <MiniTable label="orders" />
       </div>
 
       <div className="relative z-20 flex flex-col items-center justify-center">
         <VerticalLine />
-        <div className="rounded-sm border border-blue-500 bg-blue-50 px-2 py-0.5 text-xs text-blue-500 dark:bg-blue-900 dark:text-white">
-          Synced
+        <div className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+          <span className="size-1.5 rounded-full bg-emerald-500" />
+          <Cloud className="size-3.5" />
+          Saved to cloud
         </div>
       </div>
 
@@ -137,15 +182,14 @@ const MiddleCard = () => {
         <div className="absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-blue-500 via-20% to-transparent to-30% opacity-40 [animation-duration:4s]"></div>
         <div className="via-brand absolute inset-0 scale-[1.4] animate-spin rounded-full bg-conic from-transparent via-20% to-transparent to-30% opacity-40 [animation-delay:2s] [animation-duration:4s]"></div>
         <div className="relative z-20 h-full w-full rounded-[5px] bg-white dark:bg-neutral-900">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex gap-1">
-              <div className="size-2 rounded-full bg-red-400"></div>
-              <div className="size-2 rounded-full bg-yellow-400"></div>
-              <div className="size-2 rounded-full bg-green-400"></div>
-            </div>
+          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5 dark:border-neutral-700">
+            <span className="flex min-w-0 items-center gap-1.5 rounded-md border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-charcoal-700 dark:border-neutral-700 dark:text-neutral-200">
+              <span className="truncate">Shop schema</span>
+              <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+            </span>
             <AnimatePresence mode="wait">
               <motion.div
-                className="shadow-aceternity mr-2 flex items-center gap-1 rounded-sm bg-white px-2 py-1 text-xs text-neutral-500 dark:bg-neutral-700 dark:text-white"
+                className="shadow-aceternity mr-2 flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[11px] text-neutral-500 dark:bg-neutral-700 dark:text-white"
                 key={activeText}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -157,40 +201,26 @@ const MiddleCard = () => {
               </motion.div>
             </AnimatePresence>
           </div>
-          <DivideX />
           <div className="flex h-full flex-row">
-            <div className="h-full w-14 bg-gray-200 dark:bg-neutral-800" />
-            <motion.div className="w-full gap-y-4 p-4">
-              <h2 className="text-sm font-semibold text-gray-800 dark:text-neutral-300">
-                Dashboard
-              </h2>
-
-              <div className="mt-4 flex flex-col gap-y-3 mask-b-from-50%">
-                {[
-                  { label: "Tables Created", width: 85 },
-                  { label: "Relationships Mapped", width: 92 },
-                  { label: "Docs Generated", width: 74 },
-                ].map((item, index) => (
-                  <div key={item.label} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600">{item.label}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-neutral-700">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.width}%` }}
-                        transition={{
-                          duration: 1.2,
-                          delay: 0.4 + index * 0.1,
-                          ease: "easeOut",
-                        }}
-                        className="h-full rounded-full bg-neutral-300 dark:bg-neutral-400"
-                      />
-                    </div>
-                  </div>
+            {/* Dock strip with the side-panel tabs */}
+            <div className="flex h-full w-10 shrink-0 flex-col items-center gap-2.5 border-r border-gray-200 bg-gray-50 pt-3 text-gray-400 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-500">
+              <Table className="size-3.5 text-indigo-500" />
+              <Link2 className="size-3.5" />
+              <AlertCircle className="size-3.5" />
+              <Code className="size-3.5" />
+            </div>
+            {/* The canvas */}
+            <div className="relative h-full w-full bg-[radial-gradient(rgb(17_24_39/0.1)_1px,transparent_1.2px)] [background-size:10px_10px] dark:bg-[radial-gradient(rgb(225_227_240/0.08)_1px,transparent_1.2px)]">
+              <svg viewBox="0 0 420 190" className="block w-full max-w-[420px] font-sans" aria-hidden>
+                <style>{SCENE_STYLE}</style>
+                <SceneLink link={WINDOW_LINK} lit delay={0.6} />
+                {WINDOW_SCENE.map((t, i) => (
+                  <SceneTableCard key={t.name} t={t} delay={0.1 + i * 0.15} />
                 ))}
-              </div>
-            </motion.div>
+                <SceneRowHighlight t={WINDOW_SCENE[0]} row={0} delay={1} />
+                <SceneRowHighlight t={WINDOW_SCENE[1]} row={1} delay={1} />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
