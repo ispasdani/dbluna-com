@@ -159,9 +159,39 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 
+  &[data-low="true"] {
+    border-color: color-mix(in oklab, var(--destructive) 30%, var(--border));
+    color: color-mix(in oklab, var(--destructive) 75%, var(--foreground));
+  }
+
   &[data-empty="true"] {
     border-color: color-mix(in oklab, var(--destructive) 40%, var(--border));
     color: var(--destructive);
+  }
+}
+
+// Allowance gauge. Deliberately small and unlabelled — it's an ambient
+// "roughly how much is left", with the exact figures on the pill's title.
+.creditsGauge {
+  position: relative;
+  width: 26px;
+  height: 4px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--muted-foreground) 22%, transparent);
+}
+
+.creditsGaugeFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+  transition: width 240ms ease;
+
+  // A balance that changes while you watch shouldn't animate in a way that
+  // draws the eye away from the reply being streamed.
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 }
 

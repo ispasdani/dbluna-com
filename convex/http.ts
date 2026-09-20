@@ -4,7 +4,10 @@ import { httpRouter } from "convex/server";
 import { Webhook } from "svix";
 import { internal } from "./_generated/api";
 import { httpAction, type ActionCtx } from "./_generated/server";
-import { AI_CHAT_STARTER_CREDITS } from "./aiChatConstants";
+import {
+  resolveSubscriptionStatus,
+  shouldApplyPlanUpdate,
+} from "../lib/subscription-rules";
 
 const http = httpRouter();
 
@@ -102,7 +105,6 @@ http.route({
           planSlug: data.plan?.slug,
           periodStart: data.period_start,
           periodEnd: data.period_end,
-          cancelAtPeriodEnd: data.status === "canceled",
         });
 
         return new Response(null, { status: 200 });
@@ -145,42 +147,58 @@ async function applyPlanUpdate(
     subscriptionId?: string;
     periodStart?: number;
     periodEnd?: number | null;
-    cancelAtPeriodEnd?: boolean;
   }
 ) {
   const plan = args.planSlug
     ? await ctx.runQuery(internal.plans.getBySlug, { slug: args.planSlug })
     : null;
 
-  // ai-chat-credits-and-sync-plan.md, Phase 1: grant a one-time starter
-  // credit allotment on a genuine Free -> Pro transition, not on every
-  // subscription.* / subscriptionItem.* webhook that touches an
-  // already-active Pro subscription (renewal, metadata changes, etc. all
-  // fire these same event types).
   const existingUser = await ctx.runQuery(internal.users.getByClerkIdInternal, {
     clerkId: args.clerkId,
   });
-  const wasActive = existingUser?.subscriptionStatus === "active";
-  const becomingActivePro = args.status === "active" && plan?.slug === "pro";
-  const creditGrant = !wasActive && becomingActivePro ? AI_CHAT_STARTER_CREDITS : undefined;
 
+  // Clerk emits several events per billing change, across several
+  // subscription items, with no ordering guarantee. Decide whether this one
+  // is worth writing before writing it — rules and rationale in
+  // lib/subscription-rules.ts, tested in lib/__tests__/subscription-rules.test.ts.
+  const existingPlan = existingUser?.planId
+    ? await ctx.runQuery(internal.plans.getByIdInternal, { planId: existingUser.planId })
+    : null;
+
+  const event = {
+    planSlug: args.planSlug,
+    status: args.status,
+    periodEnd: args.periodEnd,
+  };
+
+  const existingState = {
+    planSlug: existingPlan?.slug,
+    status: existingUser?.subscriptionStatus,
+    currentPeriodEnd: existingUser?.currentPeriodEnd,
+  };
+
+  if (!shouldApplyPlanUpdate(existingState, event)) return;
+
+  // A cancellation with time left on the clock keeps access and records the
+  // intent — the user paid through the end of the period.
+  const { status, cancelAtPeriodEnd } = resolveSubscriptionStatus(event);
+
+  // No credit grant here by design. The AI allowance refills from the
+  // calendar instead (`effectiveCredits` in lib/ai-credits.ts), which removed
+  // this handler's dependence on catching exactly one transition exactly once.
   try {
     await ctx.runMutation(internal.users.updateUser, {
       clerkId: args.clerkId,
       subscriptionId: args.subscriptionId,
-      subscriptionStatus: args.status,
+      subscriptionStatus: status,
       currentPeriodStart: args.periodStart
         ? new Date(args.periodStart).toISOString()
         : undefined,
       currentPeriodEnd: args.periodEnd
         ? new Date(args.periodEnd).toISOString()
         : undefined,
-      cancelAtPeriodEnd: args.cancelAtPeriodEnd,
+      cancelAtPeriodEnd,
       planId: plan?._id,
-      credits:
-        creditGrant !== undefined
-          ? (existingUser?.credits ?? 0) + creditGrant
-          : undefined,
     });
   } catch (err) {
     if (err instanceof ConvexError) return;

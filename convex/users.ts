@@ -6,24 +6,26 @@ import {
   requireSignedIn,
   requireSignedInPro,
 } from "./guards";
+import { assertGlobalCapacity, recordSpend } from "./aiSpend";
+import {
+  AI_CHAT_MONTHLY_CREDITS,
+  AI_RATE_LIMIT_WINDOW_MS,
+  AI_TURNS_PER_MINUTE,
+  creditPeriodKey,
+  effectiveCredits,
+} from "../lib/ai-credits";
 
 // Helpers
 const now = () => Date.now();
 const cleanPatch = <T extends Record<string, unknown>>(obj: T) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
-export const getUserByClerkId = query({
-  args: { clerkId: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
-      .unique();
-
-    if (!user) throw new ConvexError("User not found");
-    return user;
-  },
-});
+// `getUserByClerkId` used to live here: a public query taking any clerkId and
+// returning that user's whole row — email, subscription id, billing status,
+// credits — with no auth check at all. Convex queries are reachable by anyone
+// holding the deployment URL, which ships in the browser bundle, and Clerk
+// user ids are not secrets. It had no callers, so it is gone rather than
+// guarded. `getMe` is the authenticated equivalent.
 
 // Non-throwing counterpart for internal callers that need to check "does
 // this user exist yet, and what's their current state" without treating
@@ -74,7 +76,16 @@ export const getCurrentUserPlan = query({
     const user = await getCurrentUserDoc(ctx);
     if (!user) return { isPro: false, credits: 0 };
     const plan = user.planId ? await ctx.db.get(user.planId) : null;
-    return { isPro: isPro(user, plan), credits: user.credits ?? 0 };
+
+    // Reports the refilled balance rather than last month's leftovers. A
+    // query can't write, so the reset is only persisted on the next spend —
+    // but the panel must show the new month's allowance immediately, not 0%
+    // until the user sends a message into what looks like an empty account.
+    return {
+      isPro: isPro(user, plan),
+      credits: effectiveCredits(user),
+      allowance: AI_CHAT_MONTHLY_CREDITS,
+    };
   },
 });
 
@@ -90,17 +101,63 @@ export const getCurrentUserPlan = query({
  * route, never a separate query-then-mutation from the client.
  */
 export const reserveAiCredit = mutation({
-  args: {},
-  handler: async (ctx) => {
+  // Floor cost of the prompt the route is about to send, from
+  // `minimumCreditsForRequest`. Reserving it (rather than a flat 1) stops a
+  // large request being started on a balance that plainly can't cover it, and
+  // shrinks the overdraft the settlement can leave behind.
+  args: { minimumCredits: v.optional(v.number()) },
+  handler: async (ctx, { minimumCredits }) => {
     const { user } = await requireSignedInPro(ctx);
-    const remaining = user.credits ?? 0;
+
+    // Order matters. The org-wide breaker runs first: when it's tripped,
+    // something is wrong with metering itself, and we want to stop before
+    // touching any user's balance. Then the per-user rate limit, then the
+    // balance — cheapest, most-likely-to-reject checks after the one that
+    // protects us most.
+    await assertGlobalCapacity(ctx);
+
+    const now = Date.now();
+    const windowStart = user.aiTurnWindowStart ?? 0;
+    const withinWindow = now - windowStart < AI_RATE_LIMIT_WINDOW_MS;
+    const turnsSoFar = withinWindow ? (user.aiTurnsInWindow ?? 0) : 0;
+
+    if (turnsSoFar >= AI_TURNS_PER_MINUTE) {
+      throw new ConvexError({ code: "RATE_LIMITED" });
+    }
+
+    // Refills lazily: a balance stored against a past month reads as a full
+    // allowance, and this write commits it. No webhook, no cron, nobody
+    // missed. See `effectiveCredits`.
+    const periodKey = creditPeriodKey(now);
+    const remaining = effectiveCredits(user, periodKey);
+
     // Strictly positive: a balance already overdrawn by the previous turn's
     // settlement must not start another one.
     if (remaining <= 0) {
       throw new ConvexError({ code: "OUT_OF_CREDITS" });
     }
-    await ctx.db.patch(user._id, { credits: remaining - 1 });
-    return { remaining: remaining - 1 };
+
+    const reserved = Math.max(
+      1,
+      Math.ceil(Number.isFinite(minimumCredits ?? 1) ? (minimumCredits ?? 1) : 1)
+    );
+
+    // Distinct from OUT_OF_CREDITS: they have allowance left, just not enough
+    // for a request this size. The client says so rather than letting them
+    // describe a large refactor and only then discover it can't run.
+    if (reserved > remaining) {
+      throw new ConvexError({ code: "REQUEST_TOO_LARGE_FOR_BALANCE" });
+    }
+
+    await ctx.db.patch(user._id, {
+      credits: remaining - reserved,
+      creditsPeriodKey: periodKey,
+      aiTurnWindowStart: withinWindow ? windowStart : now,
+      aiTurnsInWindow: turnsSoFar + 1,
+    });
+    await recordSpend(ctx, reserved);
+
+    return { remaining: remaining - reserved, reserved };
   },
 });
 
@@ -127,8 +184,12 @@ export const settleAiCredits = mutation({
       return { remaining: user.credits ?? 0 };
     }
 
-    const remaining = (user.credits ?? 0) - Math.ceil(additionalCredits);
+    const charged = Math.ceil(additionalCredits);
+    const remaining = (user.credits ?? 0) - charged;
+
     await ctx.db.patch(user._id, { credits: remaining });
+    await recordSpend(ctx, charged);
+
     return { remaining };
   },
 });

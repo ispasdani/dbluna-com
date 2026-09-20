@@ -8,9 +8,10 @@
  * @module
  */
 
-import type * as aiChatConstants from "../aiChatConstants.js";
 import type * as aiChatMessages from "../aiChatMessages.js";
+import type * as aiSpend from "../aiSpend.js";
 import type * as crons from "../crons.js";
+import type * as devBilling from "../devBilling.js";
 import type * as diagramInvites from "../diagramInvites.js";
 import type * as diagramPresence from "../diagramPresence.js";
 import type * as diagramVersions from "../diagramVersions.js";
@@ -28,9 +29,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  aiChatConstants: typeof aiChatConstants;
   aiChatMessages: typeof aiChatMessages;
+  aiSpend: typeof aiSpend;
   crons: typeof crons;
+  devBilling: typeof devBilling;
   diagramInvites: typeof diagramInvites;
   diagramPresence: typeof diagramPresence;
   diagramVersions: typeof diagramVersions;

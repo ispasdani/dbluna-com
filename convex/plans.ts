@@ -4,6 +4,18 @@ import { internalMutation, internalQuery } from "./_generated/server";
 // Free-plan metadata can't drift from what's actually enforced (gap #3).
 import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "../lib/plan-limits";
 
+/**
+ * Resolves a stored `planId` back to its row. Used by the billing webhook to
+ * learn which plan a user is currently on before deciding whether an incoming
+ * event should overwrite it.
+ */
+export const getByIdInternal = internalQuery({
+  args: { planId: v.id("plans") },
+  handler: async (ctx, { planId }) => {
+    return await ctx.db.get(planId);
+  },
+});
+
 export const getBySlug = internalQuery({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {

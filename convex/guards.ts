@@ -2,6 +2,9 @@
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { ConvexError } from "convex/values";
+// Shared with the billing webhook so "what counts as paid" can't drift between
+// the gate and the thing that grants it.
+import { hasActivePaidAccess } from "../lib/subscription-rules";
 
 export class AuthRequired extends Error {
   code = "ERR_AUTH_REQUIRED";
@@ -28,14 +31,20 @@ export async function requireSignedIn(ctx: MutationCtx | QueryCtx) {
   return user;
 }
 
-const PAID_PLAN_SLUGS = ["pro", "enterprise"];
-
+/**
+ * The paid-access gate for every Pro feature.
+ *
+ * Delegates to `hasActivePaidAccess` rather than reading `subscriptionStatus`
+ * directly: a status alone is only as trustworthy as the last webhook that
+ * set it, and a missed event used to mean permanent free Pro. See that
+ * function for the period-end and grace rules.
+ */
 export function isPro(user: Doc<"users">, plan: Doc<"plans"> | null): boolean {
-  return (
-    user.subscriptionStatus === "active" &&
-    !!plan &&
-    PAID_PLAN_SLUGS.includes(plan.slug)
-  );
+  return hasActivePaidAccess({
+    planSlug: plan?.slug,
+    status: user.subscriptionStatus,
+    currentPeriodEnd: user.currentPeriodEnd,
+  });
 }
 
 export function requirePro(user: Doc<"users">, plan: Doc<"plans"> | null) {

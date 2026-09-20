@@ -11,7 +11,6 @@ import {
   Check,
   CircleSlash,
   Clock,
-  Coins,
   Columns3,
   Link,
   Loader2,
@@ -32,6 +31,11 @@ import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 import { useAiChatStore } from "@/store/useAiChatStore";
 import { applyToolCall } from "@/lib/ai/tool-executor";
+import {
+  creditsRemainingPercent,
+  nextRefillDate,
+  type AiChatStreamMetadata,
+} from "@/lib/ai-credits";
 import { useCloudAiChatSync } from "@/hooks/use-cloud-ai-chat-sync";
 import { api } from "@/convex/_generated/api";
 import styles from "./ai-chat.module.scss";
@@ -207,6 +211,23 @@ function AiChatPanelInner({
   const plan = useQuery(api.users.getCurrentUserPlan);
   const outOfCredits = !readOnly && plan !== undefined && plan.isPro && plan.credits <= 0;
 
+  // Shown as a share of the month's allowance, never as a count. A credit is
+  // a unit of cost, not a message (lib/ai-credits.ts) — a big multi-step edit
+  // on a large diagram legitimately costs several — so a count would read as a
+  // penalty ("that message cost you 12!") for what is simply a bigger job. A
+  // proportion reads as what it is, and it keeps the underlying unit an
+  // implementation detail we can retune without anyone relearning a number.
+  //
+  // The balance can be negative: the final turn of a month settles after it
+  // runs, so an overdraft is expected and shows as empty.
+  const creditsRemaining = Math.max(plan?.credits ?? 0, 0);
+  const settledPercent = creditsRemainingPercent(creditsRemaining);
+  const refillsOn = nextRefillDate().toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+
   const { messages, sendMessage, addToolOutput, setMessages, status, error } = useChat({
     id: diagramId,
     messages: useAiChatStore.getState().getMessages(diagramId),
@@ -237,6 +258,24 @@ function AiChatPanelInner({
   });
 
   const isBusy = status === "submitted" || status === "streaming";
+
+  // The route streams the balance as message metadata on every step boundary,
+  // so a long multi-step refactor visibly draws the gauge down as it works
+  // instead of jumping once at the end. The Convex query is authoritative and
+  // takes back over the moment the turn settles.
+  const lastMeta = messages.at(-1)?.metadata as AiChatStreamMetadata | undefined;
+  const creditsPercent =
+    isBusy && typeof lastMeta?.creditsPercent === "number"
+      ? lastMeta.creditsPercent
+      : settledPercent;
+  const lowCredits = creditsRemaining > 0 && creditsPercent <= 10;
+
+  // A turn halted at a step boundary because the allowance ran out. Worth
+  // saying explicitly: the schema is half-changed and the user needs to know
+  // that's why, not assume the model gave up or broke.
+  const stoppedForBudget = !isBusy && lastMeta?.stoppedForBudget === true;
+
+  const creditsLabel = `${creditsPercent}% of this month's AI allowance left — resets ${refillsOn}`;
 
   // ai-chat-credits-and-sync-plan.md, Phase 2: no-op unless this diagram is
   // cloud-synced. Pull/merge happens inside the hook; push fires below once
@@ -292,9 +331,20 @@ function AiChatPanelInner({
           <small>Edits this diagram as you chat</small>
         </span>
         {plan?.isPro && (
-          <span className={styles.credits} data-empty={outOfCredits} title="AI chat credits left this period">
-            <Coins className="size-3.5" />
-            {plan.credits}
+          <span
+            className={styles.credits}
+            data-empty={outOfCredits}
+            data-low={lowCredits}
+            title={creditsLabel}
+            aria-label={creditsLabel}
+          >
+            <span className={styles.creditsGauge} aria-hidden="true">
+              <span
+                className={styles.creditsGaugeFill}
+                style={{ width: `${creditsPercent}%` }}
+              />
+            </span>
+            {`${creditsPercent}%`}
           </span>
         )}
         {onClose && (
@@ -406,8 +456,12 @@ function AiChatPanelInner({
               <CircleSlash className="size-3.5" />
             </span>
             <span>
-              Out of AI credits
-              <small>Credits refill at the start of your next period.</small>
+              {stoppedForBudget ? "Stopped partway" : "AI allowance used up"}
+              <small>
+                {stoppedForBudget
+                  ? `Your allowance ran out mid-request, so only part of that change was applied. Resets on ${refillsOn}.`
+                  : `Resets on ${refillsOn}.`}
+              </small>
             </span>
           </div>
         ) : (

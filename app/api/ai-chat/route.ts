@@ -11,12 +11,86 @@ import {
 import { google } from "@ai-sdk/google";
 import { api } from "@/convex/_generated/api";
 import { aiTools } from "@/lib/ai/tools";
+import { buildSystemPrompt } from "@/lib/ai/prompt";
+import { ConvexError } from "convex/values";
 import {
   AI_CHAT_MODEL_ID,
   MAX_CREDITS_PER_TURN,
+  MAX_INPUT_TOKENS_PER_REQUEST,
+  MAX_OUTPUT_TOKENS_PER_STEP,
+  MAX_REQUEST_BODY_BYTES,
+  MAX_STEPS_PER_TURN,
   creditsForUsage,
+  creditsRemainingPercent,
+  estimateTokens,
+  minimumCreditsForRequest,
+  type AiChatStreamMetadata,
   type AiChatUsage,
 } from "@/lib/ai-credits";
+
+/**
+ * Fixed cost of the 9 tool schemas plus the instruction block, resent on every
+ * step. Counted into the size guard because on a small diagram it's the
+ * largest single part of the prompt.
+ */
+const TOOL_SCHEMA_TOKEN_OVERHEAD = 2_500;
+
+/**
+ * `reserveAiCredit` rejects for three different reasons and the client needs
+ * to tell them apart: out of credits is the user's problem and offers a
+ * top-up, rate limited resolves itself in a minute, capacity reached is ours
+ * and nothing the user did.
+ */
+function reserveErrorResponse(err: unknown): NextResponse {
+  const code =
+    err instanceof ConvexError &&
+    typeof err.data === "object" &&
+    err.data !== null &&
+    "code" in err.data
+      ? String((err.data as { code: unknown }).code)
+      : undefined;
+
+  switch (code) {
+    case "REQUEST_TOO_LARGE_FOR_BALANCE":
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "There isn't enough of this month's AI allowance left for a request " +
+            "this size. Try a smaller question, or wait for it to reset.",
+        },
+        { status: 402 }
+      );
+    case "RATE_LIMITED":
+      return NextResponse.json(
+        { success: false, error: "Slow down a moment — too many AI requests." },
+        { status: 429 }
+      );
+    case "CAPACITY_REACHED":
+      console.error("[ai-chat] refused: global monthly credit ceiling reached");
+      return NextResponse.json(
+        {
+          success: false,
+          error: "AI chat is temporarily unavailable. Please try again later.",
+        },
+        { status: 503 }
+      );
+    case "OUT_OF_CREDITS":
+      return NextResponse.json(
+        { success: false, error: "Out of AI credits." },
+        { status: 402 }
+      );
+    default:
+      // An unrecognised failure (auth, plan lapsed mid-request, Convex down).
+      // 402 keeps the previous behaviour for the client, but it's logged
+      // because it isn't actually a credits problem.
+      console.error("[ai-chat] credit reservation failed", err);
+      return NextResponse.json(
+        { success: false, error: "Could not start the AI request." },
+        { status: 402 }
+      );
+  }
+}
 
 /**
  * The SDK reports every usage field as `number | undefined`, and reads cached
@@ -31,30 +105,29 @@ function toAiChatUsage(usage: LanguageModelUsage): AiChatUsage {
   };
 }
 
+const EMPTY_USAGE: AiChatUsage = {
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  outputTokens: 0,
+};
+
+function addUsage(a: AiChatUsage, b: AiChatUsage): AiChatUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    cachedInputTokens: (a.cachedInputTokens ?? 0) + (b.cachedInputTokens ?? 0),
+    outputTokens: a.outputTokens + b.outputTokens,
+  };
+}
+
+/** Total usage across the steps completed so far. */
+function sumStepUsage(steps: readonly { usage: LanguageModelUsage }[]): AiChatUsage {
+  return steps.reduce(
+    (sum, step) => addUsage(sum, toAiChatUsage(step.usage)),
+    EMPTY_USAGE
+  );
+}
+
 export const maxDuration = 30;
-
-const SYSTEM_PROMPT = (dbml: string) => `You are the AI assistant inside DBLuna, a database diagram editor. \
-You help the user understand the schema they're currently editing, and you can edit it for them using the \
-provided tools (add/update/delete tables, columns, and relationships; add notes and areas).
-
-Rules:
-- Refer to tables and columns by name, never by id — you don't have ids.
-- Before adding a relationship or column, make sure the table/column names you're using actually exist in \
-the current schema below. If something doesn't exist, say so instead of guessing.
-- When the user asks for a schema change and your plan is reasonably clear, just call the tools and make \
-it — don't describe the plan and ask "should I go ahead?" first. Only ask before acting when the request \
-is genuinely ambiguous (e.g. naming/structure could reasonably go multiple ways) or destructive (deleting \
-tables/columns the user didn't explicitly name).
-- After a tool call finishes, briefly confirm what changed using the tool's result. If a tool call returns \
-an error, relay it plainly and suggest a fix — don't retry blindly.
-- For pure questions, answer directly from the schema below without calling any tool.
-
-Current diagram schema (DBML):
-\`\`\`dbml
-${dbml || "-- empty diagram, no tables yet --"}
-\`\`\`
-
-Be concise.`;
 
 export async function POST(req: NextRequest) {
   const { userId, getToken } = await auth();
@@ -74,23 +147,29 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Reserve one credit before calling the model; the rest is settled against
-  // real token usage once the turn ends (see `settle` below). Atomic (single
-  // Convex mutation), so two concurrent requests from the same user can't both
-  // slip through on the last credit. 402, not 403 — this is "you're allowed,
-  // but you're out", distinct from the Pro gate above.
-  try {
-    await fetchMutation(api.users.reserveAiCredit, {}, { token });
-  } catch {
+  // Two size checks, because either one alone is insufficient. The header is
+  // free but a client controls it, so it catches honest oversize requests
+  // early without buffering; the length check after reading catches a body
+  // that lied about (or omitted) its length, before it becomes an object
+  // graph. The token ceiling further down can only run once parsed.
+  const declaredLength = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
     return NextResponse.json(
-      { success: false, error: "Out of AI credits." },
-      { status: 402 }
+      { success: false, error: "Request too large." },
+      { status: 413 }
     );
   }
 
   let body: { messages: UIMessage[]; dbml?: string };
   try {
-    body = await req.json();
+    const raw = await req.text();
+    if (raw.length > MAX_REQUEST_BODY_BYTES) {
+      return NextResponse.json(
+        { success: false, error: "Request too large." },
+        { status: 413 }
+      );
+    }
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json(
       { success: false, error: "Invalid JSON body." },
@@ -105,6 +184,53 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Size guard before anything is charged. Refusing beats truncating: dropping
+  // tables to fit would have the model answer confidently about a schema the
+  // user isn't looking at. This is also what bounds MAX_CREDITS_PER_TURN.
+  const estimatedInputTokens =
+    estimateTokens(dbml ?? "") +
+    estimateTokens(JSON.stringify(messages)) +
+    TOOL_SCHEMA_TOKEN_OVERHEAD;
+
+  if (estimatedInputTokens > MAX_INPUT_TOKENS_PER_REQUEST) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "This diagram and conversation are too large for one AI request. " +
+          "Start a new chat, or split the diagram across schemas.",
+      },
+      { status: 413 }
+    );
+  }
+
+  // Reserve one credit; the rest is settled against real token usage once the
+  // turn ends (see `settle` below). Atomic (single Convex mutation), so the
+  // balance check, the per-user rate limit and the org-wide breaker all happen
+  // in one transaction — two tabs can't both slip through on the last credit.
+  // Deliberately after body validation: a malformed request must not cost a
+  // credit.
+  let reserved: number;
+  let budget: number;
+  try {
+    const reservation = await fetchMutation(
+      api.users.reserveAiCredit,
+      { minimumCredits: minimumCreditsForRequest(estimatedInputTokens) },
+      { token }
+    );
+    reserved = reservation.reserved;
+    // Everything the user had when the turn began — what it's allowed to
+    // spend before the budget stop condition halts it.
+    budget = reservation.remaining + reservation.reserved;
+  } catch (err) {
+    return reserveErrorResponse(err);
+  }
+
+  // Running cost, updated after every step. Drives the live gauge.
+  let runningUsage: AiChatUsage = EMPTY_USAGE;
+  let spentCredits = 0;
+  let stoppedForBudget = false;
 
   // Charge what the turn actually cost, beyond the one credit already
   // reserved. Idempotent by construction: each of onEnd/onAbort fires at most
@@ -126,8 +252,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // -1 for the credit already reserved before the turn started.
-    const additionalCredits = Math.min(credits, MAX_CREDITS_PER_TURN) - 1;
+    // Less whatever was already taken when the turn was reserved.
+    const additionalCredits = Math.min(credits, MAX_CREDITS_PER_TURN) - reserved;
     if (additionalCredits <= 0) return;
 
     try {
@@ -148,33 +274,55 @@ export async function POST(req: NextRequest) {
     // Google markets for high-volume agentic (tool-calling) work, which is
     // exactly this route. Changing this model means re-deriving the credit unit.
     model: google(AI_CHAT_MODEL_ID),
-    system: SYSTEM_PROMPT(dbml ?? ""),
+    system: buildSystemPrompt(dbml ?? ""),
     messages: await convertToModelMessages(messages),
     tools: aiTools,
-    stopWhen: stepCountIs(8),
+    // Enforced, not assumed: MAX_OVERDRAFT_CREDITS is only provable if a
+    // single step's output is bounded.
+    maxOutputTokens: MAX_OUTPUT_TOKENS_PER_STEP,
+    stopWhen: [
+      stepCountIs(MAX_STEPS_PER_TURN),
+      // Stop as soon as the turn has spent everything the user had. Evaluated
+      // *between* steps, so the current tool call always completes — the model
+      // is never cut off mid-call, and each applied edit stays atomic.
+      //
+      // Computed from `steps` rather than the running total below, because
+      // this is the authoritative figure and must not depend on callback
+      // ordering.
+      ({ steps }) => {
+        if (creditsForUsage(sumStepUsage(steps)) < budget) return false;
+        stoppedForBudget = true;
+        return true;
+      },
+    ],
+    // Keeps the live gauge moving during generation.
+    onStepEnd: (step) => {
+      runningUsage = addUsage(runningUsage, toAiChatUsage(step.usage));
+      spentCredits = creditsForUsage(runningUsage);
+    },
     // `onEnd`, not the deprecated `onFinish`. Usage here is combined across
     // every step of the turn, which is what we want to bill on.
     onEnd: ({ totalUsage }) => settle(toAiChatUsage(totalUsage)),
     // A user who closes the tab mid-turn still cost us the steps that ran.
-    onAbort: ({ steps }) =>
-      settle(
-        steps
-          .map((step) => toAiChatUsage(step.usage))
-          .reduce(
-            (sum, usage) => ({
-              inputTokens: sum.inputTokens + usage.inputTokens,
-              cachedInputTokens:
-                (sum.cachedInputTokens ?? 0) + (usage.cachedInputTokens ?? 0),
-              outputTokens: sum.outputTokens + usage.outputTokens,
-            }),
-            { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }
-          )
-      ),
+    onAbort: ({ steps }) => settle(sumStepUsage(steps)),
   });
 
   // Keep generating (and therefore keep metering) even if the client
   // disconnects — without this, a closed tab can leave the turn unbilled.
   void result.consumeStream();
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    // Pushes the balance to the client as the turn runs, so a large refactor
+    // visibly draws the gauge down instead of jumping at the end. Emitted on
+    // every step boundary and once more at the finish, where
+    // `stoppedForBudget` is finally known.
+    messageMetadata: ({ part }): AiChatStreamMetadata | undefined => {
+      if (part.type !== "finish-step" && part.type !== "finish") return undefined;
+
+      return {
+        creditsPercent: creditsRemainingPercent(Math.max(budget - spentCredits, 0)),
+        stoppedForBudget,
+      };
+    },
+  });
 }

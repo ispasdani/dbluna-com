@@ -19,9 +19,31 @@ export default defineSchema({
     currentPeriodEnd: v.optional(v.string()),
     cancelAtPeriodEnd: v.optional(v.boolean()),
     planId: v.optional(v.id("plans")),
+
+    // AI chat rate limiting (lib/ai-credits.ts). A fixed window per user,
+    // stored on the user row so the check rides along inside the same
+    // transaction that reserves the credit — no second round trip, and no way
+    // for concurrent turns to both pass the check.
+    aiTurnWindowStart: v.optional(v.number()),
+    aiTurnsInWindow: v.optional(v.number()),
+
+    // Calendar month ("YYYY-MM", UTC) that `credits` belongs to. A key from a
+    // past month means the allowance has refilled — see `effectiveCredits` in
+    // lib/ai-credits.ts. Unset on existing rows, which reads as "refill on
+    // next use", so no migration is needed.
+    creditsPeriodKey: v.optional(v.string()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"]),
+
+  // Org-wide AI spend per calendar month, one row per period. Backs the
+  // circuit breaker in convex/aiSpend.ts: per-user allowances cap ordinary
+  // usage, this catches the case where metering itself is broken.
+  aiChatSpend: defineTable({
+    periodKey: v.string(), // "YYYY-MM", UTC
+    credits: v.number(),
+    updatedAt: v.number(),
+  }).index("by_period", ["periodKey"]),
 
   // 🔹 Diagrams (real app only: created by logged-in users)
   // 🔹 Diagrams (real app only: created by logged-in users)
