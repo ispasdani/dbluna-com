@@ -82,7 +82,14 @@ export async function POST(req: NextRequest) {
   }
 
   const result = streamText({
-    model: google("gemini-flash-lite-latest"),
+    // Pinned deliberately — `gemini-flash-lite-latest` is a floating alias that
+    // Google hot-swaps (2 weeks' notice), which silently re-prices our COGS and
+    // the credit maths in ai-chat-credits-and-sync-plan.md along with it. It had
+    // already drifted off the 2.5 Flash-Lite pricing that plan was costed
+    // against. 3.1 Flash-Lite is $0.25/$1.50 per 1M in/out and is the tier
+    // Google markets for high-volume agentic (tool-calling) work, which is
+    // exactly this route. Changing this model means re-deriving the credit unit.
+    model: google("gemini-3.1-flash-lite"),
     system: SYSTEM_PROMPT(dbml ?? ""),
     messages: await convertToModelMessages(messages),
     tools: aiTools,
