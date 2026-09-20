@@ -10,8 +10,11 @@ import { HowItWorksV2 } from "@/components/marketing-sections/how-it-works-v2/ho
 import { Pricing } from "@/components/marketing-sections/pricing";
 import { UseCases } from "@/components/marketing-sections/use-cases";
 import VideoSec from "@/components/marketing-sections/video-sec";
+import { getProPlanId } from "@/lib/billing/pro-plan";
 
-export default function Home() {
+export default async function Home() {
+  const proPlanId = await getProPlanId();
+
   return (
     <main>
       <DivideX />
@@ -40,7 +43,7 @@ export default function Home() {
       </LazyMount>
       <DivideX />
       <div id="pricing">
-        <Pricing />
+        <Pricing proPlanId={proPlanId} />
       </div>
       <DivideX />
       <div id="faq">

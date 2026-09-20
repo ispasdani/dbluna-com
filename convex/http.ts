@@ -4,10 +4,6 @@ import { httpRouter } from "convex/server";
 import { Webhook } from "svix";
 import { internal } from "./_generated/api";
 import { httpAction, type ActionCtx } from "./_generated/server";
-import {
-  resolveSubscriptionStatus,
-  shouldApplyPlanUpdate,
-} from "../lib/subscription-rules";
 
 const http = httpRouter();
 
@@ -149,56 +145,34 @@ async function applyPlanUpdate(
     periodEnd?: number | null;
   }
 ) {
+  // Resolving the plan row is the only thing that has to happen out here —
+  // it's a lookup, not a decision, and it can't go stale in a way that
+  // matters. Everything that reads the user's current state and decides what
+  // to write happens inside `applySubscriptionEvent`, in one transaction.
+  //
+  // It used to happen here, and that was a race: Clerk fires several events
+  // per billing change (on an upgrade, the Free item ending and the Pro item
+  // activating arrive together), an action's read and write are separate
+  // steps, so both events read the same pre-upgrade snapshot, both decided
+  // they were safe, and the last write won. An upgrade could land on
+  // `free`/`ended`.
+  //
+  // No credit grant here by design either — the AI allowance refills from the
+  // calendar (`effectiveCredits` in lib/ai-credits.ts), which removed this
+  // handler's dependence on catching exactly one transition exactly once.
   const plan = args.planSlug
     ? await ctx.runQuery(internal.plans.getBySlug, { slug: args.planSlug })
     : null;
 
-  const existingUser = await ctx.runQuery(internal.users.getByClerkIdInternal, {
-    clerkId: args.clerkId,
-  });
-
-  // Clerk emits several events per billing change, across several
-  // subscription items, with no ordering guarantee. Decide whether this one
-  // is worth writing before writing it — rules and rationale in
-  // lib/subscription-rules.ts, tested in lib/__tests__/subscription-rules.test.ts.
-  const existingPlan = existingUser?.planId
-    ? await ctx.runQuery(internal.plans.getByIdInternal, { planId: existingUser.planId })
-    : null;
-
-  const event = {
-    planSlug: args.planSlug,
-    status: args.status,
-    periodEnd: args.periodEnd,
-  };
-
-  const existingState = {
-    planSlug: existingPlan?.slug,
-    status: existingUser?.subscriptionStatus,
-    currentPeriodEnd: existingUser?.currentPeriodEnd,
-  };
-
-  if (!shouldApplyPlanUpdate(existingState, event)) return;
-
-  // A cancellation with time left on the clock keeps access and records the
-  // intent — the user paid through the end of the period.
-  const { status, cancelAtPeriodEnd } = resolveSubscriptionStatus(event);
-
-  // No credit grant here by design. The AI allowance refills from the
-  // calendar instead (`effectiveCredits` in lib/ai-credits.ts), which removed
-  // this handler's dependence on catching exactly one transition exactly once.
   try {
-    await ctx.runMutation(internal.users.updateUser, {
+    await ctx.runMutation(internal.users.applySubscriptionEvent, {
       clerkId: args.clerkId,
-      subscriptionId: args.subscriptionId,
-      subscriptionStatus: status,
-      currentPeriodStart: args.periodStart
-        ? new Date(args.periodStart).toISOString()
-        : undefined,
-      currentPeriodEnd: args.periodEnd
-        ? new Date(args.periodEnd).toISOString()
-        : undefined,
-      cancelAtPeriodEnd,
       planId: plan?._id,
+      planSlug: args.planSlug ?? undefined,
+      status: args.status,
+      subscriptionId: args.subscriptionId,
+      periodStart: args.periodStart,
+      periodEnd: args.periodEnd ?? undefined,
     });
   } catch (err) {
     if (err instanceof ConvexError) return;

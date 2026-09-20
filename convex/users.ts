@@ -8,6 +8,10 @@ import {
 } from "./guards";
 import { assertGlobalCapacity, recordSpend } from "./aiSpend";
 import {
+  resolveSubscriptionStatus,
+  shouldApplyPlanUpdate,
+} from "../lib/subscription-rules";
+import {
   AI_CHAT_MONTHLY_CREDITS,
   AI_RATE_LIMIT_WINDOW_MS,
   AI_TURNS_PER_MINUTE,
@@ -319,6 +323,84 @@ export const updateUser = internalMutation({
     if (Object.keys(patch).length === 1 && "updatedAt" in patch) return;
 
     await ctx.db.patch(user._id, patch);
+  },
+});
+
+/**
+ * Applies one Clerk billing event, deciding *inside the transaction* whether
+ * it should be applied at all.
+ *
+ * This has to be a mutation rather than logic in the webhook action. Clerk
+ * fires several events for a single billing change — on an upgrade, the Free
+ * item ending and the Pro item activating arrive together — and an action's
+ * read, decide and write are three separate steps. Both events would read the
+ * same pre-upgrade snapshot, both would conclude they were safe to apply, and
+ * whichever wrote last would win. In practice that meant paying for Pro and
+ * landing on `free`/`ended`, with the correct period end (subscription items
+ * share a period, so that value looked right either way).
+ *
+ * Convex serialises mutations, so the second event here re-reads the state the
+ * first one wrote and correctly discards itself as stale.
+ */
+export const applySubscriptionEvent = internalMutation({
+  args: {
+    clerkId: v.string(),
+    planId: v.optional(v.id("plans")),
+    planSlug: v.optional(v.string()),
+    status: v.string(),
+    subscriptionId: v.optional(v.string()),
+    periodStart: v.optional(v.number()),
+    periodEnd: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    // Billing events can legitimately arrive before user.created has been
+    // processed. Nothing to patch yet, and retrying wouldn't help.
+    if (!user) return { applied: false, reason: "no-user" as const };
+
+    const currentPlan = user.planId ? await ctx.db.get(user.planId) : null;
+
+    const event = {
+      planSlug: args.planSlug,
+      status: args.status,
+      periodEnd: args.periodEnd,
+    };
+
+    const shouldApply = shouldApplyPlanUpdate(
+      {
+        planSlug: currentPlan?.slug,
+        status: user.subscriptionStatus,
+        currentPeriodEnd: user.currentPeriodEnd,
+      },
+      event
+    );
+
+    if (!shouldApply) return { applied: false, reason: "stale-event" as const };
+
+    const { status, cancelAtPeriodEnd } = resolveSubscriptionStatus(event);
+
+    await ctx.db.patch(
+      user._id,
+      cleanPatch({
+        subscriptionId: args.subscriptionId,
+        subscriptionStatus: status,
+        currentPeriodStart: args.periodStart
+          ? new Date(args.periodStart).toISOString()
+          : undefined,
+        currentPeriodEnd: args.periodEnd
+          ? new Date(args.periodEnd).toISOString()
+          : undefined,
+        cancelAtPeriodEnd,
+        planId: args.planId,
+        updatedAt: now(),
+      })
+    );
+
+    return { applied: true, status, planSlug: args.planSlug };
   },
 });
 

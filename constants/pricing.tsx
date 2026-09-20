@@ -31,7 +31,15 @@ export const tiers = [
     monthly: 10,
     yearly: 100,
     ctaText: "Get started",
-    ctaLink: "/pricing",
+    // Opens Clerk checkout rather than navigating. `ctaLink` stays as the
+    // fallback for when NEXT_PUBLIC_CLERK_PRO_PLAN_ID isn't configured —
+    // previously this was the only behaviour, and since the link points at
+    // the page it's rendered on, the button did nothing at all.
+    ctaCheckout: true,
+    // Only used if checkout can't be resolved. Points at /contact rather than
+    // /pricing: the old self-referential link meant that in the degraded state
+    // the button did nothing at all, which is indistinguishable from broken.
+    ctaLink: "/contact",
     features: [
       "Unlimited diagrams & tables",
       "Full visual canvas: tables, relationships, notes & areas",

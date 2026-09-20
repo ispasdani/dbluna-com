@@ -1,8 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import Link from "next/link";
+import {
+  ClerkLoaded,
+  ClerkLoading,
+  SignInButton,
+  SignedIn,
+  SignedOut,
+} from "@clerk/nextjs";
+import { CheckoutButton } from "@clerk/nextjs/experimental";
 import { Container } from "../marketing-general/container";
 import { Badge } from "../marketing-general/badge";
 import { SectionHeading } from "../marketing-general/section-heading";
@@ -13,7 +21,7 @@ import { tiers } from "@/constants/pricing";
 import { SlidingNumber } from "../marketing-general/sliding-number";
 import { CheckIcon } from "../uiJsxAssets/check-icon";
 
-export const Pricing = () => {
+export const Pricing = ({ proPlanId }: { proPlanId?: string | null }) => {
   const tabs = [
     {
       title: "Monthly",
@@ -104,14 +112,7 @@ export const Pricing = () => {
                   <Step key={tierFeature + tierIdx + idx}>{tierFeature}</Step>
                 ))}
               </div>
-              <Button
-                className="mt-6 w-full"
-                as={Link}
-                href={tier.ctaLink}
-                variant={tier.featured ? "brand" : "secondary"}
-              >
-                {tier.ctaText}
-              </Button>
+              <TierCta tier={tier} period={activeTier} proPlanId={proPlanId} />
             </div>
           ))}
         </div>
@@ -132,6 +133,96 @@ export const Pricing = () => {
         </div>
       </Container>
     </section>
+  );
+};
+
+/** Module-scoped so the hint appears once, not once per tier per render. */
+let warnedAboutMissingPlanId = false;
+
+type Tier = (typeof tiers)[number];
+
+/**
+ * The call to action for one tier.
+ *
+ * Paid tiers open Clerk's checkout drawer in place, keeping this pricing page
+ * as designed rather than handing the whole layout to Clerk's own
+ * `<PricingTable />`. Signed-out visitors get the sign-in modal first —
+ * CheckoutButton requires an authenticated user — and return here afterwards.
+ */
+const TierCta = ({
+  tier,
+  period,
+  proPlanId,
+}: {
+  tier: Tier;
+  period: "monthly" | "yearly";
+  proPlanId?: string | null;
+}) => {
+  const className = "mt-6 w-full";
+  const variant = tier.featured ? "brand" : "secondary";
+  const checkout = "ctaCheckout" in tier && tier.ctaCheckout === true;
+
+  // Developer hint, not a runtime problem: the CTA still renders, it just
+  // falls back to a link pointing at the page it's on, which looks exactly
+  // like a broken button. Deliberately an effect and a `warn` — logging during
+  // render runs on every pass, and Next promotes a render-time `console.error`
+  // into the full-screen error overlay.
+  useEffect(() => {
+    if (!checkout || proPlanId || warnedAboutMissingPlanId) return;
+    if (process.env.NODE_ENV === "production") return;
+
+    warnedAboutMissingPlanId = true;
+    console.warn(
+      "[pricing] Could not resolve the Clerk plan id for checkout, so the Pro CTA falls back " +
+        "to a link. Check Billing is enabled and a plan with slug \"pro\" exists — see the " +
+        "server log from lib/billing/pro-plan.ts for the reason."
+    );
+  }, [checkout, proPlanId]);
+
+  if (!checkout || !proPlanId) {
+    return (
+      <Button className={className} as={Link} href={tier.ctaLink} variant={variant}>
+        {tier.ctaText}
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      {/* SignedIn/SignedOut both render nothing until Clerk has loaded and
+          resolved auth state — around two seconds on a cold dev load. Without
+          this the Pro CTA is simply absent for that window: the card reflows,
+          and anyone who clicks where the button should be gets nothing,
+          because there is nothing there. */}
+      <ClerkLoading>
+        <Button className={className} variant={variant} disabled aria-busy="true">
+          {tier.ctaText}
+        </Button>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignedIn>
+          <CheckoutButton
+            planId={proPlanId}
+            // Clerk's period names differ from this page's tab labels.
+            planPeriod={period === "monthly" ? "month" : "annual"}
+            newSubscriptionRedirectUrl="/d"
+          >
+            <Button className={className} variant={variant}>
+              {tier.ctaText}
+            </Button>
+          </CheckoutButton>
+        </SignedIn>
+        <SignedOut>
+          {/* CheckoutButton requires an authenticated user, so sign in first
+              and come back here rather than failing on click. */}
+          <SignInButton mode="modal" forceRedirectUrl="/pricing">
+            <Button className={className} variant={variant}>
+              {tier.ctaText}
+            </Button>
+          </SignInButton>
+        </SignedOut>
+      </ClerkLoaded>
+    </>
   );
 };
 
