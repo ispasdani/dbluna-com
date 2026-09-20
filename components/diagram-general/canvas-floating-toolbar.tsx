@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, Moon, Square, StickyNote, Sun, Table } from "lucide-react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { usePlatformPalette } from "@/themeProviders/platformPaletteProvider";
+import { ArrangeMenu } from "./arrange-menu";
 import { ZoomMenu } from "./zoom-menu";
 import { useCapabilities } from "./capabilities-context";
 import styles from "./canvas-floating-toolbar.module.scss";
@@ -61,19 +62,22 @@ export function CanvasFloatingToolbar({ readOnly = false }: CanvasFloatingToolba
           )}
         </span>
       ) : (
-        ADD_ITEMS.map(({ id, label, title, icon: Icon, color }) => (
-          <button
-            key={id}
-            type="button"
-            className={styles.add}
-            style={{ "--tc": color } as CSSProperties}
-            onClick={actions[id]}
-            title={title}
-          >
-            <Icon className="size-4" />
-            <span>{label}</span>
-          </button>
-        ))
+        <>
+          {ADD_ITEMS.map(({ id, label, title, icon: Icon, color }) => (
+            <button
+              key={id}
+              type="button"
+              className={styles.add}
+              style={{ "--tc": color } as CSSProperties}
+              onClick={actions[id]}
+              title={title}
+            >
+              <Icon className="size-4" />
+              <span>{label}</span>
+            </button>
+          ))}
+          <ArrangeMenu />
+        </>
       )}
 
       <span className={styles.sep} />
