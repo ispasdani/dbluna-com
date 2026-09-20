@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
-import { useDockStore } from "@/store/useDockStore";
+import { useDockStore, type TabId, type DockSide } from "@/store/useDockStore";
 import {
   WorldBackground,
   backgroundPositionFor,
@@ -24,6 +24,8 @@ import {
   rowCenterY,
   tableHeight,
   tableLodForZoom,
+  type CanvasStyle,
+  type TableLod,
   type PortPoint,
   type RoutedPath,
   type Side,
@@ -34,10 +36,13 @@ import {
   computeHighlight,
   createHoverStore,
   affordableDim,
+  computeFocus,
   MAX_ANIMATED_LIT,
   type HoverStore,
 } from "./hover-highlight";
 import { cn } from "@/lib/utils";
+import { dlog, mark, logMount } from "@/lib/debug-selection";
+import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
 
 // Resting colour for "quiet" lines — mixed against the canvas so it stays opaque.
@@ -167,6 +172,9 @@ interface CanvasStageProps {
 // How far (in screen px) a pan may drift from the camera in the store before
 // we push it back in. Keeps viewport culling and the minimap from going stale
 // mid-gesture; stays well inside CULL_MARGIN at every allowed zoom level.
+/** Shared so an already-idle drag reset keeps its object identity. */
+const DRAG_IDLE = { dx: 0, dy: 0, active: false };
+
 const PAN_COMMIT_PX = 120;
 // Trailing commit for pan sources with no natural "end" event (wheel).
 const PAN_IDLE_MS = 100;
@@ -174,7 +182,172 @@ const PAN_IDLE_MS = 100;
 // stay comfortably above PAN_COMMIT_PX so a gesture can't outrun the cull set.
 const CULL_MARGIN_PX = 300;
 
+/**
+ * Every relationship line on the canvas.
+ *
+ * Split out and memoised because selecting a *table* used to rebuild all of
+ * them. Measured on a 428-table / 672-relationship diagram with 39 cards on
+ * screen: 195 line groups survived culling and were re-created on every click,
+ * ~8 SVG children each — 180-200ms of React work per selection, for lines that
+ * do not change when a table is selected. Which lines light up is written to
+ * the DOM as `data-lit` by applyHighlight (see hover-highlight.ts), not here.
+ *
+ * Neither `selectedTableIds` nor focus mode is a prop: the only selection this
+ * layer draws is `selectedRelationshipId` (a thicker stroke). Focus dimming is
+ * a `data-focus-out` attribute written by applyHighlight.
+ */
+interface RelationshipLayerProps {
+  routedRelationships: RoutedRelationship[];
+  canvasStyle: CanvasStyle;
+  lod: TableLod;
+  isExporting: boolean;
+  selectedRelationshipId: string | null;
+  newRelationshipIds: string[];
+  vLeft: number;
+  vRight: number;
+  vTop: number;
+  vBottom: number;
+  spaceDown: boolean;
+  readOnly: boolean;
+  hoverStore: HoverStore;
+  endColor: (source: Table, table: Table) => string;
+  setSelectedRelationshipId: (id: string | null) => void;
+  openTab: (tabId: TabId, side?: DockSide) => void;
+}
+
+const RelationshipLayer = React.memo(function RelationshipLayer({
+  routedRelationships,
+  canvasStyle,
+  lod,
+  isExporting,
+  selectedRelationshipId,
+  newRelationshipIds,
+  vLeft,
+  vRight,
+  vTop,
+  vBottom,
+  spaceDown,
+  readOnly,
+  hoverStore,
+  endColor,
+  setSelectedRelationshipId,
+  openTab,
+}: RelationshipLayerProps) {
+  countRender("RelationshipLayer body"); // TEMP diagnostics
+  return (
+    <>
+            {routedRelationships.map(({ rel, source, target, start, end, path }) => {
+              const minX = Math.min(start.x, end.x) - 40;
+              const maxX = Math.max(start.x, end.x) + 40;
+              const minY = Math.min(start.y, end.y);
+              const maxY = Math.max(start.y, end.y);
+
+              if (maxX < vLeft || minX > vRight || maxY < vTop || minY > vBottom) {
+                countRender("relationship CULLED"); // TEMP diagnostics
+                return null;
+              }
+              countRender("relationship DRAWN"); // TEMP diagnostics
+
+              const { d } = path;
+              const isSelected = selectedRelationshipId === rel.id;
+              const isNew = newRelationshipIds.includes(rel.id);
+              const roles = relationshipRoles(rel.cardinality);
+              const oneToMany = roles.source === "one" && roles.target === "many";
+              const startColor = endColor(source, source);
+              const endColorValue = endColor(source, target);
+
+              // Ring on the "one" end when the foreign key is nullable.
+              const fk = foreignKeyEnd(rel);
+              const fkTable = fk.tableId === source.id ? source : target;
+              const optional = !fkTable.columns.find((c) => c.id === fk.columnId)?.isNotNull;
+
+              const gradientId = `rel-grad-${rel.id}`;
+              const stroke = canvasStyle.color === "gradient" ? `url(#${gradientId})` : startColor;
+
+              return (
+                <g
+                  key={rel.id}
+                  data-rel-id={rel.id}
+                  onPointerEnter={() => hoverStore.setRelationship(rel.id)}
+                  onPointerLeave={() => hoverStore.setRelationship(null)}
+                  // Select on pointerdown, not click: letting pointerdown bubble
+                  // starts a marquee on the world layer, which captures the
+                  // pointer and retargets the click away from this line.
+                  // Pan gestures (middle button, Space+drag) still bubble.
+                  onPointerDown={(e) => {
+                    if (e.button !== 0 || spaceDown) return;
+                    e.stopPropagation();
+                    setSelectedRelationshipId(rel.id);
+                    if (!readOnly) openTab("relationships", "left");
+                  }}
+                  className={cn("cursor-pointer", styles.rel, isNew && styles.relNew)}
+                  data-motion={canvasStyle.motion}
+                  // Motion runs from the foreign key toward the key it references.
+                  data-reverse={oneToMany || undefined}
+                >
+                  {canvasStyle.color === "gradient" && (
+                    <defs>
+                      <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
+                        <stop offset="0" stopColor={source.color} />
+                        <stop offset="1" stopColor={target.color} />
+                      </linearGradient>
+                    </defs>
+                  )}
+                  {/* Invisible hit area for easier hovering */}
+                  <path
+                    d={d}
+                    fill="none"
+                    strokeWidth={14}
+                    className={styles["relationship-hit-area"]}
+                    style={{ pointerEvents: "auto" }}
+                  />
+                  {/* Hidden by CSS until the line is lit, so lighting one up costs
+                      no render. Skipped where it could never be seen: an export has
+                      no hover, and at `block` zoom it's a few pixels of glow. */}
+                  {!isExporting && lod !== "block" && (
+                    <path d={d} fill="none" stroke={stroke} strokeWidth={9} strokeLinecap="round" className={styles.relHalo} />
+                  )}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={isSelected ? 2.4 : 1.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    pathLength={isNew ? 1 : undefined}
+                    className={styles.relLine}
+                  />
+                  {/* Crow's feet and 1/N badges are a couple of pixels wide at
+                      `block` zoom — six SVG nodes per line that nobody can read. */}
+                  {lod !== "block" && (
+                    <>
+                      <RelationshipEnd
+                        ends={canvasStyle.ends}
+                        point={start}
+                        role={roles.source}
+                        optional={roles.source === "one" && roles.target === "many" && optional}
+                        color={startColor}
+                      />
+                      <RelationshipEnd
+                        ends={canvasStyle.ends}
+                        point={end}
+                        role={roles.target}
+                        optional={roles.target === "one" && roles.source === "many" && optional}
+                        color={endColorValue}
+                      />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+    </>
+  );
+});
 export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
+  // TEMP diagnostics — see lib/debug-selection.ts.
+  useEffect(() => logMount("CanvasStage"), []);
+  countRender("CanvasStage body");
+
   const rootRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGGElement>(null);
   const backgroundRef = useRef<HTMLDivElement>(null);
@@ -228,7 +401,22 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   // Selection Rect State (in world coordinates)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
 
-  const [dragOffset, setDragOffset] = useState({ dx: 0, dy: 0, active: false });
+  const [dragOffset, setDragOffset] = useState(DRAG_IDLE);
+
+  /**
+   * End a drag without allocating when there was nothing to end.
+   *
+   * Every pointer-up ran `setDragOffset({ dx: 0, dy: 0, active: false })`, and a
+   * plain click is a pointer-up too. The fresh object re-ran the
+   * `getLiveTablePosition` callback, which re-ran the `routedRelationships`
+   * memo, which defeated RelationshipLayer's memo — so clicking a table rebuilt
+   * every line on the canvas for a drag that never happened. Returning the
+   * previous state when already idle makes React bail out of the update.
+   */
+  const endDragOffset = useCallback(
+    () => setDragOffset((prev) => (prev.active ? DRAG_IDLE : prev)),
+    []
+  );
 
   // Inform stores which diagram we are working on
   const setDiagramId = useCanvasStore((s) => s.setDiagramId);
@@ -584,39 +772,12 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   const [, setTick] = useState(0);
 
-  // Focus Mode Calculation (1st and 2nd degree)
-  const { focusedTables, focusedRelationships } = useMemo(() => {
-    if (!isFocusModeEnabled || selectedTableIds.length !== 1) {
-      return { focusedTables: null, focusedRelationships: null };
-    }
-
-    const selectedId = selectedTableIds[0];
-    const tablesSet = new Set<string>([selectedId]);
-    const relsSet = new Set<string>();
-
-    // 1st degree
-    relationships.forEach(rel => {
-      if (rel.sourceTableId === selectedId) {
-        tablesSet.add(rel.targetTableId);
-        relsSet.add(rel.id);
-      } else if (rel.targetTableId === selectedId) {
-        tablesSet.add(rel.sourceTableId);
-        relsSet.add(rel.id);
-      }
-    });
-
-    // 2nd degree
-    const firstDegreeTables = Array.from(tablesSet);
-    relationships.forEach(rel => {
-      if (firstDegreeTables.includes(rel.sourceTableId) || firstDegreeTables.includes(rel.targetTableId)) {
-        tablesSet.add(rel.sourceTableId);
-        tablesSet.add(rel.targetTableId);
-        relsSet.add(rel.id);
-      }
-    });
-
-    return { focusedTables: tablesSet, focusedRelationships: relsSet };
-  }, [isFocusModeEnabled, selectedTableIds, relationships]);
+  // Focus mode (1st and 2nd degree). Computed here, but applied to the DOM by
+  // applyHighlight rather than passed down as props — see computeFocus.
+  const focus = useMemo(
+    () => computeFocus(relationships, selectedTableIds, isFocusModeEnabled),
+    [relationships, selectedTableIds, isFocusModeEnabled]
+  );
 
   // Every relationship endpoint resolves a table by id on every render; with a
   // linear find that is O(relationships × tables) per frame during a drag.
@@ -756,6 +917,14 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
     e.stopPropagation();
     e.preventDefault();
+
+    // TEMP diagnostics — resets the debug clock so each click reads from 0ms.
+    mark(`click table ${tableId}`);
+    dlog("click", "onTablePointerDown", {
+      tablesOnScreen: rootRef.current?.querySelectorAll("[data-table-card]").length,
+      totalTables: tables.length,
+      totalRelationships: relationships.length,
+    });
 
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
@@ -1176,7 +1345,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
 
       if (moves.length > 0) moveTables(moves);
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragTable.current.active = false;
       dragTable.current.pointerId = null;
@@ -1205,7 +1374,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
 
       if (moves.length > 0) moveNotes(moves);
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragNote.current.active = false;
       dragNote.current.pointerId = null;
@@ -1272,7 +1441,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
       if (noteMoves.length > 0) moveNotes(noteMoves);
 
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragArea.current.active = false;
       dragArea.current.pointerId = null;
@@ -1448,7 +1617,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       applyHighlight(
         svgRef.current,
         computeHighlight(hoverStore.get(), relationships, selectedTableIds, selectedRelationshipId, isExporting),
-        dim
+        dim,
+        isExporting ? undefined : focus
       );
     apply();
     return hoverStore.subscribe(apply);
@@ -1606,114 +1776,24 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             }}
           >
             {/* Existing Relationships */}
-            {routedRelationships.map(({ rel, source, target, start, end, path }) => {
-              const minX = Math.min(start.x, end.x) - 40;
-              const maxX = Math.max(start.x, end.x) + 40;
-              const minY = Math.min(start.y, end.y);
-              const maxY = Math.max(start.y, end.y);
-
-              if (maxX < vLeft || minX > vRight || maxY < vTop || minY > vBottom) {
-                return null;
-              }
-
-              const { d } = path;
-              const isSelected = selectedRelationshipId === rel.id;
-              const isNew = newRelationshipIds.includes(rel.id);
-              const roles = relationshipRoles(rel.cardinality);
-              const oneToMany = roles.source === "one" && roles.target === "many";
-              const startColor = endColor(source, source);
-              const endColorValue = endColor(source, target);
-
-              // Ring on the "one" end when the foreign key is nullable.
-              const fk = foreignKeyEnd(rel);
-              const fkTable = fk.tableId === source.id ? source : target;
-              const optional = !fkTable.columns.find((c) => c.id === fk.columnId)?.isNotNull;
-
-              const gradientId = `rel-grad-${rel.id}`;
-              const stroke = canvasStyle.color === "gradient" ? `url(#${gradientId})` : startColor;
-
-              // Focus mode only. The hover fade is CSS off `data-canvas-hover`,
-              // and an inline opacity would outrank it — which is exactly the
-              // precedence the old code had, focus winning over hover.
-              const outOfFocus = focusedRelationships !== null && !focusedRelationships.has(rel.id);
-
-              return (
-                <g
-                  key={rel.id}
-                  data-rel-id={rel.id}
-                  onPointerEnter={() => hoverStore.setRelationship(rel.id)}
-                  onPointerLeave={() => hoverStore.setRelationship(null)}
-                  // Select on pointerdown, not click: letting pointerdown bubble
-                  // starts a marquee on the world layer, which captures the
-                  // pointer and retargets the click away from this line.
-                  // Pan gestures (middle button, Space+drag) still bubble.
-                  onPointerDown={(e) => {
-                    if (e.button !== 0 || spaceDown) return;
-                    e.stopPropagation();
-                    setSelectedRelationshipId(rel.id);
-                    if (!readOnly) openTab("relationships", "left");
-                  }}
-                  className={cn("cursor-pointer", styles.rel, isNew && styles.relNew)}
-                  data-motion={canvasStyle.motion}
-                  // Motion runs from the foreign key toward the key it references.
-                  data-reverse={oneToMany || undefined}
-                  style={outOfFocus ? { opacity: 0.15 } : undefined}
-                >
-                  {canvasStyle.color === "gradient" && (
-                    <defs>
-                      <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
-                        <stop offset="0" stopColor={source.color} />
-                        <stop offset="1" stopColor={target.color} />
-                      </linearGradient>
-                    </defs>
-                  )}
-                  {/* Invisible hit area for easier hovering */}
-                  <path
-                    d={d}
-                    fill="none"
-                    strokeWidth={14}
-                    className={styles["relationship-hit-area"]}
-                    style={{ pointerEvents: "auto" }}
-                  />
-                  {/* Hidden by CSS until the line is lit, so lighting one up costs
-                      no render. Skipped where it could never be seen: an export has
-                      no hover, and at `block` zoom it's a few pixels of glow. */}
-                  {!isExporting && lod !== "block" && (
-                    <path d={d} fill="none" stroke={stroke} strokeWidth={9} strokeLinecap="round" className={styles.relHalo} />
-                  )}
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={isSelected ? 2.4 : 1.6}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pathLength={isNew ? 1 : undefined}
-                    className={styles.relLine}
-                  />
-                  {/* Crow's feet and 1/N badges are a couple of pixels wide at
-                      `block` zoom — six SVG nodes per line that nobody can read. */}
-                  {lod !== "block" && (
-                    <>
-                      <RelationshipEnd
-                        ends={canvasStyle.ends}
-                        point={start}
-                        role={roles.source}
-                        optional={roles.source === "one" && roles.target === "many" && optional}
-                        color={startColor}
-                      />
-                      <RelationshipEnd
-                        ends={canvasStyle.ends}
-                        point={end}
-                        role={roles.target}
-                        optional={roles.target === "one" && roles.source === "many" && optional}
-                        color={endColorValue}
-                      />
-                    </>
-                  )}
-                </g>
-              );
-            })}
+            <RelationshipLayer
+              routedRelationships={routedRelationships}
+              canvasStyle={canvasStyle}
+              lod={lod}
+              isExporting={isExporting}
+              selectedRelationshipId={selectedRelationshipId}
+              newRelationshipIds={newRelationshipIds}
+              vLeft={vLeft}
+              vRight={vRight}
+              vTop={vTop}
+              vBottom={vBottom}
+              spaceDown={spaceDown}
+              readOnly={readOnly}
+              hoverStore={hoverStore}
+              endColor={endColor}
+              setSelectedRelationshipId={setSelectedRelationshipId}
+              openTab={openTab}
+            />
 
             {/* Travelling dots on the lit lines. Kept out of the groups above:
                 an `<animateMotion>` per relationship would run for every line on
@@ -1820,6 +1900,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 adjustedY + tableHeight(geo, table.columns.length) < vTop
               ) return null;
 
+              countRender("table DRAWN"); // TEMP diagnostics
+
               return (
               <g
                 key={table.id}
@@ -1833,7 +1915,6 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 <TableNode
                   table={table}
                   selected={selectedTableIds.includes(table.id)}
-                  isDimmed={focusedTables !== null && !focusedTables.has(table.id)}
                   readOnly={readOnly}
                   hidePorts={isExporting}
                   canvasStyle={canvasStyle}

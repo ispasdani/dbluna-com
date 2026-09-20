@@ -172,6 +172,65 @@ export function computeHighlight(
   return { litRels, brightTables, linkedRows, hoverActive };
 }
 
+
+// ─── Focus mode ──────────────────────────────────────────────────────────────
+
+export interface Focus {
+  /** Tables within two degrees of the selection; `null` = focus mode is off. */
+  tables: Set<string> | null;
+  /** Relationships within two degrees; `null` = focus mode is off. */
+  rels: Set<string> | null;
+}
+
+export const NO_FOCUS: Focus = { tables: null, rels: null };
+
+/**
+ * Tables and relationships within two degrees of the selected table.
+ *
+ * Focus mode is on by default, so this runs on every selection. It used to live
+ * in the stage as a `useMemo` whose result was threaded down as the `isDimmed`
+ * prop on every table and an inline `opacity` on every line — which meant one
+ * click re-rendered every visible card and every line that survived culling.
+ * The sets are now stamped onto the DOM as `data-focus-out` instead, exactly
+ * like the hover highlight above, so selecting a table costs no React render.
+ *
+ * The second-degree pass used `Array.prototype.includes` inside a loop over
+ * every relationship — O(relationships x first-degree tables). Sets make it
+ * linear, which matters on a hub table that touches a hundred others.
+ */
+export function computeFocus(
+  relationships: Relationship[],
+  selectedTableIds: string[],
+  isFocusModeEnabled: boolean
+): Focus {
+  if (!isFocusModeEnabled || selectedTableIds.length !== 1) return NO_FOCUS;
+
+  const selectedId = selectedTableIds[0];
+  const tables = new Set<string>([selectedId]);
+  const rels = new Set<string>();
+
+  for (const rel of relationships) {
+    if (rel.sourceTableId === selectedId) {
+      tables.add(rel.targetTableId);
+      rels.add(rel.id);
+    } else if (rel.targetTableId === selectedId) {
+      tables.add(rel.sourceTableId);
+      rels.add(rel.id);
+    }
+  }
+
+  const firstDegree = new Set(tables);
+  for (const rel of relationships) {
+    if (firstDegree.has(rel.sourceTableId) || firstDegree.has(rel.targetTableId)) {
+      tables.add(rel.sourceTableId);
+      tables.add(rel.targetTableId);
+      rels.add(rel.id);
+    }
+  }
+
+  return { tables, rels };
+}
+
 // ─── Writing it to the DOM ───────────────────────────────────────────────────
 
 function toggle(el: Element, attr: string, on: boolean) {
@@ -187,7 +246,12 @@ function toggle(el: Element, attr: string, on: boolean) {
  * move: a few hundred attribute reads over nodes the browser already has
  * indexed, versus a full React pass over every table and line.
  */
-export function applyHighlight(svg: SVGSVGElement | null, h: Highlight, dim: HoverDim) {
+export function applyHighlight(
+  svg: SVGSVGElement | null,
+  h: Highlight,
+  dim: HoverDim,
+  focus: Focus = NO_FOCUS
+) {
   if (!svg) return;
 
   toggle(svg, "data-canvas-hover", h.hoverActive);
@@ -198,12 +262,16 @@ export function applyHighlight(svg: SVGSVGElement | null, h: Highlight, dim: Hov
   toggle(svg, "data-lit-storm", h.litRels.size > MAX_ANIMATED_LIT);
 
   for (const g of svg.querySelectorAll<SVGGElement>("[data-rel-id]")) {
-    toggle(g, "data-lit", h.litRels.has(g.getAttribute("data-rel-id")!));
+    const id = g.getAttribute("data-rel-id")!;
+    toggle(g, "data-lit", h.litRels.has(id));
+    toggle(g, "data-focus-out", focus.rels !== null && !focus.rels.has(id));
   }
 
   const fading = h.hoverActive && dim === "all";
   for (const g of svg.querySelectorAll<SVGGElement>("[data-table-card]")) {
-    toggle(g, "data-faded", fading && !h.brightTables.has(g.getAttribute("data-table-card")!));
+    const id = g.getAttribute("data-table-card")!;
+    toggle(g, "data-faded", fading && !h.brightTables.has(id));
+    toggle(g, "data-focus-out", focus.tables !== null && !focus.tables.has(id));
   }
 
   for (const row of svg.querySelectorAll<SVGGElement>("[data-row]")) {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { mapCloudDoc } from "@/lib/diagram-persistence";
 import { api } from "@/convex/_generated/api";
+import { dlog, DEBUG } from "@/lib/debug-selection";
 import type { Id } from "@/convex/_generated/dataModel";
 
 const INITIAL_LOAD_TIMEOUT_MS = 3000;
@@ -90,5 +91,21 @@ export function useCloudReconciliation(id: string): { ready: boolean } {
   }, [id, needsPull, cloudId, remote, diagram]);
 
   const ready = !needsPull || remote !== undefined || timedOutId === id;
+
+  // TEMP diagnostics: `ready` going back to false unmounts the entire editor
+  // into a spinner (see the gate in app/(diagram)/d/[id]/page.tsx), which is
+  // exactly what "everything disappears and comes back" looks like.
+  const prevReady = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!DEBUG || prevReady.current === ready) return;
+    dlog("gate", `cloudReady ${prevReady.current} -> ${ready}`, {
+      needsPull,
+      cloudId,
+      remoteIsUndefined: remote === undefined,
+      timedOut: timedOutId === id,
+    });
+    prevReady.current = ready;
+  });
+
   return { ready };
 }

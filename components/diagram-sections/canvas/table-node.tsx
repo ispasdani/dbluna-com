@@ -2,6 +2,7 @@
 
 import { useCanvasStore, type Table, type Column, TABLE_COLORS } from "@/store/useCanvasStore";
 import { Lock, Unlock, MoreVertical, Trash } from "lucide-react";
+import { countRender } from "@/lib/debug-profiler";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -40,7 +41,6 @@ interface TableNodeProps {
   canvasStyle: CanvasStyle;
   selected?: boolean;
   /** Focus mode: outside the selection's neighbourhood — faded and inert. */
-  isDimmed?: boolean;
   readOnly?: boolean;
   /** Hide connection handles (read-only viewer, SVG export). */
   hidePorts?: boolean;
@@ -388,7 +388,6 @@ export const TableNode = memo(function TableNode({
   table,
   canvasStyle,
   selected,
-  isDimmed,
   readOnly,
   hidePorts,
   connectedPorts,
@@ -399,6 +398,8 @@ export const TableNode = memo(function TableNode({
   onColumnPointerDown,
   onHoverChange,
 }: TableNodeProps) {
+  countRender("TableNode"); // TEMP diagnostics
+
   // Re-render once when web fonts settle so measurements stop using fallback
   // metrics. After that first flip this is a constant and costs nothing.
   useSyncExternalStore(subscribeFontsReady, getFontsReadySnapshot, getFontsReadyServerSnapshot);
@@ -436,7 +437,7 @@ export const TableNode = memo(function TableNode({
   if (lod !== "full") {
     return (
       <g
-        className={cn(styles.table, isDimmed && styles.dimmed)}
+        className={styles.table}
         data-table-card={table.id}
         data-variant={variant}
         data-color={canvasStyle.color}
@@ -495,7 +496,7 @@ export const TableNode = memo(function TableNode({
 
   return (
     <g
-      className={cn(styles.table, isDimmed && styles.dimmed)}
+      className={styles.table}
       data-table-card={table.id}
       data-variant={variant}
       data-color={canvasStyle.color}
@@ -685,7 +686,6 @@ export const TableNode = memo(function TableNode({
   prev.table === next.table &&
   prev.canvasStyle === next.canvasStyle &&
   prev.selected === next.selected &&
-  prev.isDimmed === next.isDimmed &&
   prev.readOnly === next.readOnly &&
   prev.hidePorts === next.hidePorts &&
   prev.connectedPorts === next.connectedPorts &&

@@ -6,7 +6,10 @@
   transition: opacity 0.25s ease;
 }
 
-.dimmed {
+// Focus mode. Written imperatively by applyHighlight (see hover-highlight.ts),
+// not passed in as a prop — dimming used to re-render every visible card on
+// every selection.
+.table[data-focus-out] {
   opacity: 0.3;
   pointer-events: none;
   filter: grayscale(1);
@@ -14,8 +17,9 @@
 
 // Set imperatively while something else is hovered (see hover-highlight.ts) —
 // never a React prop, so a pointer move doesn't re-render every card on screen.
-// `:not(.dimmed)` keeps focus mode's stronger dimming from being overridden.
-.table[data-faded]:not(.dimmed) {
+// `:not([data-focus-out])` keeps focus mode's stronger dimming from being
+// overridden by the weaker hover fade.
+.table[data-faded]:not([data-focus-out]) {
   opacity: 0.45;
 }
 

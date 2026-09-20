@@ -26,7 +26,7 @@
 
 .relLine {
   pointer-events: none;
-  transition: stroke-width 0.18s ease;
+  transition: stroke-width 0.18s ease, stroke-opacity 0.25s ease;
 }
 
 // Rendered for every line but revealed only when it is lit. `display` rather
@@ -52,11 +52,38 @@
   stroke-width: 2.4;
 }
 
-// Focus mode sets an inline opacity of 0.15, which outranks this — keeping the
+// Focus mode's own dim is below and is more specific, so it still wins — same
+// precedence the inline opacity used to give it. Keeping the
 // old precedence where being out of focus beats merely not being hovered.
 [data-canvas-hover][data-canvas-dim="lines"] .rel:not([data-lit]),
 [data-canvas-hover][data-canvas-dim="all"] .rel:not([data-lit]) {
   opacity: 0.16;
+}
+
+// Focus mode, written imperatively by applyHighlight rather than as an inline
+// style, so selecting a table no longer re-renders every line on the canvas.
+// Two selectors deep so it outranks the hover dim above, as the inline opacity
+// it replaces did.
+//
+// Fades the *stroke*, not the group. `opacity` on a `<g>` makes the browser
+// render it into its own buffer and composite it, and that buffer is as big as
+// the group's bounding box — which for a relationship is the whole span of the
+// line. Doing that to every out-of-focus line at once (~190 on a 428-table
+// schema) is the repaint burst the hover dim was capped for, see
+// MAX_DIMMED_RELS in hover-highlight.ts, except focus mode was never capped.
+//
+// It looks the same: an out-of-focus line is never lit, so its halo is
+// `display: none` and the group has exactly one visible path to fade. The
+// line-end markers keep group opacity — those groups are a few pixels wide, so
+// their buffers are free.
+.rel[data-focus-out][data-focus-out] {
+  .relLine {
+    stroke-opacity: 0.15;
+  }
+
+  .relEnd {
+    opacity: 0.15;
+  }
 }
 
 // Only the neutral palette recolours on hover: grey at rest, accent when lit.

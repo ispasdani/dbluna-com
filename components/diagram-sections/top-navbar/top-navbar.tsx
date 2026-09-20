@@ -28,6 +28,7 @@ import menu from "@/components/diagram-general/toolbar-menus.module.scss";
 import { cn } from "@/lib/utils";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { countRender } from "@/lib/debug-profiler";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
 import { ShareDialog } from "@/components/diagram-sections/top-navbar/share-dialog";
@@ -76,6 +77,7 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
   const { workspaceMode, setWorkspaceMode } = useViewStore();
   const { canUseDocsMode, planResolved } = useCapabilities();
 
+  countRender("TopNavbar body"); // TEMP diagnostics
   const activeDiagramId = useCanvasStore((s) => s.activeDiagramId);
   const canvasDiagrams = useCanvasStore((s) => s.diagrams);
   const tables = useCanvasStore((s) => s.tables);

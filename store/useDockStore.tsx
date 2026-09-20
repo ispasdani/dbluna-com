@@ -53,6 +53,16 @@ export const useDockStore = create<DockStore>((set, get) => ({
   activeRightTab: null,
 
   openTab: (tabId: TabId, preferredSide: "left" | "right" = "left") => {
+    // Already the active tab: return without touching the store at all.
+    //
+    // Selecting a table on the canvas calls this on every click, and the
+    // Tables tab is normally already open — but `set` still built a new state
+    // object each time, and anything subscribed to the whole dock store (the
+    // editor page was) re-rendered the entire editor for a no-op.
+    const current = get();
+    if (current.leftTabs.includes(tabId) && current.activeLeftTab === tabId) return;
+    if (current.rightTabs.includes(tabId) && current.activeRightTab === tabId) return;
+
     set((state) => {
       const alreadyLeft = state.leftTabs.includes(tabId);
       const alreadyRight = state.rightTabs.includes(tabId);

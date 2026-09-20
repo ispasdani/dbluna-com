@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ChevronDown,
   ChevronsDownUp,
@@ -26,6 +26,8 @@ import {
   type SchemaEditPlan,
 } from "@/lib/schema-namespace";
 import { cn } from "@/lib/utils";
+import { logMount } from "@/lib/debug-selection";
+import { countRender } from "@/lib/debug-profiler";
 import { Input } from "@/components/ui/input";
 import { CommittedInput, CommittedTextarea } from "./committed-input";
 import { KeyGlyph, LinkGlyph, TableGlyph, UniqueGlyph } from "./panel-glyphs";
@@ -80,7 +82,88 @@ function TableMark({ table }: { table: Table }) {
   );
 }
 
+/**
+ * A folded table card.
+ *
+ * The panel lists every table in the diagram, and picking one on the canvas
+ * changes `selectedTableIds` — which used to rebuild all of them. On a
+ * 428-table schema that was ~160ms of React work per click (measured in a
+ * production build; ~4x that in `next dev`), on top of the canvas's own
+ * re-render, and it showed up as the canvas blanking for a beat after every
+ * selection.
+ *
+ * Only two rows actually change on a selection, so the folded row — 427 of the
+ * 428 — is memoised on the handful of things it draws. The open row is still
+ * rendered inline by `renderTable`: there is only ever one, and it needs the
+ * panel's full edit state.
+ */
+interface ClosedTableCardProps {
+  table: Table;
+  isSelected: boolean;
+  relCount: number;
+  onHeaderClick: (e: React.MouseEvent | React.KeyboardEvent, table: Table) => void;
+  onKey: (e: React.KeyboardEvent, fn: () => void) => void;
+}
+
+const ClosedTableCard = memo(function ClosedTableCard({
+  table,
+  isSelected,
+  relCount,
+  onHeaderClick,
+  onKey,
+}: ClosedTableCardProps) {
+  countRender("ClosedTableCard"); // TEMP diagnostics
+  const bare = splitSchemaName(table.name).table;
+
+  return (
+    <div
+      data-table-id={table.id}
+      className={cn(styles.tb, styles.card, styles.closed, isSelected && styles.cardSelected)}
+      style={tc(table.color)}
+    >
+      <div
+        className={styles.tbHead}
+        role="button"
+        tabIndex={0}
+        aria-expanded={false}
+        onClick={(e) => onHeaderClick(e, table)}
+        onKeyDown={(e) => onKey(e, () => onHeaderClick(e, table))}
+      >
+        <span className={styles.chev}>
+          <ChevronDown className="w-3 h-3" />
+        </span>
+        <TableMark table={table} />
+        <span className={styles.tname} title={table.name}>
+          {bare}
+        </span>
+        <span className={styles.meta}>
+          {table.isLocked && (
+            <span className={cn(styles.metaItem, styles.locked)} title="Locked">
+              <Lock className="w-3 h-3" />
+            </span>
+          )}
+          {table.comment && (
+            <span className={styles.metaItem} title={table.comment}>
+              <MessageSquare className="w-3 h-3" />
+            </span>
+          )}
+          {relCount > 0 && (
+            <span className={styles.metaItem} title={`${relCount} relationship${relCount === 1 ? "" : "s"}`}>
+              <LinkGlyph />
+              {relCount}
+            </span>
+          )}
+          <span>{table.columns.length} cols</span>
+        </span>
+      </div>
+    </div>
+  );
+});
+
 export function TablesPanel() {
+  // TEMP diagnostics — see lib/debug-selection.ts.
+  useEffect(() => logMount("TablesPanel"), []);
+
   const tables = useCanvasStore((s) => s.tables);
   const relationships = useCanvasStore((s) => s.relationships);
   const enums = useCanvasStore((s) => s.enums);
@@ -191,26 +274,37 @@ export function TablesPanel() {
     return { columnRefs: refs, links: linkMap };
   }, [tables, relationships]);
 
-  // Grouped on every render, deliberately NOT memoised on
-  // `tablesStructureSignature` the way the Database tab does it: rows here also
-  // render colour, comment and lock state, which that signature doesn't cover.
-  const groups = groupTablesBySchema(tables);
-  const schemaNames = groups.map((g) => g.schema).filter((s): s is string => s !== null);
+  // Memoised on `tables` itself, not on `tablesStructureSignature` the way the
+  // Database tab does it: rows here also render colour, comment and lock state,
+  // which that signature doesn't cover — but the array identity does. Selecting
+  // a table re-renders this panel (it expands the picked row), and regrouping
+  // all 428 tables each time was most of its cost.
+  const groups = useMemo(() => groupTablesBySchema(tables), [tables]);
+  const schemaNames = useMemo(
+    () => groups.map((g) => g.schema).filter((s): s is string => s !== null),
+    [groups]
+  );
 
   // With no `schema.` prefix anywhere there is exactly one bucket holding
   // everything, and wrapping it in a "(no schema)" header would be pure chrome.
   const isGrouped = schemaNames.length > 0;
 
   const needle = query.trim().toLowerCase();
-  const matches = (t: Table) =>
-    !needle ||
-    needle
-      .split(/\s+/)
-      .every((w) => `${t.name} ${t.columns.map((c) => c.name).join(" ")}`.toLowerCase().includes(w));
-  const visibleGroups = groups
-    .map((g) => ({ ...g, tables: g.tables.filter(matches) }))
-    .filter((g) => g.tables.length > 0);
-  const visibleCount = visibleGroups.reduce((n, g) => n + g.tables.length, 0);
+  const visibleGroups = useMemo(() => {
+    if (!needle) return groups.filter((g) => g.tables.length > 0);
+    const words = needle.split(/\s+/);
+    const matches = (t: Table) => {
+      const haystack = `${t.name} ${t.columns.map((c) => c.name).join(" ")}`.toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    };
+    return groups
+      .map((g) => ({ ...g, tables: g.tables.filter(matches) }))
+      .filter((g) => g.tables.length > 0);
+  }, [groups, needle]);
+  const visibleCount = useMemo(
+    () => visibleGroups.reduce((n, g) => n + g.tables.length, 0),
+    [visibleGroups]
+  );
 
   const toggleSchema = (key: string) =>
     setCollapsedSchemas((prev) => {
@@ -264,6 +358,21 @@ export function TablesPanel() {
       setSelectedTableIds([table.id]);
     }
   };
+
+  // The memoised folded rows would keep whichever handler they first saw, so
+  // they get a stable wrapper that reaches this render's closure through a ref.
+  const headerClickRef = useRef(onHeaderClick);
+  headerClickRef.current = onHeaderClick;
+  const stableHeaderClick = useCallback(
+    (e: React.MouseEvent | React.KeyboardEvent, table: Table) => headerClickRef.current(e, table),
+    []
+  );
+  const stableOnKey = useCallback((e: React.KeyboardEvent, fn: () => void) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      fn();
+    }
+  }, []);
 
   const addColumn = (tableId: string) => {
     addField(tableId);
@@ -327,6 +436,7 @@ export function TablesPanel() {
     );
   };
 
+  // TEMP diagnostics: counted via countRender inside.
   const renderColumn = (table: Table, col: Column) => {
     const ref = columnRefs.get(col.id);
     const isOpen = openColumnId === col.id;
@@ -618,10 +728,24 @@ export function TablesPanel() {
   };
 
   const renderTable = (table: Table) => {
+    countRender("renderTable(call)"); // TEMP diagnostics
     const isSelected = selectedTableIds.includes(table.id);
     const isOpen = expandedTableId === table.id && isSingleSelection;
     const bare = splitSchemaName(table.name).table;
     const relCount = links.get(table.id)?.count ?? 0;
+
+    if (!isOpen) {
+      return (
+        <ClosedTableCard
+          key={table.id}
+          table={table}
+          isSelected={isSelected}
+          relCount={relCount}
+          onHeaderClick={stableHeaderClick}
+          onKey={stableOnKey}
+        />
+      );
+    }
 
     return (
       <div
