@@ -40,11 +40,19 @@ export function Minimap({
     };
   }, [camera.x, camera.y, camera.zoom, viewport.w, viewport.h]);
 
-  const bounds = useMemo(() => {
-    let minX = viewWorld.x;
-    let minY = viewWorld.y;
-    let maxX = viewWorld.x + viewWorld.w;
-    let maxY = viewWorld.y + viewWorld.h;
+  // The world rect the minimap maps onto its 220x160 box.
+  //
+  // Content only — deliberately *not* unioned with the camera's viewport. When
+  // it was, `bounds` (and with it `scale`) changed on every pan, which moved
+  // every dot in `MinimapContent` and defeated its memo: on a 428-table diagram
+  // a single pan gesture produced ~39k DOM mutations in here, roughly 30x what
+  // the canvas itself did. Keeping it fixed while the content is fixed means
+  // the dots are laid out once and panning only moves the viewport rect.
+  const contentBounds = useMemo(() => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
     const expand = (x: number, y: number, w: number, h: number) => {
       if (x < minX) minX = x;
@@ -57,27 +65,35 @@ export function Minimap({
     notes.forEach(n => expand(n.x, n.y, n.width, n.height));
     areas.forEach(a => expand(a.x, a.y, a.width, a.height));
 
-    const padding = 500;
-    minX -= padding;
-    minY -= padding;
-    maxX += padding;
-    maxY += padding;
+    if (minX === Infinity) return null;
 
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }, [tables, notes, areas, viewWorld]);
+    const padding = 500;
+    return { x: minX - padding, y: minY - padding, w: maxX - minX + 2 * padding, h: maxY - minY + 2 * padding };
+  }, [tables, notes, areas]);
+
+  // An empty diagram has no content to frame, so fall back to the viewport —
+  // there are no dots to re-render, so the camera dependency costs nothing.
+  const bounds = useMemo(
+    () => contentBounds ?? { x: viewWorld.x - 500, y: viewWorld.y - 500, w: viewWorld.w + 1000, h: viewWorld.h + 1000 },
+    [contentBounds, viewWorld]
+  );
 
   const scale = useMemo(() => {
     return Math.min(size.w / bounds.w, size.h / bounds.h);
   }, [size.w, size.h, bounds.w, bounds.h]);
 
+  // Clamped into the box: the bounds no longer stretch to follow the camera, so
+  // panning past the edge of the diagram would otherwise slide the rect out of
+  // sight entirely. Clamping parks it against the edge you left from.
   const viewMini = useMemo(() => {
-    return {
-      x: (viewWorld.x - bounds.x) * scale,
-      y: (viewWorld.y - bounds.y) * scale,
-      w: viewWorld.w * scale,
-      h: viewWorld.h * scale,
-    };
-  }, [viewWorld, bounds, scale]);
+    const x = (viewWorld.x - bounds.x) * scale;
+    const y = (viewWorld.y - bounds.y) * scale;
+    const w = viewWorld.w * scale;
+    const h = viewWorld.h * scale;
+    const left = Math.min(Math.max(x, -w + 8), size.w - 8);
+    const top = Math.min(Math.max(y, -h + 8), size.h - 8);
+    return { x: left, y: top, w, h };
+  }, [viewWorld, bounds, scale, size.w, size.h]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ref.current) return;

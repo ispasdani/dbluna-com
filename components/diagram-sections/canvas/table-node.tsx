@@ -27,6 +27,7 @@ import {
   rowTopY,
   tableHeight,
   type CanvasStyle,
+  type TableLod,
   type HandleShape,
   type Side,
   type TableGeometry,
@@ -40,24 +41,29 @@ interface TableNodeProps {
   selected?: boolean;
   /** Focus mode: outside the selection's neighbourhood — faded and inert. */
   isDimmed?: boolean;
-  /** Hover focus elsewhere — faded but still interactive. */
-  isFaded?: boolean;
   readOnly?: boolean;
   /** Hide connection handles (read-only viewer, SVG export). */
   hidePorts?: boolean;
   /**
    * Connected handles, `colId|side|color` joined by `;` (color may be empty).
-   * A string so the memo comparison stays a cheap equality check.
+   * A string so the memo comparison stays a cheap equality check. The colour is
+   * the line's resting colour — hover recolouring is done in CSS off `data-linked`,
+   * so this never changes as the pointer moves.
    */
   connectedPorts?: string;
-  /** Column ids whose relationships are currently lit, joined by `;`. */
-  linkedColumns?: string;
   /** Column ids that are foreign keys, joined by `;`. */
   foreignKeys?: string;
   /** Row the in-progress connection would drop onto. */
   dropColumnId?: string;
   /** `colId|side` of the handle a connection is being dragged from. */
   sourcePort?: string;
+  /**
+   * How much of the card to draw at the current zoom (see `tableLodForZoom`).
+   * Anything but `full` skips rows, handles and header buttons — they are
+   * sub-pixel at that scale and they are what makes a 400-table schema
+   * impossible to rasterise inside a frame.
+   */
+  lod?: TableLod;
   onColumnPointerDown?: (e: React.PointerEvent, tableId: string, columnId: string, side: Side) => void;
   /** `undefined` = pointer left the table; `null` = over the table but not a row. */
   onHoverChange?: (tableId: string, columnId: string | null | undefined) => void;
@@ -134,7 +140,6 @@ function Port({
   colId,
   color,
   connected,
-  hot,
   source,
   onPointerDown,
 }: {
@@ -147,7 +152,6 @@ function Port({
   colId: string;
   color?: string;
   connected: boolean;
-  hot: boolean;
   source: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
 }) {
@@ -178,7 +182,6 @@ function Port({
       className={styles.port}
       transform={`translate(${x},${y})`}
       data-connected={connected || undefined}
-      data-hot={hot || undefined}
       data-source={source || undefined}
       data-table-id={tableId}
       data-col-id={colId}
@@ -292,10 +295,21 @@ function Header({ table, variant, g, height, readOnly, titleFont }: HeaderProps)
   );
 }
 
-function HeaderActions({ table, g, onHeader }: { table: Table; g: TableGeometry; onHeader: boolean }) {
+function HeaderActions({
+  table,
+  g,
+  onHeader,
+  menuOpen,
+  onMenuOpenChange,
+}: {
+  table: Table;
+  g: TableGeometry;
+  onHeader: boolean;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+}) {
   const updateTable = useCanvasStore((s) => s.updateTable);
   const deleteTable = useCanvasStore((s) => s.deleteTable);
-  const [menuOpen, setMenuOpen] = useState(false);
   const btn = onHeader
     ? "h-7 w-7 text-white/80 hover:text-white hover:bg-white/15"
     : "h-7 w-7 text-muted-foreground/70 hover:text-foreground";
@@ -323,7 +337,7 @@ function HeaderActions({ table, g, onHeader }: { table: Table; g: TableGeometry;
           )}
         </Button>
 
-        <DropdownMenu onOpenChange={setMenuOpen}>
+        <DropdownMenu onOpenChange={onMenuOpenChange}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className={btn}>
               <MoreVertical className="h-3.5 w-3.5" />
@@ -375,14 +389,13 @@ export const TableNode = memo(function TableNode({
   canvasStyle,
   selected,
   isDimmed,
-  isFaded,
   readOnly,
   hidePorts,
   connectedPorts,
-  linkedColumns,
   foreignKeys,
   dropColumnId,
   sourcePort,
+  lod = "full",
   onColumnPointerDown,
   onHoverChange,
 }: TableNodeProps) {
@@ -390,12 +403,75 @@ export const TableNode = memo(function TableNode({
   // metrics. After that first flip this is a constant and costs nothing.
   useSyncExternalStore(subscribeFontsReady, getFontsReadySnapshot, getFontsReadyServerSnapshot);
 
+  // Whether the pointer is on this card. Deliberately local state: it rerenders
+  // one memoised node, and it lets the handles and the header buttons mount only
+  // when they could actually be used. Rendered up front they were ~115 SVG nodes
+  // per card — twenty handles and a `<foreignObject>` holding a React dropdown —
+  // all of it invisible at rest behind `opacity: 0`, and all of it real work for
+  // the browser on every table in view.
+  const [pointerInside, setPointerInside] = useState(false);
+  // The menu portals out of this subtree, so unmounting its trigger would close
+  // it. Held here so an open menu keeps the buttons mounted after a pointer-out.
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const variant = canvasStyle.table;
   const g = TABLE_GEOMETRY[variant];
   const W = g.width;
   const R = g.rowHeight;
   const height = tableHeight(g, table.columns.length);
-  const showPorts = !readOnly && !hidePorts;
+  const interactive = !readOnly && !hidePorts;
+  const showPorts = interactive;
+  // A handle that is connected is always visible, so it always has to exist.
+  // The rest only appear on hover — or while a connection is being dragged to
+  // or from this card, when the pointer may not be inside it yet.
+  const portsOnDemand = pointerInside || !!sourcePort || !!dropColumnId;
+  const showActions = interactive && (pointerInside || selected || menuOpen || !!table.isLocked);
+
+  // Zoomed out far enough that a row is a smudge: draw the card, its colour and
+  // (above `block`) its name, and stop. Everything skipped here — ~80 SVG nodes
+  // of rows, icons, text and handles, plus a `<foreignObject>` of React buttons —
+  // is what pushes the world layer past what the compositor can rasterise in a
+  // frame once a schema has a few hundred tables. The card keeps its full
+  // height either way, so relationship endpoints land on the same pixels.
+  if (lod !== "full") {
+    return (
+      <g
+        className={cn(styles.table, isDimmed && styles.dimmed)}
+        data-table-card={table.id}
+        data-variant={variant}
+        data-color={canvasStyle.color}
+        data-selected={selected || undefined}
+        style={{ "--tc": table.color } as React.CSSProperties}
+        onPointerEnter={() => onHoverChange?.(table.id, null)}
+        onPointerLeave={() => onHoverChange?.(table.id, undefined)}
+      >
+        {selected && (
+          <rect
+            className={styles.selRing}
+            x={-4.5}
+            y={-4.5}
+            width={W + 9}
+            height={height + 9}
+            rx={g.radius + 4}
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth={1.5}
+          />
+        )}
+        <rect className={styles.card} width={W} height={height} rx={g.radius} strokeWidth={1} />
+        {lod === "compact" ? (
+          // The real header: name, colour marker and column count, all four
+          // variants already handled. `readOnly` only widens the name to the
+          // space the (unrendered) buttons would have taken.
+          <Header table={table} variant={variant} g={g} height={height} readOnly titleFont={`600 13.5px ${getCanvasFontFamily()}`} />
+        ) : (
+          // Below that, the name is under 3px — the colour band is the only
+          // per-table signal that still reads, so every variant gets one.
+          <path d={topRoundedPath(W, g.headerHeight, g.radius)} fill="var(--tc)" />
+        )}
+      </g>
+    );
+  }
 
   const bodyFamily = getCanvasFontFamily();
   const titleFont = `600 13.5px ${bodyFamily}`;
@@ -412,7 +488,6 @@ export const TableNode = memo(function TableNode({
       connected.set(`${colId}|${side}`, color);
     }
   }
-  const linked = splitList(linkedColumns);
   const fks = splitList(foreignKeys);
 
   const nameX = variant === "chips" ? 46 : variant === "dense" ? 36 : 34;
@@ -420,13 +495,21 @@ export const TableNode = memo(function TableNode({
 
   return (
     <g
-      className={cn(styles.table, isDimmed && styles.dimmed, isFaded && styles.faded)}
+      className={cn(styles.table, isDimmed && styles.dimmed)}
+      data-table-card={table.id}
       data-variant={variant}
+      data-color={canvasStyle.color}
       data-visibility={canvasStyle.handleVisibility}
       data-selected={selected || undefined}
       style={{ "--tc": table.color } as React.CSSProperties}
-      onPointerEnter={() => onHoverChange?.(table.id, null)}
-      onPointerLeave={() => onHoverChange?.(table.id, undefined)}
+      onPointerEnter={() => {
+        setPointerInside(true);
+        onHoverChange?.(table.id, null);
+      }}
+      onPointerLeave={() => {
+        setPointerInside(false);
+        onHoverChange?.(table.id, undefined);
+      }}
     >
       {/* Rendered only when selected: the SVG export keeps colours but not
           CSS opacity, so anything merely hidden by a class would show up there. */}
@@ -479,9 +562,9 @@ export const TableNode = memo(function TableNode({
             key={col.id}
             className={styles.row}
             transform={`translate(0, ${rowTopY(g, i)})`}
+            data-row=""
             data-table-id={table.id}
             data-col-id={col.id}
-            data-linked={linked.has(col.id) || undefined}
             data-drop={dropColumnId === col.id || undefined}
             onPointerEnter={() => onHoverChange?.(table.id, col.id)}
             onPointerLeave={() => onHoverChange?.(table.id, null)}
@@ -568,6 +651,8 @@ export const TableNode = memo(function TableNode({
               ([-1, 1] as Side[]).map((side) => {
                 const key = `${col.id}|${side === 1 ? "r" : "l"}`;
                 const isConnected = connected.has(key);
+                if (!isConnected && !portsOnDemand) return null;
+
                 return (
                   <Port
                     key={side}
@@ -580,7 +665,6 @@ export const TableNode = memo(function TableNode({
                     colId={col.id}
                     color={connected.get(key) || undefined}
                     connected={isConnected}
-                    hot={isConnected && linked.has(col.id)}
                     source={sourcePort === key}
                     onPointerDown={(e) => onColumnPointerDown?.(e, table.id, col.id, side)}
                   />
@@ -591,7 +675,9 @@ export const TableNode = memo(function TableNode({
       })}
 
       {/* Rendered last so the row hover zones never sit on top of the buttons */}
-      {!readOnly && !hidePorts && <HeaderActions table={table} g={g} onHeader={variant === "header"} />}
+      {showActions && (
+        <HeaderActions table={table} g={g} onHeader={variant === "header"} menuOpen={menuOpen} onMenuOpenChange={setMenuOpen} />
+      )}
     </g>
   );
 },
@@ -600,12 +686,11 @@ export const TableNode = memo(function TableNode({
   prev.canvasStyle === next.canvasStyle &&
   prev.selected === next.selected &&
   prev.isDimmed === next.isDimmed &&
-  prev.isFaded === next.isFaded &&
   prev.readOnly === next.readOnly &&
   prev.hidePorts === next.hidePorts &&
   prev.connectedPorts === next.connectedPorts &&
-  prev.linkedColumns === next.linkedColumns &&
   prev.foreignKeys === next.foreignKeys &&
   prev.dropColumnId === next.dropColumnId &&
-  prev.sourcePort === next.sourcePort
+  prev.sourcePort === next.sourcePort &&
+  prev.lod === next.lod
 );

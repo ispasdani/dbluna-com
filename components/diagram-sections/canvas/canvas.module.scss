@@ -29,11 +29,49 @@
   transition: stroke-width 0.18s ease;
 }
 
-// Only rendered while the line is lit (see canvas.tsx).
+// Rendered for every line but revealed only when it is lit. `display` rather
+// than opacity so the draw-in animation replays each time, and so a few hundred
+// halos cost nothing while they are hidden.
 .relHalo {
+  display: none;
   opacity: 0.13;
   pointer-events: none;
   animation: rel-halo-in 0.2s ease;
+}
+
+.rel[data-lit] .relHalo {
+  display: inline;
+}
+
+// ─── Hover highlighting ────────────────────────────────────────────────────
+// `data-lit` (per line) and `data-canvas-hover` (on the svg) are written
+// straight to the DOM by hover-highlight.ts — none of this goes through React,
+// so pointing at a table costs attribute writes instead of a full re-render.
+
+.rel[data-lit] .relLine {
+  stroke-width: 2.4;
+}
+
+// Focus mode sets an inline opacity of 0.15, which outranks this — keeping the
+// old precedence where being out of focus beats merely not being hovered.
+[data-canvas-hover][data-canvas-dim="lines"] .rel:not([data-lit]),
+[data-canvas-hover][data-canvas-dim="all"] .rel:not([data-lit]) {
+  opacity: 0.16;
+}
+
+// Only the neutral palette recolours on hover: grey at rest, accent when lit.
+// The other modes carry a per-table colour that hovering must not disturb.
+[data-canvas-color="neutral"] {
+  .rel[data-lit] .relLine,
+  .rel[data-lit] .relHalo,
+  .rel[data-lit] .relEnd,
+  .rel[data-lit] .relEnd rect {
+    stroke: var(--primary);
+  }
+
+  .rel[data-lit] .relEnd text {
+    fill: var(--primary);
+  }
 }
 
 @keyframes rel-halo-in {
@@ -49,17 +87,46 @@
 }
 
 // Dashes run from the foreign key toward the key it references.
-.relLit[data-motion="flow"] .relLine {
+.rel[data-lit][data-motion="flow"] .relLine {
   stroke-dasharray: 6 5;
   animation: rel-flow 0.8s linear infinite;
 }
 
-.relLit[data-motion="flow"][data-reverse] .relLine {
+.rel[data-lit][data-motion="flow"][data-reverse] .relLine {
   animation-direction: reverse;
 }
 
-.relLit[data-motion="glow"] .relHalo {
-  animation: rel-breathe 1.6s ease-in-out infinite;
+.rel[data-lit][data-motion="glow"] .relHalo {
+  animation: rel-halo-in 0.2s ease, rel-breathe 1.6s ease-in-out infinite;
+}
+
+// `stroke-dashoffset` and the halo's opacity are painted, not composited, so an
+// animated line with no layer of its own repaints the entire world `<svg>` every
+// frame: 181fps → 59fps from a *single* animated line on a 428-table schema, and
+// it stays there for as long as the pointer rests. A layer per lit line confines
+// the repaint to that line's own bounds (57fps → 177fps).
+//
+// Scoped hard to `[data-lit]`, and capped again by `data-lit-storm`. Promoting
+// every relationship group instead — which would also make the hover dim a pure
+// composite, worth 83fps → 175fps — exhausts the compositor on a schema this
+// size: at ~200 promoted groups Chrome stops rasterising and the canvas renders
+// blank. Layers here are a scarce resource, not a free win.
+.rel[data-lit][data-motion="flow"],
+.rel[data-lit][data-motion="glow"] {
+  will-change: opacity;
+}
+
+// More lines lit than we will animate at once — see MAX_ANIMATED_LIT. Keeps the
+// layers, since the dim still needs them, and drops only the motion, so a hub
+// table highlights instantly instead of stalling.
+[data-lit-storm] {
+  .rel[data-lit][data-motion="flow"] .relLine {
+    animation: none;
+  }
+
+  .rel[data-lit][data-motion="glow"] .relHalo {
+    animation: rel-halo-in 0.2s ease;
+  }
 }
 
 // Freshly connected: the line draws in (pathLength = 1), then its ends fade in.
@@ -121,11 +188,12 @@
   .relHalo,
   .relLabel,
   .pending,
-  .relLit[data-motion="flow"] .relLine,
-  .relLit[data-motion="glow"] .relHalo {
+  .rel[data-lit][data-motion="flow"] .relLine,
+  .rel[data-lit][data-motion="glow"] .relHalo {
     animation: none;
     transition: none;
   }
+
 
   .rel.relNew .relLine {
     animation: none;

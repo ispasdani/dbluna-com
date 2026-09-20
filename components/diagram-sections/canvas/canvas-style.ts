@@ -258,3 +258,39 @@ export function routeRelationship(routing: LineRouting, a: PortPoint, b: PortPoi
   const pts = simplify(orthogonalPoints(a, b));
   return { d: roundedPolyline(pts, routing === "sharp" ? 0 : 12), mid: polylineMidpoint(pts) };
 }
+
+// ─── Level of detail ─────────────────────────────────────────────────────────
+
+/**
+ * How much of a table card is worth drawing at the current zoom.
+ *
+ * A 400-table schema zoomed out to fit puts every card on screen at once, and
+ * viewport culling can't help — they really are all visible. At full detail
+ * that is ~80 SVG nodes per table (rows, icons, two text runs, two handles) plus
+ * a `<foreignObject>` for the header buttons, so the world layer grows past
+ * what the compositor can rasterise inside a frame and pans show blank tiles.
+ *
+ * Below the thresholds the dropped detail is sub-pixel anyway: at zoom 0.5 a
+ * 12.75px column label renders at ~6px, at 0.2 the 13.5px table name renders at
+ * under 3px. Drawing it costs everything and shows nothing.
+ */
+export type TableLod = "full" | "compact" | "block";
+
+/** Zoom at or above which cards draw their rows, handles and buttons. */
+export const LOD_FULL_ZOOM = 0.5;
+/**
+ * Zoom at or above which cards still draw their name; below it, plain blocks.
+ *
+ * Set by measurement rather than taste: below this the canvas is text-free,
+ * which is what lets the world layer be GPU-composited (see `willChange` in
+ * canvas.tsx). At 0.26 the old threshold still drew two text runs per card for
+ * ~290 cards and panning ran at 31fps; as plain blocks the same view holds
+ * ~145fps. A 13.5px name renders at under 5px here, so nothing legible is lost.
+ */
+export const LOD_COMPACT_ZOOM = 0.35;
+
+export function tableLodForZoom(zoom: number): TableLod {
+  if (zoom >= LOD_FULL_ZOOM) return "full";
+  if (zoom >= LOD_COMPACT_ZOOM) return "compact";
+  return "block";
+}

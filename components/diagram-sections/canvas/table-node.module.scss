@@ -12,7 +12,10 @@
   filter: grayscale(1);
 }
 
-.faded {
+// Set imperatively while something else is hovered (see hover-highlight.ts) —
+// never a React prop, so a pointer move doesn't re-render every card on screen.
+// `:not(.dimmed)` keeps focus mode's stronger dimming from being overridden.
+.table[data-faded]:not(.dimmed) {
   opacity: 0.45;
 }
 
@@ -75,9 +78,12 @@
   transition: opacity 0.15s ease;
 }
 
+// Mounted only once it could be used (see TableNode), so it fades in on mount
+// rather than transitioning from a permanently-present, invisible copy.
 .actions {
   opacity: 0;
   transition: opacity 0.15s ease;
+  animation: fade-in 0.15s ease;
 }
 
 .table:hover .actions,
@@ -107,6 +113,13 @@
 
 .row[data-linked] .rowBg {
   fill: color-mix(in oklab, var(--primary) 13%, transparent);
+}
+
+// Neutral lines are grey at rest and take the accent when lit, so their handles
+// have to follow. The other colour modes keep a line's colour on hover, so this
+// is scoped to `neutral` rather than done by recolouring `--pc` per frame.
+.table[data-color="neutral"] .row[data-linked] .conn {
+  fill: var(--primary);
 }
 
 .row[data-drop] .rowBg {
