@@ -1,6 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { getCurrentUserDoc, isPro, requireSignedInPro } from "./guards";
+import {
+  getCurrentUserDoc,
+  isPro,
+  requireSignedIn,
+  requireSignedInPro,
+} from "./guards";
 
 // Helpers
 const now = () => Date.now();
@@ -74,22 +79,57 @@ export const getCurrentUserPlan = query({
 });
 
 /**
- * Spends one AI chat credit (ai-chat-credits-and-sync-plan.md, Phase 1).
+ * Reserves one AI chat credit before a turn starts. A credit is no longer a
+ * flat "one message" — it's a unit of cost (see lib/ai-credits.ts) — but the
+ * true cost isn't known until the turn finishes, so the route reserves the
+ * minimum here and settles the remainder via `settleAiCredits` afterwards.
+ *
  * Read-then-patch inside a single Convex mutation is transactional, so two
  * concurrent requests from the same user (e.g. two tabs) can't both read
  * `credits: 1` and both succeed — this must stay one mutation call from the
  * route, never a separate query-then-mutation from the client.
  */
-export const consumeAiCredit = mutation({
+export const reserveAiCredit = mutation({
   args: {},
   handler: async (ctx) => {
     const { user } = await requireSignedInPro(ctx);
     const remaining = user.credits ?? 0;
+    // Strictly positive: a balance already overdrawn by the previous turn's
+    // settlement must not start another one.
     if (remaining <= 0) {
       throw new ConvexError({ code: "OUT_OF_CREDITS" });
     }
     await ctx.db.patch(user._id, { credits: remaining - 1 });
     return { remaining: remaining - 1 };
+  },
+});
+
+/**
+ * Charges whatever the finished turn cost beyond the credit already reserved.
+ *
+ * The balance is allowed to go negative: the alternative is refusing to bill a
+ * turn we've already paid Google for. The overdraft is bounded by one turn
+ * (MAX_CREDITS_PER_TURN), and `reserveAiCredit` blocks the next turn until the
+ * balance is positive again.
+ *
+ * Deliberately `requireSignedIn`, not `requireSignedInPro`: if a subscription
+ * lapses between the start and end of a turn, we still want to record what it
+ * cost rather than throw and lose the charge.
+ */
+export const settleAiCredits = mutation({
+  args: { additionalCredits: v.number() },
+  handler: async (ctx, { additionalCredits }) => {
+    const user = await requireSignedIn(ctx);
+
+    // Non-finite or negative values would corrupt the balance — a refund path
+    // would need to be deliberate, not an accident of a bad usage report.
+    if (!Number.isFinite(additionalCredits) || additionalCredits <= 0) {
+      return { remaining: user.credits ?? 0 };
+    }
+
+    const remaining = (user.credits ?? 0) - Math.ceil(additionalCredits);
+    await ctx.db.patch(user._id, { credits: remaining });
+    return { remaining };
   },
 });
 
