@@ -1,5 +1,12 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+} from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import {
   getCurrentUserDoc,
   isPro,
@@ -15,8 +22,11 @@ import {
   AI_CHAT_MONTHLY_CREDITS,
   AI_RATE_LIMIT_WINDOW_MS,
   AI_TURNS_PER_MINUTE,
+  MAX_CREDITS_PER_TURN,
+  RESERVATION_TTL_MS,
   creditPeriodKey,
   effectiveCredits,
+  settlementCharge,
 } from "../lib/ai-credits";
 
 // Helpers
@@ -141,9 +151,13 @@ export const reserveAiCredit = mutation({
       throw new ConvexError({ code: "OUT_OF_CREDITS" });
     }
 
-    const reserved = Math.max(
-      1,
-      Math.ceil(Number.isFinite(minimumCredits ?? 1) ? (minimumCredits ?? 1) : 1)
+    // Clamped here, not in the route: this mutation is public, so a caller
+    // can pass anything. The upper bound stops a single call burning an
+    // entire allowance (and inflating org-wide spend) without a turn behind it.
+    const requested = Number.isFinite(minimumCredits ?? 1) ? (minimumCredits ?? 1) : 1;
+    const reserved = Math.min(
+      MAX_CREDITS_PER_TURN,
+      Math.max(1, Math.ceil(requested))
     );
 
     // Distinct from OUT_OF_CREDITS: they have allowance left, just not enough
@@ -161,9 +175,39 @@ export const reserveAiCredit = mutation({
     });
     await recordSpend(ctx, reserved);
 
-    return { remaining: remaining - reserved, reserved };
+    // The receipt settlement must present. Issued only here, after the Pro
+    // gate, the breaker and the rate limit have all passed.
+    const reservationId = await ctx.db.insert("aiChatReservations", {
+      userId: user._id,
+      credits: reserved,
+      createdAt: now,
+    });
+
+    await pruneExpiredReservations(ctx, user._id, now);
+
+    return { remaining: remaining - reserved, reserved, reservationId };
   },
 });
+
+/**
+ * Deletes this user's spent or expired reservations. Bounded work per call so
+ * a reserve never becomes expensive, and self-limiting: a user can only hold
+ * as many live reservations as the rate limit allows them to create.
+ */
+async function pruneExpiredReservations(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  now: number
+) {
+  const stale = await ctx.db
+    .query("aiChatReservations")
+    .withIndex("by_user_and_created", (q) =>
+      q.eq("userId", userId).lt("createdAt", now - RESERVATION_TTL_MS)
+    )
+    .take(20);
+
+  for (const row of stale) await ctx.db.delete(row._id);
+}
 
 /**
  * Charges whatever the finished turn cost beyond the credit already reserved.
@@ -177,20 +221,57 @@ export const reserveAiCredit = mutation({
  * lapses between the start and end of a turn, we still want to record what it
  * cost rather than throw and lose the charge.
  */
+/**
+ * Charges what a finished turn actually cost, beyond what was reserved.
+ *
+ * Takes the turn's *total* cost and a reservation id, rather than a
+ * pre-computed difference. That combination is what makes this safe to expose:
+ *
+ *   - the reservation proves a turn really started, behind the Pro gate and
+ *     the rate limit, so this can't be called out of nowhere;
+ *   - it's consumed on use, so a turn can't be charged twice;
+ *   - it belongs to one user, so nobody can settle against someone else's;
+ *   - the total is capped at one turn's maximum, so a forged call can't move
+ *     the org-wide spend counter enough to trip the circuit breaker.
+ *
+ * Before this, settlement took an unbounded number from the client and fed it
+ * straight into that counter — one call from any free account could have
+ * disabled AI chat for every user.
+ *
+ * Deliberately `requireSignedIn` rather than `requireSignedInPro`: a
+ * subscription lapsing mid-turn shouldn't lose us the charge, and the
+ * reservation already proves the turn was authorised when it began.
+ */
 export const settleAiCredits = mutation({
-  args: { additionalCredits: v.number() },
-  handler: async (ctx, { additionalCredits }) => {
+  args: {
+    reservationId: v.id("aiChatReservations"),
+    totalCredits: v.number(),
+  },
+  handler: async (ctx, { reservationId, totalCredits }) => {
     const user = await requireSignedIn(ctx);
 
-    // Non-finite or negative values would corrupt the balance — a refund path
-    // would need to be deliberate, not an accident of a bad usage report.
-    if (!Number.isFinite(additionalCredits) || additionalCredits <= 0) {
-      return { remaining: user.credits ?? 0 };
+    const reservation = await ctx.db.get(reservationId);
+    if (!reservation || reservation.userId !== user._id) {
+      throw new ConvexError({ code: "UNKNOWN_RESERVATION" });
+    }
+    if (reservation.consumedAt !== undefined) {
+      throw new ConvexError({ code: "RESERVATION_ALREADY_SETTLED" });
+    }
+    if (Date.now() - reservation.createdAt > RESERVATION_TTL_MS) {
+      // A turn can't outlive the route's maxDuration, so anything this old is
+      // not a real settlement. Consume it so it can't be retried.
+      await ctx.db.patch(reservationId, { consumedAt: Date.now() });
+      throw new ConvexError({ code: "RESERVATION_EXPIRED" });
     }
 
-    const charged = Math.ceil(additionalCredits);
-    const remaining = (user.credits ?? 0) - charged;
+    // Consume first: even if the charge below is zero, this reservation must
+    // never be usable again.
+    await ctx.db.patch(reservationId, { consumedAt: Date.now() });
 
+    const charged = settlementCharge(reservation.credits, totalCredits);
+    if (charged <= 0) return { remaining: user.credits ?? 0 };
+
+    const remaining = (user.credits ?? 0) - charged;
     await ctx.db.patch(user._id, { credits: remaining });
     await recordSpend(ctx, charged);
 

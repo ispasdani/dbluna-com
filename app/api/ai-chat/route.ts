@@ -10,6 +10,7 @@ import {
 } from "ai";
 import { google } from "@ai-sdk/google";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { aiTools } from "@/lib/ai/tools";
 import { buildSystemPrompt } from "@/lib/ai/prompt";
 import { ConvexError } from "convex/values";
@@ -211,15 +212,15 @@ export async function POST(req: NextRequest) {
   // in one transaction — two tabs can't both slip through on the last credit.
   // Deliberately after body validation: a malformed request must not cost a
   // credit.
-  let reserved: number;
   let budget: number;
+  let reservationId: Id<"aiChatReservations">;
   try {
     const reservation = await fetchMutation(
       api.users.reserveAiCredit,
       { minimumCredits: minimumCreditsForRequest(estimatedInputTokens) },
       { token }
     );
-    reserved = reservation.reserved;
+    reservationId = reservation.reservationId;
     // Everything the user had when the turn began — what it's allowed to
     // spend before the budget stop condition halts it.
     budget = reservation.remaining + reservation.reserved;
@@ -252,12 +253,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Less whatever was already taken when the turn was reserved.
-    const additionalCredits = Math.min(credits, MAX_CREDITS_PER_TURN) - reserved;
-    if (additionalCredits <= 0) return;
-
+    // Hands over the turn's total plus the reservation, and lets the mutation
+    // subtract what it already took. Sending a pre-computed difference would
+    // put the arithmetic on the untrusted side of the boundary — and this
+    // mutation is public, so that side is reachable from a browser console.
+    // Always called, even when nothing further is owed, so the reservation is
+    // consumed rather than left dangling.
     try {
-      await fetchMutation(api.users.settleAiCredits, { additionalCredits }, { token });
+      await fetchMutation(
+        api.users.settleAiCredits,
+        { reservationId, totalCredits: credits },
+        { token }
+      );
     } catch (err) {
       // Never surface this to the user — the turn already succeeded. But it
       // means we ate the cost, so it has to be visible in logs.

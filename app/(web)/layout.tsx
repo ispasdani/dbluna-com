@@ -1,30 +1,12 @@
-import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
 import { AppThemeProvider } from "@/themeProviders/appThemeProvider";
-import { ConvexClientProvider } from "../providers/ConvexClientProvider";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-});
 
 export default function WebLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Clerk, Convex, the fonts and globals.css all come from app/layout.tsx now.
   return (
     <div className="min-h-dvh flex flex-col">
-      <AppThemeProvider>
-        <ClerkProvider>
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </ClerkProvider>
-      </AppThemeProvider>
+      <AppThemeProvider>{children}</AppThemeProvider>
     </div>
   );
 }

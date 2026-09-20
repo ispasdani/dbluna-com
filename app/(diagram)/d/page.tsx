@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
@@ -13,10 +13,18 @@ import { useStoreHydration } from "@/hooks/use-store-hydration";
 // CTA ("Open editor" / "Try it now") point at.
 // Sign-in is enforced by proxy.ts's "everything under /d/* except /d/view"
 // rule. See free-tier-code-only-editing-plan.md §5.
+
+// How long to let router.replace() commit before giving up on it. A soft
+// navigation to /d/[id] normally commits in well under this; the fallback
+// below is only for a client router that has stalled.
+const SOFT_NAV_TIMEOUT_MS = 2500;
+
 export default function DiagramEntryPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const hasHydrated = useStoreHydration();
   const handledRef = useRef(false);
+  const [target, setTarget] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasHydrated || handledRef.current) return;
@@ -25,16 +33,21 @@ export default function DiagramEntryPage() {
     const { diagrams, lastOpenedDiagramId, createDiagram } =
       useCanvasStore.getState();
 
+    const go = (id: string) => {
+      const href = `/d/${id}`;
+      setTarget(href);
+      router.replace(href);
+    };
+
     if (lastOpenedDiagramId && diagrams[lastOpenedDiagramId]) {
-      router.replace(`/d/${lastOpenedDiagramId}`);
+      go(lastOpenedDiagramId);
       return;
     }
 
     const entries = Object.entries(diagrams);
 
     if (entries.length === 0) {
-      const newId = createDiagram("Untitled diagram");
-      router.replace(`/d/${newId}`);
+      go(createDiagram("Untitled diagram"));
       return;
     }
 
@@ -44,8 +57,25 @@ export default function DiagramEntryPage() {
     const mostRecentId = entries.reduce((a, b) =>
       (b[1].updatedAt ?? 0) > (a[1].updatedAt ?? 0) ? b : a
     )[0];
-    router.replace(`/d/${mostRecentId}`);
+    go(mostRecentId);
   }, [hasHydrated, router]);
+
+  // Self-healing fallback. Clerk lands people here after checkout and after
+  // sign-up, and a soft navigation arriving from another route group has been
+  // seen to fetch its RSC payload and then never commit — leaving this spinner
+  // up until the user refreshed by hand. If the URL still has not moved off
+  // /d by the deadline, do what that refresh did: a hard navigation, which no
+  // stuck transition can swallow.
+  useEffect(() => {
+    if (!target || pathname !== "/d") return;
+
+    const t = setTimeout(() => {
+      if (window.location.pathname === "/d") {
+        window.location.replace(target);
+      }
+    }, SOFT_NAV_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [target, pathname]);
 
   return (
     <div className="h-screen flex items-center justify-center bg-background">

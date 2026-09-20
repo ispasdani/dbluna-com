@@ -250,6 +250,26 @@ export function minimumCreditsForRequest(estimatedInputTokens: number): number {
   });
 }
 
+/** How long a reservation stays settleable. */
+export const RESERVATION_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * What still needs charging once a turn ends, given what was reserved up front.
+ *
+ * Takes the turn's *total* cost rather than a pre-computed difference, so the
+ * server subtracts the reservation itself — a caller can't understate what was
+ * already taken. The total is capped at one turn's maximum, which is what stops
+ * a forged settlement from moving the org-wide spend counter by an arbitrary
+ * amount and tripping the circuit breaker for everyone.
+ */
+export function settlementCharge(reservedCredits: number, totalCredits: number): number {
+  const reserved = Math.max(0, Math.ceil(reservedCredits || 0));
+  const total = Number.isFinite(totalCredits) ? Math.ceil(totalCredits) : 0;
+  const capped = Math.min(Math.max(total, 0), MAX_CREDITS_PER_TURN);
+
+  return Math.max(0, capped - reserved);
+}
+
 /**
  * Conservative token estimate from raw text — see CHARS_PER_TOKEN. Used only
  * for the size guard and the reservation floor, never for billing, which

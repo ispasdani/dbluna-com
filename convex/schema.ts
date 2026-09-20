@@ -36,6 +36,27 @@ export default defineSchema({
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"]),
 
+  // One row per started AI turn, created by `reserveAiCredit` and consumed by
+  // `settleAiCredits`.
+  //
+  // This is a trust boundary, not bookkeeping. Both of those are *public*
+  // mutations — the Convex URL and function names ship in the browser bundle,
+  // so anything reachable from the client is reachable from a console. Before
+  // this table, settlement took a client-supplied number straight into the
+  // org-wide spend counter, which meant one call from any free account could
+  // trip the circuit breaker and disable AI chat for every user.
+  //
+  // Requiring a reservation makes settlement provable: it can only follow a
+  // turn that actually passed the Pro gate and the rate limit, it can only
+  // happen once, and it can never charge more than one turn's cap.
+  aiChatReservations: defineTable({
+    userId: v.id("users"),
+    /** Credits already taken up front, to be deducted from the final charge. */
+    credits: v.number(),
+    createdAt: v.number(),
+    consumedAt: v.optional(v.number()),
+  }).index("by_user_and_created", ["userId", "createdAt"]),
+
   // Org-wide AI spend per calendar month, one row per period. Backs the
   // circuit breaker in convex/aiSpend.ts: per-user allowances cap ordinary
   // usage, this catches the case where metering itself is broken.

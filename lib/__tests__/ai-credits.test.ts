@@ -11,6 +11,7 @@ import {
   MAX_OVERDRAFT_CREDITS,
   MAX_STEPS_PER_TURN,
   minimumCreditsForRequest,
+  settlementCharge,
   MODEL_PRICE_USD_PER_MTOK,
   OUTPUT_WEIGHT,
   USD_PER_CREDIT,
@@ -215,6 +216,44 @@ describe("minimumCreditsForRequest", () => {
     expect(minimumCreditsForRequest(MAX_INPUT_TOKENS_PER_REQUEST)).toBeLessThanOrEqual(
       MAX_CREDITS_PER_TURN
     );
+  });
+});
+
+describe("settlementCharge", () => {
+  it("charges only what the reservation didn't already cover", () => {
+    expect(settlementCharge(3, 12)).toBe(9);
+    expect(settlementCharge(1, 1)).toBe(0);
+  });
+
+  it("never refunds when a turn came in under its reservation", () => {
+    // A big diagram reserves several credits up front; a one-step answer can
+    // cost less. That's not a refund path — it must simply charge nothing.
+    expect(settlementCharge(7, 2)).toBe(0);
+  });
+
+  // The security property. `settleAiCredits` is a public mutation, so this
+  // number arrives from the client, and it feeds the org-wide spend counter
+  // behind the circuit breaker. Unclamped, one call from any signed-in
+  // account could trip that breaker and disable AI chat for every user.
+  it("caps a forged total at one turn's maximum", () => {
+    expect(settlementCharge(1, 1e9)).toBe(MAX_CREDITS_PER_TURN - 1);
+    expect(settlementCharge(0, Number.MAX_SAFE_INTEGER)).toBe(MAX_CREDITS_PER_TURN);
+  });
+
+  it("ignores hostile or malformed numbers rather than trusting them", () => {
+    // NaN and Infinity aren't clamped to the cap, they're discarded outright:
+    // a malformed total is evidence of a bug or an attack, not of a turn that
+    // happened to be expensive.
+    expect(settlementCharge(1, Number.NaN)).toBe(0);
+    expect(settlementCharge(1, Number.POSITIVE_INFINITY)).toBe(0);
+    expect(settlementCharge(1, -500)).toBe(0);
+  });
+
+  it("cannot be made to credit an account by understating the reservation", () => {
+    // Negative reservations would otherwise inflate the charge; negative
+    // results would hand out free credits. Neither is reachable.
+    expect(settlementCharge(-50, 5)).toBe(5);
+    expect(settlementCharge(10, 0)).toBe(0);
   });
 });
 
