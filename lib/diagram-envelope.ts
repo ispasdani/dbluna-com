@@ -37,7 +37,7 @@ export function parseDiagramEnvelope(parsed: unknown, fallbackName: string): Dia
         enums: Array.isArray(obj.enums) ? (obj.enums as DiagramData["enums"]) : [],
         tableGroups: Array.isArray(obj.tableGroups) ? (obj.tableGroups as DiagramData["tableGroups"]) : [],
         project: (obj.project as DiagramData["project"]) ?? null,
-        background: obj.background === "dots" ? "dots" : "grid",
+        background: obj.background === "grid" ? "grid" : "dots",
         snapToGrid: Boolean(obj.snapToGrid),
         isFocusModeEnabled: obj.isFocusModeEnabled !== false,
     };

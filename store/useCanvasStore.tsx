@@ -154,7 +154,7 @@ function createDefaultDiagram(): DiagramData {
     enums: [],
     tableGroups: [],
     project: null,
-    background: "grid",
+    background: "dots",
     snapToGrid: false,
     isFocusModeEnabled: true,
   };
@@ -466,7 +466,7 @@ export const useCanvasStore = create<CanvasState>()(
         }
         return null;
       },
-      background: "grid",
+      background: "dots",
       tables: [],
       selectedTableIds: [],
       selectedRelationshipId: null,

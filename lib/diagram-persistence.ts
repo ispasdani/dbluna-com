@@ -83,7 +83,7 @@ export function mapCloudDoc(
       // data. Placeholders only to satisfy DiagramData's shape; callers MUST
       // override these three with the diagram's existing local values before
       // writing this back in, never with what's returned here.
-      background: "grid",
+      background: "dots",
       snapToGrid: false,
       isFocusModeEnabled: true,
     },
