@@ -392,6 +392,18 @@
 }
 
 .closed {
+  // A folded row is a fixed-height header and nothing else, so let the browser
+  // skip laying it out and painting it while it is scrolled out of view. On a
+  // 428-table schema the Tables panel is one long list of these, and selecting
+  // a table re-renders it — this keeps the browser-side cost proportional to
+  // what is on screen rather than to the size of the schema.
+  //
+  // The size hint is the header's height (--hh) plus its 1px borders; `auto`
+  // lets the browser replace it with the real measurement once the row has been
+  // rendered once, so the scrollbar does not drift.
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--hh) + 2px);
+
   .chev {
     transform: rotate(-90deg);
   }

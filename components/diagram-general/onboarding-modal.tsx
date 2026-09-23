@@ -18,6 +18,7 @@ import {
   Focus,
   History,
   Keyboard,
+  Layers,
   LayoutTemplate,
   Link as LinkIcon,
   ListOrdered,
@@ -150,7 +151,7 @@ export function OnboardingModal() {
             <span className={styles.label}>Good to know</span>
             <ul className={styles.rows}>
               <Row icon={Database} title="One diagram is one database" {...rowProps}>
-                Schemas are a prefix on table names, like <b>dbo.Users</b>. Manage them in the Database tab.
+                Schemas are a prefix on table names, like <b>dbo.Users</b>. Manage them in the Schemas tab.
               </Row>
               <Row icon={Cloud} title="Saved as you go" {...rowProps}>
                 Diagrams save in this browser automatically. Save one to the cloud to open it on other devices and
@@ -257,7 +258,10 @@ export function OnboardingModal() {
               Checks names, keys, types and relationships as you work. Click an issue to jump to it.
             </Row>
             <Row icon={Database} title="Database" pro {...rowProps}>
-              The project name, database type and overview note, plus the list of schemas.
+              The project name, database type and overview note.
+            </Row>
+            <Row icon={Layers} title="Schemas" pro {...rowProps}>
+              The schemas in this database. Rename one, or move tables between them.
             </Row>
             <Row icon={ListOrdered} title="Enums" pro {...rowProps}>
               Named sets of values, like order statuses, that you can use as a column type.

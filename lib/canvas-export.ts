@@ -92,6 +92,17 @@ export function serializeCanvasSvg(bounds: DiagramBounds): string | null {
     const clone = source.cloneNode(true) as SVGSVGElement;
     inlineComputedColors(source, clone);
 
+    // On the live canvas the camera rides an inner <g> so the painted layer
+    // stays viewport-sized (see canvas.tsx). The export is cropped by viewBox
+    // instead, so that transform has to come off the clone — otherwise the
+    // whole diagram is exported shifted and scaled by wherever the user
+    // happened to be looking.
+    const world = clone.querySelector<SVGGElement>("[data-diagram-world]");
+    if (world) {
+        world.style.removeProperty("transform");
+        world.removeAttribute("transform");
+    }
+
     const bg = window.getComputedStyle(document.body).getPropertyValue("background-color") || "#ffffff";
 
     clone.setAttribute("xmlns", SVG_NS);

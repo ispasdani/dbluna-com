@@ -6,6 +6,7 @@ import { Eye, Moon, Square, StickyNote, Sun, Table } from "lucide-react";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { usePlatformPalette } from "@/themeProviders/platformPaletteProvider";
 import { ArrangeMenu } from "./arrange-menu";
+import { SchemasMenu } from "./schemas-menu";
 import { ZoomMenu } from "./zoom-menu";
 import { useCapabilities } from "./capabilities-context";
 import styles from "./canvas-floating-toolbar.module.scss";
@@ -79,6 +80,9 @@ export function CanvasFloatingToolbar({ readOnly = false }: CanvasFloatingToolba
           <ArrangeMenu />
         </>
       )}
+
+      {/* Outside the read-only branch: switching schemas is a view, not an edit. */}
+      <SchemasMenu />
 
       <span className={styles.sep} />
       <ZoomMenu />

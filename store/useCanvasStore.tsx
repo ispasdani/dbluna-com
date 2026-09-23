@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { useEditorStore } from "./useEditorStore";
 import { createDebouncedStorage } from "./debounced-storage";
 import { useUpgradeToastStore } from "./useUpgradeToastStore";
+import { dlog } from "@/lib/debug-selection";
 
 export type CanvasBackground = "grid" | "dots";
 
@@ -259,6 +260,8 @@ type CanvasState = {
   addArea: () => void;
   updateArea: (id: string, updates: Partial<Area>) => void;
   deleteArea: (id: string) => void;
+  /** Replaces every area at once — `arrange by schema` and its undo. */
+  setAreas: (areas: Area[]) => void;
   setSelectedAreaIds: (ids: string[]) => void;
   moveAreas: (moves: { id: string, x: number, y: number }[]) => void;
   savingStatus: "idle" | "saving" | "saved";
@@ -284,6 +287,15 @@ function snapshotFor(state: CanvasState, id: string): DiagramData | undefined {
   return state.diagrams[id];
 }
 
+/**
+ * Clearing the *other* selections used to allocate a fresh `[]` each time, so
+ * selecting a table handed CanvasStage new `selectedNoteIds` / `selectedAreaIds`
+ * arrays and re-rendered the stage for a value that had not changed. `clear`
+ * hands back the existing array when it is already empty.
+ */
+const NO_SELECTION: string[] = [];
+const clear = (current: string[]) => (current.length ? NO_SELECTION : current);
+
 export const useCanvasStore = create<CanvasState>()(
   persist(
     (set, get) => ({
@@ -297,6 +309,7 @@ export const useCanvasStore = create<CanvasState>()(
       lastOpenedDiagramId: null,
       diagrams: {},
       setDiagramId: (id) => {
+        dlog("store", "setDiagramId() — active diagram swapped", id); // TEMP diagnostics
         const { activeDiagramId, diagrams } = get();
 
         // 1. Save current active state to map
@@ -415,6 +428,13 @@ export const useCanvasStore = create<CanvasState>()(
       // cross-device bootstrap) legitimately pass storage:"cloud"/cloudId
       // through this same action.
       importDiagram: (id, data) => {
+        // TEMP diagnostics — this replaces every table and relationship at
+        // once, so it re-renders the whole canvas. See lib/debug-selection.ts.
+        dlog("store", "importDiagram() — whole diagram replaced", {
+          id,
+          tables: data.tables?.length,
+          relationships: data.relationships?.length,
+        });
         set((s) => ({
           diagrams: {
             ...s.diagrams,
@@ -500,8 +520,22 @@ export const useCanvasStore = create<CanvasState>()(
         }
         set((s) => ({ isFocusModeEnabled: !s.isFocusModeEnabled }));
       },
-      setSelectedTableIds: (ids) => set({ selectedTableIds: ids, selectedRelationshipId: null, selectedNoteIds: [], selectedAreaIds: [] }),
-      setSelectedRelationshipId: (id) => set({ selectedRelationshipId: id, selectedTableIds: [], selectedNoteIds: [], selectedAreaIds: [] }),
+      setSelectedTableIds: (ids) => {
+        dlog("store", "setSelectedTableIds()", ids); // TEMP diagnostics
+        set((s) => ({
+          selectedTableIds: ids,
+          selectedRelationshipId: null,
+          selectedNoteIds: clear(s.selectedNoteIds),
+          selectedAreaIds: clear(s.selectedAreaIds),
+        }));
+      },
+      setSelectedRelationshipId: (id) =>
+        set((s) => ({
+          selectedRelationshipId: id,
+          selectedTableIds: clear(s.selectedTableIds),
+          selectedNoteIds: clear(s.selectedNoteIds),
+          selectedAreaIds: clear(s.selectedAreaIds),
+        })),
       addTable: () => {
         if (get().readOnly) {
           useUpgradeToastStore.getState().trigger();
@@ -817,12 +851,12 @@ export const useCanvasStore = create<CanvasState>()(
         }));
       },
       setSelectedNoteIds: (ids) =>
-        set({
+        set((s) => ({
           selectedNoteIds: ids,
-          selectedTableIds: [],
+          selectedTableIds: clear(s.selectedTableIds),
           selectedRelationshipId: null,
-          selectedAreaIds: [],
-        }),
+          selectedAreaIds: clear(s.selectedAreaIds),
+        })),
       moveNotes: (moves) => {
         if (get().readOnly) {
           useUpgradeToastStore.getState().trigger();
@@ -896,13 +930,23 @@ export const useCanvasStore = create<CanvasState>()(
           selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
         }));
       },
+      setAreas: (areas) => {
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
+        set((s) => {
+          const ids = new Set(areas.map((a) => a.id));
+          return { areas, selectedAreaIds: s.selectedAreaIds.filter((id) => ids.has(id)) };
+        });
+      },
       setSelectedAreaIds: (ids) =>
-        set({
+        set((s) => ({
           selectedAreaIds: ids,
-          selectedTableIds: [],
+          selectedTableIds: clear(s.selectedTableIds),
           selectedRelationshipId: null,
-          selectedNoteIds: [],
-        }),
+          selectedNoteIds: clear(s.selectedNoteIds),
+        })),
       moveAreas: (moves) => {
         if (get().readOnly) {
           useUpgradeToastStore.getState().trigger();

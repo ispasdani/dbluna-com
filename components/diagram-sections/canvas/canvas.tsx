@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useEditorStore } from "@/store/useEditorStore";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { getHiddenSchemas, useEditorStore, useGroupSource, useHiddenSchemas } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
-import { useDockStore } from "@/store/useDockStore";
+import { useDockStore, type TabId, type DockSide } from "@/store/useDockStore";
 import {
   WorldBackground,
   backgroundPositionFor,
@@ -23,11 +23,36 @@ import {
   routeRelationship,
   rowCenterY,
   tableHeight,
+  tableLodForZoom,
+  type CanvasStyle,
+  type TableLod,
   type PortPoint,
+  type RoutedPath,
   type Side,
 } from "./canvas-style";
 import { RelationshipEnd, cardinalityShort, relationshipRoles } from "./relationship-ends";
+import {
+  applyHighlight,
+  computeHighlight,
+  createHoverStore,
+  affordableDim,
+  computeFocus,
+  MAX_ANIMATED_LIT,
+  type HoverStore,
+} from "./hover-highlight";
 import { cn } from "@/lib/utils";
+import {
+  buildCrossGroupStubs,
+  crossGroupStubLabel,
+  emptiedAreaIds,
+  filterVisibleTables,
+  type CrossGroupStub,
+} from "@/lib/schema-visibility";
+import { buildGrouping } from "@/lib/table-grouping";
+import { revealTablesOnCanvas } from "@/components/diagram-general/use-diagram-issues";
+import { getActiveGrouping } from "@/components/diagram-general/use-grouping";
+import { dlog, mark, logMount } from "@/lib/debug-selection";
+import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
 
 // Resting colour for "quiet" lines — mixed against the canvas so it stays opaque.
@@ -38,6 +63,16 @@ function foreignKeyEnd(rel: Relationship): { tableId: string; columnId: string }
   return rel.cardinality === "One to many"
     ? { tableId: rel.targetTableId, columnId: rel.targetColumnId }
     : { tableId: rel.sourceTableId, columnId: rel.sourceColumnId };
+}
+
+/** A relationship with both endpoints resolved and its path already routed. */
+interface RoutedRelationship {
+  rel: Relationship;
+  source: Table;
+  target: Table;
+  start: PortPoint;
+  end: PortPoint;
+  path: RoutedPath;
 }
 
 const pushTo = (map: Map<string, string[]>, key: string, value: string) => {
@@ -53,6 +88,89 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+/** Travelling dots for the "expressive" style, on the lit relationships only. */
+function LitPulses({
+  store,
+  routed,
+  endColor,
+  selectedTableIds,
+  selectedRelationshipId,
+}: {
+  store: HoverStore;
+  routed: RoutedRelationship[];
+  endColor: (source: Table, table: Table) => string;
+  selectedTableIds: string[];
+  selectedRelationshipId: string | null;
+}) {
+  const hover = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const { litRels } = computeHighlight(
+    hover,
+    routed.map((r) => r.rel),
+    selectedTableIds,
+    selectedRelationshipId,
+    false
+  );
+  // `<animateMotion>` repaints like the dashes do, so it lives under the same
+  // ceiling — a hub table would otherwise put a hundred SMIL timers on screen.
+  if (litRels.size === 0 || litRels.size > MAX_ANIMATED_LIT) return null;
+
+  return (
+    <>
+      {routed
+        .filter(({ rel }) => litRels.has(rel.id))
+        .map(({ rel, source, target, path }) => {
+          const roles = relationshipRoles(rel.cardinality);
+          const oneToMany = roles.source === "one" && roles.target === "many";
+          return (
+            <circle key={rel.id} r={3.2} fill={endColor(source, target)} className={styles.relPulse}>
+              <animateMotion
+                dur="1.8s"
+                repeatCount="indefinite"
+                path={path.d}
+                keyPoints={oneToMany ? "1;0" : "0;1"}
+                keyTimes="0;1"
+                calcMode="linear"
+              />
+            </circle>
+          );
+        })}
+    </>
+  );
+}
+
+/**
+ * The little "1:N users.id → orders.user_id" chip that follows the line you are
+ * pointing at. It subscribes to the hover store itself rather than taking the
+ * hovered id as a prop, so showing and hiding it re-renders a single label
+ * instead of the entire stage.
+ */
+function HoveredRelationshipLabel({ store, routed }: { store: HoverStore; routed: RoutedRelationship[] }) {
+  const hover = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const hovered = hover.relId ? routed.find((r) => r.rel.id === hover.relId) : undefined;
+  if (!hovered) return null;
+
+  const { rel, source, target, path } = hovered;
+  const { mid } = path;
+  const family = getCanvasFontFamily();
+  const card = cardinalityShort(rel.cardinality);
+  const srcCol = source.columns.find((c) => c.id === rel.sourceColumnId)?.name ?? "";
+  const tgtCol = target.columns.find((c) => c.id === rel.targetColumnId)?.name ?? "";
+  const main = rel.name || `${source.name}.${srcCol} → ${target.name}.${tgtCol}`;
+  const cardW = measureTextWidth(card, "600 11px monospace");
+  const mainW = measureTextWidth(main, `500 11px ${family}`);
+  const w = cardW + 8 + mainW;
+
+  return (
+    <g transform={`translate(${mid.x}, ${mid.y})`} pointerEvents="none" className={styles.relLabel}>
+      <rect x={-w / 2 - 10} y={-12} width={w + 20} height={24} rx={8} fill="var(--popover)" stroke="var(--border)" />
+      <text x={-w / 2} y={0} dominantBaseline="central" fontSize={11} style={{ userSelect: "none" }}>
+        <tspan fontFamily="var(--font-mono)" fontWeight={600} fill="var(--primary)">{card}</tspan>
+        <tspan dx={8} fontWeight={500} fill="var(--popover-foreground)">{main}</tspan>
+      </text>
+    </g>
+  );
+}
+
 interface CanvasStageProps {
   diagramId: string;
   // When true, drag/resize/delete/connection-creation are disabled. Pan,
@@ -64,13 +182,188 @@ interface CanvasStageProps {
 // How far (in screen px) a pan may drift from the camera in the store before
 // we push it back in. Keeps viewport culling and the minimap from going stale
 // mid-gesture; stays well inside CULL_MARGIN at every allowed zoom level.
+/** Shared so an already-idle drag reset keeps its object identity. */
+const DRAG_IDLE = { dx: 0, dy: 0, active: false };
+
 const PAN_COMMIT_PX = 120;
 // Trailing commit for pan sources with no natural "end" event (wheel).
 const PAN_IDLE_MS = 100;
+// How far outside the viewport, in screen pixels, content is still drawn. Must
+// stay comfortably above PAN_COMMIT_PX so a gesture can't outrun the cull set.
+const CULL_MARGIN_PX = 300;
 
+/** Length of a cross-schema stub, in world units, out from the column's edge. */
+const CROSS_STUB_LEN = 34;
+const NO_STUBS: CrossGroupStub[] = [];
+
+/**
+ * Every relationship line on the canvas.
+ *
+ * Split out and memoised because selecting a *table* used to rebuild all of
+ * them. Measured on a 428-table / 672-relationship diagram with 39 cards on
+ * screen: 195 line groups survived culling and were re-created on every click,
+ * ~8 SVG children each — 180-200ms of React work per selection, for lines that
+ * do not change when a table is selected. Which lines light up is written to
+ * the DOM as `data-lit` by applyHighlight (see hover-highlight.ts), not here.
+ *
+ * Neither `selectedTableIds` nor focus mode is a prop: the only selection this
+ * layer draws is `selectedRelationshipId` (a thicker stroke). Focus dimming is
+ * a `data-focus-out` attribute written by applyHighlight.
+ */
+interface RelationshipLayerProps {
+  routedRelationships: RoutedRelationship[];
+  canvasStyle: CanvasStyle;
+  lod: TableLod;
+  isExporting: boolean;
+  selectedRelationshipId: string | null;
+  newRelationshipIds: string[];
+  vLeft: number;
+  vRight: number;
+  vTop: number;
+  vBottom: number;
+  spaceDown: boolean;
+  readOnly: boolean;
+  hoverStore: HoverStore;
+  endColor: (source: Table, table: Table) => string;
+  setSelectedRelationshipId: (id: string | null) => void;
+  openTab: (tabId: TabId, side?: DockSide) => void;
+}
+
+const RelationshipLayer = React.memo(function RelationshipLayer({
+  routedRelationships,
+  canvasStyle,
+  lod,
+  isExporting,
+  selectedRelationshipId,
+  newRelationshipIds,
+  vLeft,
+  vRight,
+  vTop,
+  vBottom,
+  spaceDown,
+  readOnly,
+  hoverStore,
+  endColor,
+  setSelectedRelationshipId,
+  openTab,
+}: RelationshipLayerProps) {
+  countRender("RelationshipLayer body"); // TEMP diagnostics
+  return (
+    <>
+            {routedRelationships.map(({ rel, source, target, start, end, path }) => {
+              const minX = Math.min(start.x, end.x) - 40;
+              const maxX = Math.max(start.x, end.x) + 40;
+              const minY = Math.min(start.y, end.y);
+              const maxY = Math.max(start.y, end.y);
+
+              if (maxX < vLeft || minX > vRight || maxY < vTop || minY > vBottom) {
+                countRender("relationship CULLED"); // TEMP diagnostics
+                return null;
+              }
+              countRender("relationship DRAWN"); // TEMP diagnostics
+
+              const { d } = path;
+              const isSelected = selectedRelationshipId === rel.id;
+              const isNew = newRelationshipIds.includes(rel.id);
+              const roles = relationshipRoles(rel.cardinality);
+              const oneToMany = roles.source === "one" && roles.target === "many";
+              const startColor = endColor(source, source);
+              const endColorValue = endColor(source, target);
+
+              // Ring on the "one" end when the foreign key is nullable.
+              const fk = foreignKeyEnd(rel);
+              const fkTable = fk.tableId === source.id ? source : target;
+              const optional = !fkTable.columns.find((c) => c.id === fk.columnId)?.isNotNull;
+
+              const gradientId = `rel-grad-${rel.id}`;
+              const stroke = canvasStyle.color === "gradient" ? `url(#${gradientId})` : startColor;
+
+              return (
+                <g
+                  key={rel.id}
+                  data-rel-id={rel.id}
+                  onPointerEnter={() => hoverStore.setRelationship(rel.id)}
+                  onPointerLeave={() => hoverStore.setRelationship(null)}
+                  // Select on pointerdown, not click: letting pointerdown bubble
+                  // starts a marquee on the world layer, which captures the
+                  // pointer and retargets the click away from this line.
+                  // Pan gestures (middle button, Space+drag) still bubble.
+                  onPointerDown={(e) => {
+                    if (e.button !== 0 || spaceDown) return;
+                    e.stopPropagation();
+                    setSelectedRelationshipId(rel.id);
+                    if (!readOnly) openTab("relationships", "left");
+                  }}
+                  className={cn("cursor-pointer", styles.rel, isNew && styles.relNew)}
+                  data-motion={canvasStyle.motion}
+                  // Motion runs from the foreign key toward the key it references.
+                  data-reverse={oneToMany || undefined}
+                >
+                  {canvasStyle.color === "gradient" && (
+                    <defs>
+                      <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
+                        <stop offset="0" stopColor={source.color} />
+                        <stop offset="1" stopColor={target.color} />
+                      </linearGradient>
+                    </defs>
+                  )}
+                  {/* Invisible hit area for easier hovering */}
+                  <path
+                    d={d}
+                    fill="none"
+                    strokeWidth={14}
+                    className={styles["relationship-hit-area"]}
+                    style={{ pointerEvents: "auto" }}
+                  />
+                  {/* Hidden by CSS until the line is lit, so lighting one up costs
+                      no render. Skipped where it could never be seen: an export has
+                      no hover, and at `block` zoom it's a few pixels of glow. */}
+                  {!isExporting && lod !== "block" && (
+                    <path d={d} fill="none" stroke={stroke} strokeWidth={9} strokeLinecap="round" className={styles.relHalo} />
+                  )}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={isSelected ? 2.4 : 1.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    pathLength={isNew ? 1 : undefined}
+                    className={styles.relLine}
+                  />
+                  {/* Crow's feet and 1/N badges are a couple of pixels wide at
+                      `block` zoom — six SVG nodes per line that nobody can read. */}
+                  {lod !== "block" && (
+                    <>
+                      <RelationshipEnd
+                        ends={canvasStyle.ends}
+                        point={start}
+                        role={roles.source}
+                        optional={roles.source === "one" && roles.target === "many" && optional}
+                        color={startColor}
+                      />
+                      <RelationshipEnd
+                        ends={canvasStyle.ends}
+                        point={end}
+                        role={roles.target}
+                        optional={roles.target === "one" && roles.source === "many" && optional}
+                        color={endColorValue}
+                      />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+    </>
+  );
+});
 export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
+  // TEMP diagnostics — see lib/debug-selection.ts.
+  useEffect(() => logMount("CanvasStage"), []);
+  countRender("CanvasStage body");
+
   const rootRef = useRef<HTMLDivElement>(null);
-  const worldRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<SVGGElement>(null);
   const backgroundRef = useRef<HTMLDivElement>(null);
 
   const background = useCanvasStore((s) => s.background);
@@ -91,6 +384,35 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
   const moveAreas = useCanvasStore((s) => s.moveAreas);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
+  const relationships = useCanvasStore((s) => s.relationships);
+  const tableGroups = useCanvasStore((s) => s.tableGroups);
+  const hiddenSchemas = useHiddenSchemas();
+  const groupSource = useGroupSource();
+  const anyHidden = hiddenSchemas.length > 0;
+
+  // Which group each table belongs to — schema, TableGroup or FK cluster, per
+  // the active source (lib/table-grouping.ts). Only built while something is
+  // hidden, and then memoised on a NAME signature, never on `tables`:
+  // `moveTables` replaces `tables` on every pointermove, and grouping runs a
+  // regex per name (or a clustering pass). x/y are deliberately excluded, so a
+  // drag never rebuilds it. See release-1-0/schemas-tab-and-visibility-plan.md §7.
+  const nameSignature = useMemo(
+    () => (anyHidden ? tables.map((t) => `${t.id} ${t.name}`).join("|") : ""),
+    [tables, anyHidden]
+  );
+  const grouping = useMemo(
+    () => (anyHidden ? buildGrouping(groupSource, tables, relationships, tableGroups) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nameSignature, anyHidden, groupSource, relationships, tableGroups]
+  );
+
+  // The tables this canvas draws. `tables` itself, by identity, when nothing is
+  // hidden — so every memo downstream behaves exactly as it did before groups
+  // could be hidden. A fresh array here would rebuild every line per drag frame.
+  const visibleTables = useMemo(
+    () => (grouping ? filterVisibleTables(tables, hiddenSchemas, grouping.keyByTableId) : tables),
+    [tables, hiddenSchemas, grouping]
+  );
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -103,9 +425,10 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const setCameraXY = useEditorStore((s) => s.setCameraXY);
 
   const [viewport, setViewport] = useState({ w: 1, h: 1 });
-  const [hoveredRelationshipId, setHoveredRelationshipId] = useState<string | null>(null);
-  // Table / row under the pointer; colId null = over the table but not a row.
-  const [hoveredTable, setHoveredTable] = useState<{ tableId: string; colId: string | null } | null>(null);
+  // Hover lives outside React entirely — see hover-highlight.ts. Putting it in
+  // state re-rendered every table and every line on each pointer move.
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverStore] = useState<HoverStore>(createHoverStore);
   // Relationships created by drag-to-connect in this session play a draw-in once.
   const [newRelationshipIds, setNewRelationshipIds] = useState<string[]>([]);
 
@@ -113,18 +436,30 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const geo = TABLE_GEOMETRY[canvasStyle.table];
 
   // Stable across renders so the memoised TableNodes never see a new function.
-  const handleTableHover = useCallback((tableId: string, colId: string | null | undefined) => {
-    setHoveredTable((prev) => {
-      if (colId === undefined) return prev?.tableId === tableId ? null : prev;
-      if (prev?.tableId === tableId && prev.colId === colId) return prev;
-      return { tableId, colId };
-    });
-  }, []);
+  const handleTableHover = useCallback(
+    (tableId: string, colId: string | null | undefined) => hoverStore.setTable(tableId, colId),
+    [hoverStore]
+  );
 
   // Selection Rect State (in world coordinates)
   const [selectionRect, setSelectionRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
 
-  const [dragOffset, setDragOffset] = useState({ dx: 0, dy: 0, active: false });
+  const [dragOffset, setDragOffset] = useState(DRAG_IDLE);
+
+  /**
+   * End a drag without allocating when there was nothing to end.
+   *
+   * Every pointer-up ran `setDragOffset({ dx: 0, dy: 0, active: false })`, and a
+   * plain click is a pointer-up too. The fresh object re-ran the
+   * `getLiveTablePosition` callback, which re-ran the `routedRelationships`
+   * memo, which defeated RelationshipLayer's memo — so clicking a table rebuilt
+   * every line on the canvas for a drag that never happened. Returning the
+   * previous state when already idle makes React bail out of the update.
+   */
+  const endDragOffset = useCallback(
+    () => setDragOffset((prev) => (prev.active ? DRAG_IDLE : prev)),
+    []
+  );
 
   // Inform stores which diagram we are working on
   const setDiagramId = useCanvasStore((s) => s.setDiagramId);
@@ -211,7 +546,17 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
         if (!isTyping) {
-          if (selectedTableIds.length > 0) deleteTables(selectedTableIds);
+          // Hiding is a view, not a deletion: a selection can outlive a hide,
+          // but Delete only ever removes tables you can see.
+          const hidden = getHiddenSchemas();
+          const ids = hidden.length === 0
+            ? selectedTableIds
+            : (() => {
+                const all = useCanvasStore.getState().tables;
+                const visible = new Set(filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId).map((t) => t.id));
+                return selectedTableIds.filter((id) => visible.has(id));
+              })();
+          if (ids.length > 0) deleteTables(ids);
           if (selectedNoteIds.length > 0) selectedNoteIds.forEach(id => deleteNote(id));
         }
       }
@@ -262,8 +607,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     panBy(dx, dy);
   }, [panBy]);
 
-  const flushPanToDom = useCallback(() => {
-    pan.current.raf = 0;
+  // Writes the camera as it should look *right now* straight to the DOM.
+  const syncWorldToDom = useCallback(() => {
     const { camera: committed } = useEditorStore.getState();
     const x = committed.x + pan.current.dx;
     const y = committed.y + pan.current.dy;
@@ -274,11 +619,26 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     if (backgroundRef.current) {
       backgroundRef.current.style.backgroundPosition = backgroundPositionFor(background, x, y);
     }
+  }, [background]);
+
+  const flushPanToDom = useCallback(() => {
+    pan.current.raf = 0;
+    syncWorldToDom();
 
     if (Math.abs(pan.current.dx) >= PAN_COMMIT_PX || Math.abs(pan.current.dy) >= PAN_COMMIT_PX) {
       commitPan();
     }
-  }, [background, commitPan]);
+  }, [syncWorldToDom, commitPan]);
+
+  // React renders the *committed* camera, but the DOM is already showing
+  // committed + whatever the in-flight gesture hasn't handed over yet. At a few
+  // dozen tables that render lands inside a frame and the gap is sub-pixel; at a
+  // few hundred it lands frames late, and writing the stale transform snaps the
+  // world backwards before the next rAF drags it forward again. Re-assert the
+  // live camera after every commit so a slow render can't jitter the view.
+  useLayoutEffect(() => {
+    if (pan.current.dx !== 0 || pan.current.dy !== 0) syncWorldToDom();
+  });
 
   // The camera as it is actually on screen right now — the store's value plus
   // whatever the in-flight gesture hasn't committed yet. Anything converting
@@ -434,10 +794,47 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   }>({ active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
 
   // Actions
-  const relationships = useCanvasStore((s) => s.relationships);
+  // Hovering dims every line that is not lit. On a large schema that repaints
+  // the canvas on every hover, so past a point the dim is dropped — see
+  // MAX_DIMMED_RELS.
+  const dim = affordableDim(canvasStyle.dim, relationships.length);
   const addRelationship = useCanvasStore((s) => s.addRelationship);
 
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+
+  // Where relationships cross into a hidden group — drawn as short dashed
+  // stubs so a filtered view never looks self-contained when it isn't.
+  // Built from ids and names only, through the grouping memo: it runs when a
+  // group is hidden or shown, a table renamed or a relationship edited —
+  // never during a drag. Nothing at all when nothing is hidden.
+  const crossStubs = useMemo(
+    () =>
+      grouping ? buildCrossGroupStubs(tables, relationships, hiddenSchemas, grouping.keyByTableId) : NO_STUBS,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [relationships, hiddenSchemas, grouping]
+  );
+
+  // Positions of the hidden tables the stubs point at — only which way a stub
+  // leaves the card depends on them. Empty (and free) with no stubs.
+  const stubTargetX = useMemo(() => {
+    if (crossStubs.length === 0) return null;
+    const wanted = new Set(crossStubs.flatMap((s) => s.targets.map((t) => t.tableId)));
+    const out = new Map<string, number>();
+    for (const t of tables) if (wanted.has(t.id)) out.set(t.id, t.x);
+    return out;
+  }, [crossStubs, tables]);
+
+  // Areas framing only hidden tables hide with them — arrange by schema puts
+  // an area around every schema, and an empty dashed box where a hidden one
+  // sits reads as a bug. `areas` itself when nothing is hidden.
+  const drawnAreas = useMemo(() => {
+    if (visibleTables === tables || areas.length === 0) return areas;
+    const emptied = emptiedAreaIds(areas, tables, new Set(visibleTables.map((t) => t.id)), (t) => ({
+      width: geo.width,
+      height: tableHeight(geo, t.columns.length),
+    }));
+    return emptied.size === 0 ? areas : areas.filter((a) => !emptied.has(a.id));
+  }, [areas, tables, visibleTables, geo]);
 
   // Connection dragging
   const dragConnection = useRef<{
@@ -461,52 +858,30 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   const [, setTick] = useState(0);
 
-  // Focus Mode Calculation (1st and 2nd degree)
-  const { focusedTables, focusedRelationships } = useMemo(() => {
-    if (!isFocusModeEnabled || selectedTableIds.length !== 1) {
-      return { focusedTables: null, focusedRelationships: null };
-    }
-
-    const selectedId = selectedTableIds[0];
-    const tablesSet = new Set<string>([selectedId]);
-    const relsSet = new Set<string>();
-
-    // 1st degree
-    relationships.forEach(rel => {
-      if (rel.sourceTableId === selectedId) {
-        tablesSet.add(rel.targetTableId);
-        relsSet.add(rel.id);
-      } else if (rel.targetTableId === selectedId) {
-        tablesSet.add(rel.sourceTableId);
-        relsSet.add(rel.id);
-      }
-    });
-
-    // 2nd degree
-    const firstDegreeTables = Array.from(tablesSet);
-    relationships.forEach(rel => {
-      if (firstDegreeTables.includes(rel.sourceTableId) || firstDegreeTables.includes(rel.targetTableId)) {
-        tablesSet.add(rel.sourceTableId);
-        tablesSet.add(rel.targetTableId);
-        relsSet.add(rel.id);
-      }
-    });
-
-    return { focusedTables: tablesSet, focusedRelationships: relsSet };
-  }, [isFocusModeEnabled, selectedTableIds, relationships]);
+  // Focus mode (1st and 2nd degree). Computed here, but applied to the DOM by
+  // applyHighlight rather than passed down as props — see computeFocus.
+  const focus = useMemo(
+    () => computeFocus(relationships, selectedTableIds, isFocusModeEnabled),
+    [relationships, selectedTableIds, isFocusModeEnabled]
+  );
 
   // Every relationship endpoint resolves a table by id on every render; with a
   // linear find that is O(relationships × tables) per frame during a drag.
-  const tablesById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
+  //
+  // Built from the *visible* tables, which is how a hidden schema's lines
+  // disappear: `routedRelationships` skips any relationship with an endpoint it
+  // can't resolve, so an edge touching a hidden table drops out of routing, the
+  // DOM, the ports and the highlight sets without a second filter.
+  const tablesById = useMemo(() => new Map(visibleTables.map((t) => [t.id, t])), [visibleTables]);
 
   const minimapTables = useMemo(
-    () => tables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
-    [tables, geo]
+    () => visibleTables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
+    [visibleTables, geo]
   );
 
   // Where a table is drawn right now — its stored position plus any live drag
   // offset (and grid snap), so lines follow the card mid-gesture.
-  const getLiveTablePosition = (tableId: string) => {
+  const getLiveTablePosition = useCallback((tableId: string) => {
     const table = tablesById.get(tableId);
     if (!table) return null;
 
@@ -527,10 +902,10 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       }
     }
     return { table, x, y };
-  };
+  }, [tablesById, dragOffset, snapToGrid]);
 
   // World position of a column's handle on the given edge (1 = right, -1 = left).
-  const getColumnPosition = (tableId: string, columnId: string, side: Side): PortPoint | null => {
+  const getColumnPosition = useCallback((tableId: string, columnId: string, side: Side): PortPoint | null => {
     const live = getLiveTablePosition(tableId);
     if (!live) return null;
     const colIndex = live.table.columns.findIndex(c => c.id === columnId);
@@ -540,7 +915,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       y: live.y + rowCenterY(geo, colIndex),
       d: side,
     };
-  };
+  }, [getLiveTablePosition, geo]);
 
   // The memoised TableNodes keep whichever callback they first saw, so route
   // through a ref to always reach the current closure (positions, geometry).
@@ -634,6 +1009,14 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     e.stopPropagation();
     e.preventDefault();
 
+    // TEMP diagnostics — resets the debug clock so each click reads from 0ms.
+    mark(`click table ${tableId}`);
+    dlog("click", "onTablePointerDown", {
+      tablesOnScreen: rootRef.current?.querySelectorAll("[data-table-card]").length,
+      totalTables: tables.length,
+      totalRelationships: relationships.length,
+    });
+
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
 
@@ -675,8 +1058,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
     // Prepare group drag
     const initialPositions = new Map<string, { x: number, y: number }>();
+    // Through `tablesById`, so a selected table in a hidden schema stays put.
     newSelectedIds.forEach(id => {
-      const t = tables.find(t => t.id === id);
+      const t = tablesById.get(id);
       if (t) initialPositions.set(id, { x: t.x, y: t.y });
     });
 
@@ -1053,7 +1437,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
 
       if (moves.length > 0) moveTables(moves);
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragTable.current.active = false;
       dragTable.current.pointerId = null;
@@ -1082,7 +1466,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
 
       if (moves.length > 0) moveNotes(moves);
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragNote.current.active = false;
       dragNote.current.pointerId = null;
@@ -1149,7 +1533,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       });
       if (noteMoves.length > 0) moveNotes(noteMoves);
 
-      setDragOffset({ dx: 0, dy: 0, active: false });
+      endDragOffset();
 
       dragArea.current.active = false;
       dragArea.current.pointerId = null;
@@ -1227,7 +1611,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       if (Math.abs(currentX - startX) > 5 || Math.abs(currentY - startY) > 5) {
         const insideIds: string[] = [];
 
-        tables.forEach(t => {
+        // A marquee can't select what it can't see.
+        visibleTables.forEach(t => {
           // Estimate Table Bounds
           const estWidth = geo.width;
           const estHeight = tableHeight(geo, t.columns?.length || 0);
@@ -1316,64 +1701,81 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     return () => el.removeEventListener("wheel", onWheel);
   }, [queuePan, commitPan, zoomAt]);
 
+  // Runs after every render (so nodes that just mounted get their state) and on
+  // every hover change (so a pointer move costs a few attribute writes instead
+  // of a React pass over the whole stage). No dependency array on purpose: the
+  // closure has to see this render's relationships and selection.
+  useLayoutEffect(() => {
+    const apply = () =>
+      applyHighlight(
+        svgRef.current,
+        computeHighlight(hoverStore.get(), relationships, selectedTableIds, selectedRelationshipId, isExporting),
+        dim,
+        isExporting ? undefined : focus
+      );
+    apply();
+    return hoverStore.subscribe(apply);
+  });
+
   const worldTransform = useMemo(
     () => `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
     [camera.x, camera.y, camera.zoom]
   );
 
-  // Viewport Culling Bounds (with generous margin to prevent clipping).
+  // How much of each card is worth drawing at this zoom. Culling alone can't
+  // save a 400-table schema: zoomed out to fit, every card genuinely is on
+  // screen, so the only lever left is drawing less of each one. Exports always
+  // get full detail — they aren't bound by a frame budget.
+  const lod = isExporting ? "full" : tableLodForZoom(camera.zoom);
+
+  // Viewport Culling Bounds.
+  //
+  // The margin is in *screen* pixels, converted to world units here — it used to
+  // be a flat 1500 world units, which is 225px of off-screen paint at zoom 0.15
+  // but 937px at zoom 0.6. That made the composited layer grow with zoom (~7x the
+  // viewport at 0.6) and cost more than the culling saved: 32fps at working zoom
+  // against 162fps once the off-screen cards were gone. In screen space the
+  // painted area is the viewport plus a fixed border at every zoom level.
+  //
+  // It only has to outrun the gesture: culling is recomputed when the camera
+  // commits, so it can trail the visible position by at most PAN_COMMIT_PX.
+  //
+  // Safe to read the committed camera here even mid-gesture: `commitPan` zeroes
+  // the buffered delta before it writes, so at render time the two agree.
   // Disabled entirely while exporting to SVG so the export captures the
   // whole diagram, not just what's currently panned into view.
-  const CULL_MARGIN = 1500;
+  const CULL_MARGIN = CULL_MARGIN_PX / camera.zoom;
   const vLeft = isExporting ? -Infinity : -camera.x / camera.zoom - CULL_MARGIN;
   const vTop = isExporting ? -Infinity : -camera.y / camera.zoom - CULL_MARGIN;
   const vRight = isExporting ? Infinity : (-camera.x + viewport.w) / camera.zoom + CULL_MARGIN;
   const vBottom = isExporting ? Infinity : (-camera.y + viewport.h) / camera.zoom + CULL_MARGIN;
 
-  // ── Relationship view model ──────────────────────────────────────────────
-  // "Lit" relationships are the ones the user is pointing at or has selected:
-  // they thicken, animate, and light up the rows at both ends.
-  const hoverActive = !isExporting && (!!hoveredTable || !!hoveredRelationshipId);
-  const litRelationships = new Set<string>();
-  if (!isExporting) {
-    const touches = (rel: Relationship, tableId: string, colId: string | null) =>
-      (rel.sourceTableId === tableId && (colId === null || rel.sourceColumnId === colId)) ||
-      (rel.targetTableId === tableId && (colId === null || rel.targetColumnId === colId));
+  // Endpoints *and* the SVG path for every relationship. Memoised on what can
+  // actually move them — not on the camera: panning re-renders the stage but
+  // never changes a single one of these, and re-running `routeRelationship`
+  // for a few hundred lines on every pan commit was pure waste.
+  const routedRelationships = useMemo(() => {
+    const out: RoutedRelationship[] = [];
     for (const rel of relationships) {
-      if (
-        rel.id === hoveredRelationshipId ||
-        rel.id === selectedRelationshipId ||
-        (hoveredTable && touches(rel, hoveredTable.tableId, hoveredTable.colId)) ||
-        selectedTableIds.some((id) => touches(rel, id, null))
-      ) {
-        litRelationships.add(rel.id);
-      }
+      const a = getLiveTablePosition(rel.sourceTableId);
+      const b = getLiveTablePosition(rel.targetTableId);
+      if (!a || !b) continue;
+      const [sa, sb] = pickSides(a.x, b.x, geo.width);
+      const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, sa);
+      const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, sb);
+      if (!start || !end) continue;
+      out.push({ rel, source: a.table, target: b.table, start, end, path: routeRelationship(canvasStyle.routing, start, end) });
     }
-  }
+    return out;
+  }, [relationships, geo, canvasStyle.routing, getLiveTablePosition, getColumnPosition]);
 
-  const routedRelationships: {
-    rel: Relationship;
-    source: Table;
-    target: Table;
-    start: PortPoint;
-    end: PortPoint;
-  }[] = [];
-  for (const rel of relationships) {
-    const a = getLiveTablePosition(rel.sourceTableId);
-    const b = getLiveTablePosition(rel.targetTableId);
-    if (!a || !b) continue;
-    const [sa, sb] = pickSides(a.x, b.x, geo.width);
-    const start = getColumnPosition(rel.sourceTableId, rel.sourceColumnId, sa);
-    const end = getColumnPosition(rel.targetTableId, rel.targetColumnId, sb);
-    if (!start || !end) continue;
-    routedRelationships.push({ rel, source: a.table, target: b.table, start, end });
-  }
-
-  // Colour of the line where it meets `table` (gradient lines change colour end to end).
-  const endColor = (lit: boolean, source: Table, table: Table) => {
+  // Colour of the line where it meets `table`, at rest (gradient lines change
+  // colour end to end). Lighting a line up is a CSS concern now — only the
+  // `neutral` mode recolours on hover, and the stylesheet handles that.
+  const endColor = useCallback((source: Table, table: Table) => {
     switch (canvasStyle.color) {
       case "neutral":
-        return lit ? "var(--primary)" : QUIET_LINE;
+        return QUIET_LINE;
       case "primary":
         return "var(--primary)";
       case "source":
@@ -1381,35 +1783,29 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       case "gradient":
         return table.color;
     }
-  };
+  }, [canvasStyle.color]);
 
   // Per-table strings for the memoised TableNodes (cheap equality checks).
-  const portsByTable = new Map<string, string[]>();
-  const linkedByTable = new Map<string, string[]>();
-  const litTables = new Set<string>();
-  for (const { rel, source, target, start, end } of routedRelationships) {
-    const lit = litRelationships.has(rel.id);
-    pushTo(portsByTable, source.id, `${rel.sourceColumnId}|${start.d === 1 ? "r" : "l"}|${endColor(lit, source, source)}`);
-    pushTo(portsByTable, target.id, `${rel.targetColumnId}|${end.d === 1 ? "r" : "l"}|${endColor(lit, source, target)}`);
-    if (lit) {
-      pushTo(linkedByTable, source.id, rel.sourceColumnId);
-      pushTo(linkedByTable, target.id, rel.targetColumnId);
-      litTables.add(source.id);
-      litTables.add(target.id);
+  // Hover-independent, so pointing at a card no longer invalidates every node.
+  const portsByTable = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const { rel, source, target, start, end } of routedRelationships) {
+      pushTo(map, source.id, `${rel.sourceColumnId}|${start.d === 1 ? "r" : "l"}|${endColor(source, source)}`);
+      pushTo(map, target.id, `${rel.targetColumnId}|${end.d === 1 ? "r" : "l"}|${endColor(source, target)}`);
     }
-  }
-  const foreignKeysByTable = new Map<string, string[]>();
-  for (const rel of relationships) {
-    const fk = foreignKeyEnd(rel);
-    pushTo(foreignKeysByTable, fk.tableId, fk.columnId);
-  }
-  const fadeTables = hoverActive && canvasStyle.dim === "all";
-  const fadeLines = hoverActive && canvasStyle.dim !== "off";
+    return map;
+  }, [routedRelationships, endColor]);
+
+  const foreignKeysByTable = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const rel of relationships) {
+      const fk = foreignKeyEnd(rel);
+      pushTo(map, fk.tableId, fk.columnId);
+    }
+    return map;
+  }, [relationships]);
 
   const dc = dragConnection.current;
-  const hoveredRoute = hoveredRelationshipId
-    ? routedRelationships.find((r) => r.rel.id === hoveredRelationshipId)
-    : undefined;
 
   return (
     <div
@@ -1431,136 +1827,135 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
           camera={camera}
           variant={background}
         />
-        <div
-          ref={worldRef}
-          className="absolute left-0 top-0 origin-top-left"
-          style={{
-            width: 1,
-            height: 1,
-            transform: worldTransform,
-          }}
+        {/* The svg is viewport-sized and the camera rides an inner <g>.
+            It used to be the other way round — a 1x1 `overflow: visible` svg
+            inside the transformed element — which made the painted layer as big
+            as the whole diagram. Chromium rasterises such a layer in tiles, and
+            once a schema had a few hundred tables it could not finish a tile
+            inside a frame, so panning showed the unpainted (blank) ones. Clipped
+            to the viewport there is a bounded amount to paint at any zoom. */}
+        <svg
+          ref={svgRef}
+          data-diagram-canvas-svg
+          width="100%"
+          height="100%"
+          // `data-canvas-hover` is toggled imperatively; these two are static
+          // per style and let the stylesheet scope the hover rules.
+          data-canvas-dim={dim}
+          data-canvas-color={canvasStyle.color}
+          className="absolute inset-0 pointer-events-none"
         >
-          {/* SVG Layer for Tables */}
-          <svg
-            data-diagram-canvas-svg
-            width={1}
-            height={1}
-            className="absolute inset-0 overflow-visible pointer-events-none"
+          <g
+            ref={worldRef}
+            data-diagram-world
+            style={{
+              transform: worldTransform,
+              transformOrigin: "0 0",
+              transformBox: "view-box",
+              // Promote the group to its own compositor layer so a pan is a GPU
+              // shift rather than a repaint — but only at `block` zoom, where
+              // the canvas is plain rectangles. Measured at 428 tables:
+              //
+              //   zoom 0.17   145fps promoted   vs   18fps not
+              //   zoom 0.60    29fps promoted   vs   51fps not
+              //   zoom 1.02    48fps promoted   vs  126fps not
+              //
+              // Once cards draw text the trade inverts. The layer covers the
+              // viewport plus the cull margin, and a long relationship line
+              // stretches it further; rasterising that much text tile by tile as
+              // the layer moves costs more than repainting the dirty region does.
+              // With no text to raster, the promoted layer is close to free.
+              willChange: lod === "block" ? "transform" : undefined,
+            }}
           >
             {/* Existing Relationships */}
-            {routedRelationships.map(({ rel, source, target, start, end }) => {
-              const minX = Math.min(start.x, end.x) - 40;
-              const maxX = Math.max(start.x, end.x) + 40;
-              const minY = Math.min(start.y, end.y);
-              const maxY = Math.max(start.y, end.y);
+            <RelationshipLayer
+              routedRelationships={routedRelationships}
+              canvasStyle={canvasStyle}
+              lod={lod}
+              isExporting={isExporting}
+              selectedRelationshipId={selectedRelationshipId}
+              newRelationshipIds={newRelationshipIds}
+              vLeft={vLeft}
+              vRight={vRight}
+              vTop={vTop}
+              vBottom={vBottom}
+              spaceDown={spaceDown}
+              readOnly={readOnly}
+              hoverStore={hoverStore}
+              endColor={endColor}
+              setSelectedRelationshipId={setSelectedRelationshipId}
+              openTab={openTab}
+            />
 
-              if (maxX < vLeft || minX > vRight || maxY < vTop || minY > vBottom) {
-                return null;
-              }
+            {/* Cross-schema stubs: a hint, not a line — a short dashed run out of
+                the visible column toward the hidden table, and at readable zoom
+                its name. Click to show that schema. Left out of exports ("what
+                you see" means the real diagram) and at `block` zoom, which stays
+                text-free and cheap. Culled with the tables they hang off. */}
+            {stubTargetX && lod !== "block" && !isExporting && (
+              <g data-cross-stubs>
+                {crossStubs.map((stub) => {
+                  const live = getLiveTablePosition(stub.tableId);
+                  if (!live) return null;
+                  const h = tableHeight(geo, live.table.columns.length);
+                  if (live.x + geo.width + 200 < vLeft || live.x - 200 > vRight || live.y + h < vTop || live.y > vBottom) {
+                    return null;
+                  }
 
-              const { d } = routeRelationship(canvasStyle.routing, start, end);
-              const lit = litRelationships.has(rel.id);
-              const isSelected = selectedRelationshipId === rel.id;
-              const isNew = newRelationshipIds.includes(rel.id);
-              const roles = relationshipRoles(rel.cardinality);
-              const oneToMany = roles.source === "one" && roles.target === "many";
-              const startColor = endColor(lit, source, source);
-              const endColorValue = endColor(lit, source, target);
+                  // Leave from the edge facing the (first) hidden table.
+                  const targetX = stubTargetX.get(stub.targets[0].tableId) ?? live.x;
+                  const [side] = pickSides(live.x, targetX, geo.width);
+                  const port = getColumnPosition(stub.tableId, stub.columnId, side);
+                  if (!port) return null;
 
-              // Ring on the "one" end when the foreign key is nullable.
-              const fk = foreignKeyEnd(rel);
-              const fkTable = fk.tableId === source.id ? source : target;
-              const optional = !fkTable.columns.find((c) => c.id === fk.columnId)?.isNotNull;
-
-              const gradientId = `rel-grad-${rel.id}`;
-              const stroke = canvasStyle.color === "gradient" ? `url(#${gradientId})` : startColor;
-
-              let opacity = 1;
-              if (focusedRelationships !== null && !focusedRelationships.has(rel.id)) opacity = 0.15;
-              else if (fadeLines && !lit) opacity = 0.16;
-
-              return (
-                <g
-                  key={rel.id}
-                  onPointerEnter={() => setHoveredRelationshipId(rel.id)}
-                  onPointerLeave={() => setHoveredRelationshipId(null)}
-                  // Select on pointerdown, not click: letting pointerdown bubble
-                  // starts a marquee on the world layer, which captures the
-                  // pointer and retargets the click away from this line.
-                  // Pan gestures (middle button, Space+drag) still bubble.
-                  onPointerDown={(e) => {
+                  const endX = port.x + side * CROSS_STUB_LEN;
+                  const names = stub.targets.map((t) => t.name);
+                  const title = `Hidden: ${names.slice(0, 12).join(", ")}${names.length > 12 ? ` and ${names.length - 12} more` : ""}. Click to show.`;
+                  const reveal = (e: React.PointerEvent) => {
                     if (e.button !== 0 || spaceDown) return;
+                    // Keep the world layer from starting a marquee or a pan.
                     e.stopPropagation();
-                    setSelectedRelationshipId(rel.id);
-                    if (!readOnly) openTab("relationships", "left");
-                  }}
-                  className={cn("cursor-pointer", styles.rel, lit && styles.relLit, isNew && styles.relNew)}
-                  data-motion={canvasStyle.motion}
-                  // Motion runs from the foreign key toward the key it references.
-                  data-reverse={oneToMany || undefined}
-                  style={{ opacity }}
-                >
-                  {canvasStyle.color === "gradient" && (
-                    <defs>
-                      <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
-                        <stop offset="0" stopColor={source.color} />
-                        <stop offset="1" stopColor={target.color} />
-                      </linearGradient>
-                    </defs>
-                  )}
-                  {/* Invisible hit area for easier hovering */}
-                  <path
-                    d={d}
-                    fill="none"
-                    strokeWidth={14}
-                    className={styles["relationship-hit-area"]}
-                    style={{ pointerEvents: "auto" }}
-                  />
-                  {lit && (
-                    <path d={d} fill="none" stroke={stroke} strokeWidth={9} strokeLinecap="round" className={styles.relHalo} />
-                  )}
-                  <path
-                    d={d}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={lit || isSelected ? 2.4 : 1.6}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    pathLength={isNew ? 1 : undefined}
-                    className={styles.relLine}
-                  />
-                  <RelationshipEnd
-                    ends={canvasStyle.ends}
-                    point={start}
-                    role={roles.source}
-                    optional={roles.source === "one" && roles.target === "many" && optional}
-                    color={startColor}
-                  />
-                  <RelationshipEnd
-                    ends={canvasStyle.ends}
-                    point={end}
-                    role={roles.target}
-                    optional={roles.target === "one" && roles.source === "many" && optional}
-                    color={endColorValue}
-                  />
-                  {canvasStyle.motion === "pulse" && lit && !isExporting && (
-                    <circle r={3.2} fill={endColorValue} className={styles.relPulse}>
-                      <animateMotion
-                        dur="1.8s"
-                        repeatCount="indefinite"
-                        path={d}
-                        keyPoints={oneToMany ? "1;0" : "0;1"}
-                        keyTimes="0;1"
-                        calcMode="linear"
-                      />
-                    </circle>
-                  )}
-                </g>
-              );
-            })}
+                    revealTablesOnCanvas(stub.targets.map((t) => t.tableId));
+                  };
+
+                  return (
+                    <g key={`${stub.tableId}:${stub.columnId}`} className={styles.crossStub} onPointerDown={reveal}>
+                      <title>{title}</title>
+                      <path d={`M${port.x},${port.y} H${endX}`} className={styles.crossStubLine} />
+                      <circle cx={endX} cy={port.y} r={3} className={styles.crossStubEnd} />
+                      {lod === "full" && (
+                        <text
+                          x={endX + side * 7}
+                          y={port.y}
+                          dy="0.35em"
+                          textAnchor={side === 1 ? "start" : "end"}
+                          className={styles.crossStubLabel}
+                        >
+                          {crossGroupStubLabel(stub, grouping!.labelOf)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
+            {/* Travelling dots on the lit lines. Kept out of the groups above:
+                an `<animateMotion>` per relationship would run for every line on
+                the canvas, lit or not, and SMIL doesn't stop when hidden. */}
+            {canvasStyle.motion === "pulse" && !isExporting && (
+              <LitPulses
+                store={hoverStore}
+                routed={routedRelationships}
+                endColor={endColor}
+                selectedTableIds={selectedTableIds}
+                selectedRelationshipId={selectedRelationshipId}
+              />
+            )}
 
             {/* Areas */}
-            {areas.map((area) => {
+            {drawnAreas.map((area) => {
               let adjustedX = area.x;
               let adjustedY = area.y;
               if (dragOffset.active && dragArea.current.active && dragArea.current.initialPositions.has(area.id)) {
@@ -1625,7 +2020,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             )})}
 
             {/* Tables */}
-            {tables.map((table) => {
+            {visibleTables.map((table) => {
               let adjustedX = table.x;
               let adjustedY = table.y;
               if (dragOffset.active) {
@@ -1642,7 +2037,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 }
               }
 
-              if (adjustedX > vRight || adjustedY > vBottom || adjustedX < vLeft || adjustedY < vTop) return null;
+              // Test the card's whole box, not just its origin — a tall table
+              // scrolled half off the top still has rows on screen.
+              if (
+                adjustedX > vRight ||
+                adjustedY > vBottom ||
+                adjustedX + geo.width < vLeft ||
+                adjustedY + tableHeight(geo, table.columns.length) < vTop
+              ) return null;
+
+              countRender("table DRAWN"); // TEMP diagnostics
 
               return (
               <g
@@ -1657,13 +2061,10 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 <TableNode
                   table={table}
                   selected={selectedTableIds.includes(table.id)}
-                  isDimmed={focusedTables !== null && !focusedTables.has(table.id)}
-                  isFaded={fadeTables && !litTables.has(table.id) && hoveredTable?.tableId !== table.id}
                   readOnly={readOnly}
                   hidePorts={isExporting}
                   canvasStyle={canvasStyle}
                   connectedPorts={portsByTable.get(table.id)?.join(";")}
-                  linkedColumns={linkedByTable.get(table.id)?.join(";")}
                   foreignKeys={foreignKeysByTable.get(table.id)?.join(";")}
                   dropColumnId={dc.active && dc.dropTableId === table.id ? dc.dropColumnId ?? undefined : undefined}
                   sourcePort={
@@ -1671,6 +2072,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                       ? `${dc.sourceColumnId}|${dc.sourceSide === 1 ? "r" : "l"}`
                       : undefined
                   }
+                  lod={lod}
                   onColumnPointerDown={handleColumnPointerDown}
                   onHoverChange={handleTableHover}
                 />
@@ -1702,28 +2104,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
               );
             })()}
 
-            {/* Hovered relationship label — drawn above the tables */}
-            {hoveredRoute && !isExporting && (() => {
-              const { rel, source, target, start, end } = hoveredRoute;
-              const { mid } = routeRelationship(canvasStyle.routing, start, end);
-              const family = getCanvasFontFamily();
-              const card = cardinalityShort(rel.cardinality);
-              const srcCol = source.columns.find((c) => c.id === rel.sourceColumnId)?.name ?? "";
-              const tgtCol = target.columns.find((c) => c.id === rel.targetColumnId)?.name ?? "";
-              const main = rel.name || `${source.name}.${srcCol} → ${target.name}.${tgtCol}`;
-              const cardW = measureTextWidth(card, "600 11px monospace");
-              const mainW = measureTextWidth(main, `500 11px ${family}`);
-              const w = cardW + 8 + mainW;
-              return (
-                <g transform={`translate(${mid.x}, ${mid.y})`} pointerEvents="none" className={styles.relLabel}>
-                  <rect x={-w / 2 - 10} y={-12} width={w + 20} height={24} rx={8} fill="var(--popover)" stroke="var(--border)" />
-                  <text x={-w / 2} y={0} dominantBaseline="central" fontSize={11} style={{ userSelect: "none" }}>
-                    <tspan fontFamily="var(--font-mono)" fontWeight={600} fill="var(--primary)">{card}</tspan>
-                    <tspan dx={8} fontWeight={500} fill="var(--popover-foreground)">{main}</tspan>
-                  </text>
-                </g>
-              );
-            })()}
+            {/* Hovered relationship label — drawn above the tables. Its own
+                subscriber, so showing it re-renders a label and nothing else. */}
+            {!isExporting && <HoveredRelationshipLabel store={hoverStore} routed={routedRelationships} />}
 
             {/* Marquee Selection Rectangle */}
             {selectionRect && (
@@ -1738,8 +2121,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                 pointerEvents="none"
               />
             )}
-          </svg>
-        </div>
+          </g>
+        </svg>
       </div>
 
       {/* Keyboard shortcuts / controls help */}
@@ -1755,7 +2138,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         camera={camera}
         tables={minimapTables}
         notes={notes}
-        areas={areas}
+        areas={drawnAreas}
         onRecenter={(worldX, worldY) => {
           // Drop any pan still buffered in the ref — the jump replaces it,
           // and committing it afterwards would drag the camera back off-target.

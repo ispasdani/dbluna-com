@@ -6,13 +6,20 @@
   transition: opacity 0.25s ease;
 }
 
-.dimmed {
+// Focus mode. Written imperatively by applyHighlight (see hover-highlight.ts),
+// not passed in as a prop — dimming used to re-render every visible card on
+// every selection.
+.table[data-focus-out] {
   opacity: 0.3;
   pointer-events: none;
   filter: grayscale(1);
 }
 
-.faded {
+// Set imperatively while something else is hovered (see hover-highlight.ts) —
+// never a React prop, so a pointer move doesn't re-render every card on screen.
+// `:not([data-focus-out])` keeps focus mode's stronger dimming from being
+// overridden by the weaker hover fade.
+.table[data-faded]:not([data-focus-out]) {
   opacity: 0.45;
 }
 
@@ -75,9 +82,12 @@
   transition: opacity 0.15s ease;
 }
 
+// Mounted only once it could be used (see TableNode), so it fades in on mount
+// rather than transitioning from a permanently-present, invisible copy.
 .actions {
   opacity: 0;
   transition: opacity 0.15s ease;
+  animation: fade-in 0.15s ease;
 }
 
 .table:hover .actions,
@@ -107,6 +117,13 @@
 
 .row[data-linked] .rowBg {
   fill: color-mix(in oklab, var(--primary) 13%, transparent);
+}
+
+// Neutral lines are grey at rest and take the accent when lit, so their handles
+// have to follow. The other colour modes keep a line's colour on hover, so this
+// is scoped to `neutral` rather than done by recolouring `--pc` per frame.
+.table[data-color="neutral"] .row[data-linked] .conn {
+  fill: var(--primary);
 }
 
 .row[data-drop] .rowBg {

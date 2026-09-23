@@ -1,0 +1,373 @@
+@use "./panel-card";
+
+// Schemas tab. Each schema is a card from _panel-card.scss. Schemas have no
+// colour of their own, so `--tc` is the accent; the tables inside them keep
+// theirs.
+
+.intro {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.untitled {
+  color: var(--muted-foreground);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.closedBody {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  cursor: pointer;
+}
+
+// ─── Visibility ──────────────────────────────────────────────────────────
+
+.visRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.linkBtn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    color: var(--faint);
+    cursor: default;
+  }
+}
+
+.headActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -6px;
+  flex: none;
+}
+
+.headBtn {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+    color: var(--foreground);
+  }
+}
+
+.panel[data-v="header"] .headBtn {
+  color: rgb(255 255 255 / 0.8);
+
+  &:hover {
+    background: rgb(255 255 255 / 0.15);
+    color: #fff;
+  }
+}
+
+.panel[data-v="dense"] .headBtn {
+  border-radius: 3px;
+}
+
+// A hidden schema stays listed (the panel lists the model, the canvas shows
+// the view) but reads as switched off.
+.cardHidden .tbHead .tname,
+.cardHidden .tbHead .mk,
+.cardHidden .closedBody {
+  opacity: 0.5;
+}
+
+.tag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.panel[data-v="header"] .tag {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+
+.tableChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px 2px 6px;
+  border-radius: 6px;
+  background: var(--sub);
+  color: var(--foreground);
+  font-size: 11.5px;
+
+  i {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: var(--tc);
+    flex: none;
+  }
+}
+
+.more {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.tableRow {
+  gap: 8px;
+
+  i {
+    width: 8px;
+    height: 8px;
+    border-radius: 2.5px;
+    background: var(--tc);
+    flex: none;
+  }
+}
+
+.tableLink {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12.5px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+}
+
+.moveSelect {
+  flex: none;
+  max-width: 45%;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+}
+
+.panel[data-v="dense"] .moveSelect {
+  border-radius: 3px;
+  height: 20px;
+}
+
+.emptyRows {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.error {
+  margin: 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+// ─── Schema graph ────────────────────────────────────────────────────────
+// A small SVG in the dock, not on the canvas, so opacity on groups is fine
+// here — the compositor-layer limits noted in hover-highlight.ts don't apply.
+
+.graph {
+  display: grid;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--sub);
+}
+
+.panel[data-v="dense"] .graph {
+  border-radius: 4px;
+}
+
+.graphSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--data-font);
+}
+
+.graphEdge,
+.graphNode {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.12s ease;
+}
+
+.graphEdgeHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.graphEdgeLine {
+  fill: none;
+  stroke: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  stroke-linecap: round;
+  transition: stroke 0.12s ease;
+}
+
+.graphNode circle {
+  fill: color-mix(in oklab, var(--primary) 16%, var(--background));
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  transition: fill 0.12s ease;
+}
+
+.graphCount {
+  fill: var(--foreground);
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.graphLabel {
+  fill: var(--foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.graphUnqualified {
+  fill: var(--muted-foreground);
+  font-style: italic;
+}
+
+// Hidden schemas stay on the map, switched off.
+.graphDim {
+  opacity: 0.4;
+
+  circle {
+    fill: var(--background);
+    stroke: var(--muted-foreground);
+    stroke-dasharray: 3 2;
+  }
+}
+
+// Hovering a schema lights it, its lines and its neighbours; the rest fade.
+.graphHovering .graphEdge:not(.graphLit),
+.graphHovering .graphNode:not(.graphLit) {
+  opacity: 0.25;
+}
+
+.graphLit .graphEdgeLine {
+  stroke: var(--primary);
+}
+
+.graphLit circle {
+  fill: color-mix(in oklab, var(--primary) 28%, var(--background));
+}
+
+.graphEdge:focus-visible .graphEdgeLine,
+.graphNode:focus-visible circle {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.graphHint {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+
+// ─── Group-by switcher ───────────────────────────────────────────────────
+
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--sub);
+
+  button {
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--foreground);
+    }
+
+    &[aria-checked="true"] {
+      background: var(--background);
+      color: var(--foreground);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+    }
+  }
+}
+
+.panel[data-v="dense"] .seg,
+.panel[data-v="dense"] .seg button {
+  border-radius: 3px;
+}
+
+// The schema a table sits in, when a TableGroup or cluster spans several.
+.rowSchema {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+

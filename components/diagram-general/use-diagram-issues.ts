@@ -11,7 +11,11 @@ import {
   type IssueCounts,
 } from "@/lib/diagram-issues";
 import { useCanvasStore } from "@/store/useCanvasStore";
-import { useEditorStore } from "@/store/useEditorStore";
+import { getHiddenSchemas, useEditorStore } from "@/store/useEditorStore";
+import { useNoticeStore } from "@/store/useNoticeStore";
+import { emptiedAreaIds, filterVisibleTables, hiddenGroupsOf } from "@/lib/schema-visibility";
+import { sourceInfo } from "@/lib/table-grouping";
+import { getActiveGrouping } from "./use-grouping";
 import { getTableGeometry } from "@/store/useCanvasStyleStore";
 import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 
@@ -47,7 +51,29 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
 }
 
 /**
- * Centres the camera on a table.
+ * Un-hides whichever of these tables' groups are hidden, and says so.
+ *
+ * Every path that focuses a table goes through here first: hiding a group is a
+ * view, not a deletion, so the Issues, Tables and Relationships panels must
+ * still land on a table in a hidden schema — and centring the camera on a card
+ * that isn't drawn would look like the jump failed. Also what a cross-schema
+ * stub on the canvas calls when clicked.
+ */
+export function revealTablesOnCanvas(tableIds: readonly string[]) {
+  const hidden = getHiddenSchemas();
+  if (hidden.length === 0) return;
+  const grouping = getActiveGrouping();
+  const toReveal = hiddenGroupsOf(tableIds, grouping.keyByTableId, hidden);
+  if (toReveal.length === 0) return;
+
+  useEditorStore.getState().setHiddenSchemas(hidden.filter((k) => !toReveal.includes(k)));
+  const { noun, plural } = sourceInfo(grouping.source);
+  const names = toReveal.map(grouping.labelOf).join(", ");
+  useNoticeStore.getState().show(`Showing ${toReveal.length === 1 ? noun : plural} ${names}`);
+}
+
+/**
+ * Centres the camera on a table, revealing its schema if it is hidden.
  *
  * Selecting a table without moving the camera (what the panel used to do) is
  * invisible whenever the table is off-screen, which on a large diagram is most
@@ -57,6 +83,7 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
 export function focusTableOnCanvas(tableId: string) {
   const table = useCanvasStore.getState().tables.find((t) => t.id === tableId);
   if (!table) return;
+  revealTablesOnCanvas([tableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   // The canvas reports a 1x1 viewport until it has been measured — recentering
@@ -71,12 +98,16 @@ export function focusTableOnCanvas(tableId: string) {
   setCameraXY(viewport.w / 2 - worldX * camera.zoom, viewport.h / 2 - worldY * camera.zoom);
 }
 
-/** Centres the camera between the two tables a relationship joins. */
+/**
+ * Centres the camera between the two tables a relationship joins, revealing
+ * either schema if it is hidden.
+ */
 export function focusRelationshipOnCanvas(sourceTableId: string, targetTableId: string) {
   const { tables } = useCanvasStore.getState();
   const a = tables.find((t) => t.id === sourceTableId);
   const b = tables.find((t) => t.id === targetTableId);
   if (!a || !b) return;
+  revealTablesOnCanvas([sourceTableId, targetTableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;
@@ -124,20 +155,33 @@ export function focusAreaOnCanvas(areaId: string) {
 }
 
 /**
- * Zooms and centres the camera so every table, note and area is in view, with
- * some breathing room. Never zooms in past 100%, so a tiny diagram isn't blown
- * up to fill the screen.
+ * Zooms and centres the camera so every visible table, and every note and
+ * drawn area, is in view, with some breathing room. Tables in hidden groups
+ * don't count, nor do areas framing only them — fitting around those would
+ * frame empty space. Notes are never grouped, so they always count. Never zooms
+ * in past 100%, so a tiny diagram isn't blown up to fill the screen.
  */
 export function fitDiagramOnCanvas() {
-  const { tables, notes, areas } = useCanvasStore.getState();
+  const { notes, areas } = useCanvasStore.getState();
+  const hidden = getHiddenSchemas();
+  const all = useCanvasStore.getState().tables;
+  const tables = hidden.length === 0 ? all : filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId);
   const { viewport, setZoomAt, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;
 
   const geo = getTableGeometry();
+  // An area around nothing but hidden tables isn't drawn, so it isn't framed.
+  const emptied =
+    tables === all
+      ? null
+      : emptiedAreaIds(areas, all, new Set(tables.map((t) => t.id)), (t) => ({
+          width: geo.width,
+          height: tableHeight(geo, t.columns.length),
+        }));
   const boxes = [
     ...tables.map((t) => ({ x: t.x, y: t.y, w: geo.width, h: tableHeight(geo, t.columns.length) })),
     ...notes.map((n) => ({ x: n.x, y: n.y, w: n.width, h: n.height })),
-    ...areas.map((a) => ({ x: a.x, y: a.y, w: a.width, h: a.height })),
+    ...areas.filter((a) => !emptied?.has(a.id)).map((a) => ({ x: a.x, y: a.y, w: a.width, h: a.height })),
   ];
   if (boxes.length === 0) return;
 

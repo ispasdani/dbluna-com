@@ -19,6 +19,7 @@ import { usePresence } from "@/hooks/use-presence";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
+import { NoticeToast } from "@/components/diagram-general/notice-toast";
 import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
 import { OnboardingModal } from "@/components/diagram-general/onboarding-modal";
 import { AiChatLauncher, AiChatSidebar } from "@/components/diagram-general/ai-chat-sidebar";
@@ -29,6 +30,8 @@ import {
 import { useOnboardingStore, ONBOARDING_SEEN_KEY } from "@/store/useOnboardingStore";
 import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
 import { FREE_MAX_TABLES_PER_DIAGRAM, FREE_MAX_DIAGRAMS } from "@/lib/plan-limits";
+import { dlog, DEBUG, logMount, watchStore } from "@/lib/debug-selection";
+import { DebugProfiler } from "@/lib/debug-profiler";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -103,14 +106,26 @@ export default function DiagramPage({ params }: PageProps) {
     }
   }, [planResolved, openOnboarding]);
 
-  const { leftTabs, activeLeftTab } = useDockStore();
-  const {
-    isTopNavbarVisible,
-    isLeftDockVisible,
-    leftDockWidth,
-    setLeftDockWidth,
-    workspaceMode,
-  } = useViewStore();
+  // TEMP diagnostics — see lib/debug-selection.ts.
+  useEffect(() => logMount("DiagramPage"), []);
+  useEffect(() => {
+    const stops = [
+      watchStore("canvasStore", useCanvasStore),
+      watchStore("dockStore", useDockStore),
+    ];
+    return () => stops.forEach((s) => s());
+  }, []);
+
+  // One selector per field, not `useDockStore()` / `useViewStore()`. Subscribing
+  // to a whole zustand store means re-rendering on every write to it, including
+  // writes that change nothing this component reads.
+  const leftTabs = useDockStore((s) => s.leftTabs);
+  const activeLeftTab = useDockStore((s) => s.activeLeftTab);
+  const isTopNavbarVisible = useViewStore((s) => s.isTopNavbarVisible);
+  const isLeftDockVisible = useViewStore((s) => s.isLeftDockVisible);
+  const leftDockWidth = useViewStore((s) => s.leftDockWidth);
+  const setLeftDockWidth = useViewStore((s) => s.setLeftDockWidth);
+  const workspaceMode = useViewStore((s) => s.workspaceMode);
 
   const dragRef = useRef<{ active: boolean; startX: number; startW: number }>({
     active: false,
@@ -138,6 +153,13 @@ export default function DiagramPage({ params }: PageProps) {
     dragRef.current.active = false;
   };
 
+  if (DEBUG && (!hasHydrated || !cloudReady)) {
+    dlog("gate", "DiagramPage rendering the LOADING SPINNER — whole editor is unmounted", {
+      hasHydrated,
+      cloudReady,
+    });
+  }
+
   if (!hasHydrated || !cloudReady) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -153,9 +175,12 @@ export default function DiagramPage({ params }: PageProps) {
 
   return (
     <CapabilitiesProvider value={capabilities}>
+      <DebugProfiler id="WHOLE EDITOR">
       <div className="h-screen flex flex-col bg-background overflow-hidden">
-        {isTopNavbarVisible && <TopNavbar readOnly={canvasReadOnly} />}
-        <TabLauncherBar />
+        <DebugProfiler id="TopNavbar+TabLauncherBar">
+          {isTopNavbarVisible && <TopNavbar readOnly={canvasReadOnly} />}
+          <TabLauncherBar />
+        </DebugProfiler>
 
         {/* Work area */}
         <div className="relative flex-1 overflow-hidden w-full flex">
@@ -163,7 +188,9 @@ export default function DiagramPage({ params }: PageProps) {
             <>
               {/* Canvas is ALWAYS full size (fixed) */}
               <div className="absolute inset-0">
-                <CanvasStage diagramId={id} readOnly={canvasReadOnly} />
+                <DebugProfiler id="CanvasStage">
+                  <CanvasStage diagramId={id} readOnly={canvasReadOnly} />
+                </DebugProfiler>
               </div>
 
               {/* Left dock overlays the canvas */}
@@ -173,11 +200,13 @@ export default function DiagramPage({ params }: PageProps) {
                   style={{ width: leftDockWidth }}
                 >
                   <div className="h-full bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-r">
-                    <DockPanel
-                      side="left"
-                      tabs={leftTabs}
-                      activeTab={activeLeftTab}
-                    />
+                    <DebugProfiler id="DockPanel">
+                      <DockPanel
+                        side="left"
+                        tabs={leftTabs}
+                        activeTab={activeLeftTab}
+                      />
+                    </DebugProfiler>
                   </div>
 
                   {/* Drag handle — straddles the dock's border-r */}
@@ -208,9 +237,11 @@ export default function DiagramPage({ params }: PageProps) {
         </div>
 
         <UpgradeToast />
+        <NoticeToast />
         <ConflictBanner />
         <OnboardingModal />
       </div>
+      </DebugProfiler>
     </CapabilitiesProvider>
   );
 }

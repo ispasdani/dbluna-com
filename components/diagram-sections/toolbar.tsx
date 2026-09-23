@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { countRender } from "@/lib/debug-profiler";
 import { TabsDropdown } from "../diagram-general/tabs-dropdown";
 import { useCanvasStyleStore } from "@/store/useCanvasStyleStore";
 import { CANVAS_STYLES, CANVAS_STYLE_ORDER, isCanvasStyleId } from "./canvas/canvas-style";
@@ -48,6 +49,7 @@ function SwitchRow({
 }
 
 function ViewMenu() {
+  countRender("TabLauncherBar body"); // TEMP diagnostics
   const { isLeftDockVisible, isTopNavbarVisible, toggleLeftDock, toggleTopNavbar } = useViewStore();
   const background = useCanvasStore((s) => s.background);
   const setBackground = useCanvasStore((s) => s.setBackground);
