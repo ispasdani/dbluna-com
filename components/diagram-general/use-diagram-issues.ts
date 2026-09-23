@@ -55,9 +55,10 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
  * Every path that focuses a table goes through here first: hiding a schema is a
  * view, not a deletion, so the Issues, Tables and Relationships panels must
  * still land on a table in a hidden schema — and centring the camera on a card
- * that isn't drawn would look like the jump failed.
+ * that isn't drawn would look like the jump failed. Also what a cross-schema
+ * stub on the canvas calls when clicked.
  */
-function revealTables(tableIds: string[]) {
+export function revealTablesOnCanvas(tableIds: readonly string[]) {
   const hidden = getHiddenSchemas();
   const toReveal = hiddenSchemasOf(tableIds, useCanvasStore.getState().tables, hidden);
   if (toReveal.length === 0) return;
@@ -78,7 +79,7 @@ function revealTables(tableIds: string[]) {
 export function focusTableOnCanvas(tableId: string) {
   const table = useCanvasStore.getState().tables.find((t) => t.id === tableId);
   if (!table) return;
-  revealTables([tableId]);
+  revealTablesOnCanvas([tableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   // The canvas reports a 1x1 viewport until it has been measured — recentering
@@ -102,7 +103,7 @@ export function focusRelationshipOnCanvas(sourceTableId: string, targetTableId: 
   const a = tables.find((t) => t.id === sourceTableId);
   const b = tables.find((t) => t.id === targetTableId);
   if (!a || !b) return;
-  revealTables([sourceTableId, targetTableId]);
+  revealTablesOnCanvas([sourceTableId, targetTableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;

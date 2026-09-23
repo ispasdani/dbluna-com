@@ -1,5 +1,5 @@
-import type { Table } from "@/store/useCanvasStore";
-import { schemaKey, splitSchemaName } from "@/lib/schema-namespace";
+import type { Relationship, Table } from "@/store/useCanvasStore";
+import { NO_SCHEMA_KEY, schemaKey, schemaLabel, splitSchemaName } from "@/lib/schema-namespace";
 
 /**
  * Schema visibility — which schemas the canvas shows. View state, not content:
@@ -100,4 +100,81 @@ export function countTablesBySchema(names: readonly string[]): SchemaCount[] {
     .map(([schema, tableCount]) => ({ schema, key: schemaKey(schema), tableCount }));
   if (unqualified > 0) out.push({ schema: null, key: schemaKey(null), tableCount: unqualified });
   return out;
+}
+
+// ─── Cross-schema stubs ──────────────────────────────────────────────────
+
+export interface CrossSchemaStubTarget {
+  tableId: string;
+  name: string;
+  schemaKey: string;
+}
+
+/**
+ * A hint drawn where a relationship leaves the view: one per visible column
+ * that is joined to a table in a hidden schema. Several hidden tables on one
+ * column share one stub, so a heavily referenced key draws one hint, not dozens.
+ */
+export interface CrossSchemaStub {
+  /** The visible end. */
+  tableId: string;
+  columnId: string;
+  /** The hidden ends, deduplicated, in relationship order. */
+  targets: CrossSchemaStubTarget[];
+}
+
+/**
+ * Where relationships cross into hidden schemas. Reads only ids and names, so
+ * callers can memoise it on a name signature rather than on positions — it
+ * then runs on a rename or a visibility change, never during a drag.
+ * Relationships with both ends visible, both ends hidden, or a dangling end
+ * produce nothing.
+ */
+export function buildCrossSchemaStubs(
+  tables: readonly Pick<Table, "id" | "name">[],
+  relationships: readonly Pick<Relationship, "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId">[],
+  hidden: readonly string[]
+): CrossSchemaStub[] {
+  if (hidden.length === 0 || relationships.length === 0) return [];
+  const hiddenSet = new Set(hidden);
+  const byId = new Map(tables.map((t) => [t.id, t]));
+  const stubs = new Map<string, CrossSchemaStub>();
+
+  const add = (visibleTableId: string, columnId: string, target: Pick<Table, "id" | "name">, key: string) => {
+    const id = `${visibleTableId}\u0000${columnId}`;
+    let stub = stubs.get(id);
+    if (!stub) {
+      stub = { tableId: visibleTableId, columnId, targets: [] };
+      stubs.set(id, stub);
+    }
+    if (!stub.targets.some((t) => t.tableId === target.id)) {
+      stub.targets.push({ tableId: target.id, name: target.name, schemaKey: key });
+    }
+  };
+
+  for (const rel of relationships) {
+    const a = byId.get(rel.sourceTableId);
+    const b = byId.get(rel.targetTableId);
+    if (!a || !b) continue;
+    const aKey = tableSchemaKey(a);
+    const bKey = tableSchemaKey(b);
+    const aHidden = hiddenSet.has(aKey);
+    const bHidden = hiddenSet.has(bKey);
+    if (aHidden === bHidden) continue;
+    if (bHidden) add(a.id, rel.sourceColumnId, b, bKey);
+    else add(b.id, rel.targetColumnId, a, aKey);
+  }
+  return [...stubs.values()];
+}
+
+/** The short text on a stub: the table itself when there is one, else a count. */
+export function crossSchemaStubLabel(stub: CrossSchemaStub): string {
+  const { targets } = stub;
+  if (targets.length === 1) return targets[0].name;
+  const schemas = new Set(targets.map((t) => t.schemaKey));
+  if (schemas.size === 1) {
+    const key = targets[0].schemaKey;
+    return `${targets.length} in ${schemaLabel(key === NO_SCHEMA_KEY ? null : key)}`;
+  }
+  return `${targets.length} hidden tables`;
 }

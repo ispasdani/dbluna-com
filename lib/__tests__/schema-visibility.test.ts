@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  buildCrossSchemaStubs,
   buildSchemaIndex,
   countTablesBySchema,
+  crossSchemaStubLabel,
   filterVisibleTables,
   hiddenSchemasOf,
   renameInHiddenSet,
@@ -93,6 +95,63 @@ describe("countTablesBySchema", () => {
   it("omits the unqualified bucket when empty, and handles no tables", () => {
     expect(countTablesBySchema(["a.x"]).map((c) => c.key)).toEqual(["a"]);
     expect(countTablesBySchema([])).toEqual([]);
+  });
+});
+
+describe("buildCrossSchemaStubs", () => {
+  const rel = (sourceTableId: string, sourceColumnId: string, targetTableId: string, targetColumnId: string) => ({
+    sourceTableId,
+    sourceColumnId,
+    targetTableId,
+    targetColumnId,
+  });
+  // t1 auth.users, t2 auth.sessions, t3 billing.invoices, t4 audit_log
+  const rels = [
+    rel("t2", "t2-uid", "t1", "t1-id"), // auth → auth
+    rel("t3", "t3-uid", "t1", "t1-id"), // billing → auth
+    rel("t4", "t4-uid", "t1", "t1-id"), // unqualified → auth
+    rel("t4", "t4-inv", "t3", "t3-id"), // unqualified → billing
+    rel("t3", "t3-x", "gone", "gone-id"), // dangling
+  ];
+
+  it("draws nothing when nothing is hidden", () => {
+    expect(buildCrossSchemaStubs(TABLES, rels, [])).toEqual([]);
+  });
+
+  it("puts the stub on the visible end and collects the hidden ends per column", () => {
+    // Showing only auth: users.id is referenced from billing and the unqualified bucket.
+    const stubs = buildCrossSchemaStubs(TABLES, rels, ["billing", NO_SCHEMA_KEY]);
+    expect(stubs).toEqual([
+      {
+        tableId: "t1",
+        columnId: "t1-id",
+        targets: [
+          { tableId: "t3", name: "billing.invoices", schemaKey: "billing" },
+          { tableId: "t4", name: "audit_log", schemaKey: NO_SCHEMA_KEY },
+        ],
+      },
+    ]);
+  });
+
+  it("works from the source side too, and skips both-visible, both-hidden and dangling", () => {
+    const stubs = buildCrossSchemaStubs(TABLES, rels, ["auth"]);
+    expect(stubs.map((s) => [s.tableId, s.columnId, s.targets.map((t) => t.tableId)])).toEqual([
+      ["t3", "t3-uid", ["t1"]],
+      ["t4", "t4-uid", ["t1"]],
+    ]);
+    expect(buildCrossSchemaStubs(TABLES, rels, ["auth", "billing", NO_SCHEMA_KEY])).toEqual([]);
+  });
+
+  it("labels one table by name and many by count", () => {
+    const one = { tableId: "a", columnId: "c", targets: [{ tableId: "t1", name: "auth.users", schemaKey: "auth" }] };
+    expect(crossSchemaStubLabel(one)).toBe("auth.users");
+    const sameSchema = {
+      ...one,
+      targets: [one.targets[0], { tableId: "t2", name: "auth.sessions", schemaKey: "auth" }],
+    };
+    expect(crossSchemaStubLabel(sameSchema)).toBe("2 in auth");
+    const mixed = { ...one, targets: [one.targets[0], { tableId: "t4", name: "audit_log", schemaKey: NO_SCHEMA_KEY }] };
+    expect(crossSchemaStubLabel(mixed)).toBe("2 hidden tables");
   });
 });
 

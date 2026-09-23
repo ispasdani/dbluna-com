@@ -41,7 +41,14 @@ import {
   type HoverStore,
 } from "./hover-highlight";
 import { cn } from "@/lib/utils";
-import { buildSchemaIndex, filterVisibleTables } from "@/lib/schema-visibility";
+import {
+  buildCrossSchemaStubs,
+  buildSchemaIndex,
+  crossSchemaStubLabel,
+  filterVisibleTables,
+  type CrossSchemaStub,
+} from "@/lib/schema-visibility";
+import { revealTablesOnCanvas } from "@/components/diagram-general/use-diagram-issues";
 import { dlog, mark, logMount } from "@/lib/debug-selection";
 import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -182,6 +189,10 @@ const PAN_IDLE_MS = 100;
 // How far outside the viewport, in screen pixels, content is still drawn. Must
 // stay comfortably above PAN_COMMIT_PX so a gesture can't outrun the cull set.
 const CULL_MARGIN_PX = 300;
+
+/** Length of a cross-schema stub, in world units, out from the column's edge. */
+const CROSS_STUB_LEN = 34;
+const NO_STUBS: CrossSchemaStub[] = [];
 
 /**
  * Every relationship line on the canvas.
@@ -784,6 +795,27 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const addRelationship = useCanvasStore((s) => s.addRelationship);
 
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+
+  // Where relationships cross into a hidden schema — drawn as short dashed
+  // stubs so a filtered view never looks self-contained when it isn't.
+  // Built from ids and names only, on the name signature: it runs when a
+  // schema is hidden or shown, a table renamed or a relationship edited —
+  // never during a drag. Nothing at all when nothing is hidden.
+  const crossStubs = useMemo(
+    () => (anyHidden ? buildCrossSchemaStubs(tables, relationships, hiddenSchemas) : NO_STUBS),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [relationships, hiddenSchemas, nameSignature, anyHidden]
+  );
+
+  // Positions of the hidden tables the stubs point at — only which way a stub
+  // leaves the card depends on them. Empty (and free) with no stubs.
+  const stubTargetX = useMemo(() => {
+    if (crossStubs.length === 0) return null;
+    const wanted = new Set(crossStubs.flatMap((s) => s.targets.map((t) => t.tableId)));
+    const out = new Map<string, number>();
+    for (const t of tables) if (wanted.has(t.id)) out.set(t.id, t.x);
+    return out;
+  }, [crossStubs, tables]);
 
   // Connection dragging
   const dragConnection = useRef<{
@@ -1836,6 +1868,59 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
               setSelectedRelationshipId={setSelectedRelationshipId}
               openTab={openTab}
             />
+
+            {/* Cross-schema stubs: a hint, not a line — a short dashed run out of
+                the visible column toward the hidden table, and at readable zoom
+                its name. Click to show that schema. Left out of exports ("what
+                you see" means the real diagram) and at `block` zoom, which stays
+                text-free and cheap. Culled with the tables they hang off. */}
+            {stubTargetX && lod !== "block" && !isExporting && (
+              <g data-cross-stubs>
+                {crossStubs.map((stub) => {
+                  const live = getLiveTablePosition(stub.tableId);
+                  if (!live) return null;
+                  const h = tableHeight(geo, live.table.columns.length);
+                  if (live.x + geo.width + 200 < vLeft || live.x - 200 > vRight || live.y + h < vTop || live.y > vBottom) {
+                    return null;
+                  }
+
+                  // Leave from the edge facing the (first) hidden table.
+                  const targetX = stubTargetX.get(stub.targets[0].tableId) ?? live.x;
+                  const [side] = pickSides(live.x, targetX, geo.width);
+                  const port = getColumnPosition(stub.tableId, stub.columnId, side);
+                  if (!port) return null;
+
+                  const endX = port.x + side * CROSS_STUB_LEN;
+                  const names = stub.targets.map((t) => t.name);
+                  const title = `Hidden: ${names.slice(0, 12).join(", ")}${names.length > 12 ? ` and ${names.length - 12} more` : ""}. Click to show.`;
+                  const reveal = (e: React.PointerEvent) => {
+                    if (e.button !== 0 || spaceDown) return;
+                    // Keep the world layer from starting a marquee or a pan.
+                    e.stopPropagation();
+                    revealTablesOnCanvas(stub.targets.map((t) => t.tableId));
+                  };
+
+                  return (
+                    <g key={`${stub.tableId}:${stub.columnId}`} className={styles.crossStub} onPointerDown={reveal}>
+                      <title>{title}</title>
+                      <path d={`M${port.x},${port.y} H${endX}`} className={styles.crossStubLine} />
+                      <circle cx={endX} cy={port.y} r={3} className={styles.crossStubEnd} />
+                      {lod === "full" && (
+                        <text
+                          x={endX + side * 7}
+                          y={port.y}
+                          dy="0.35em"
+                          textAnchor={side === 1 ? "start" : "end"}
+                          className={styles.crossStubLabel}
+                        >
+                          {crossSchemaStubLabel(stub)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            )}
 
             {/* Travelling dots on the lit lines. Kept out of the groups above:
                 an `<animateMotion>` per relationship would run for every line on
