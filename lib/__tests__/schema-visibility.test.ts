@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildSchemaIndex,
+  countTablesBySchema,
   filterVisibleTables,
   hiddenSchemasOf,
   renameInHiddenSet,
@@ -76,6 +77,22 @@ describe("renameInHiddenSet", () => {
     const hidden = ["billing"];
     expect(renameInHiddenSet(hidden, "auth", "identity")).toBe(hidden);
     expect(renameInHiddenSet(EMPTY_HIDDEN, "auth", "identity")).toBe(EMPTY_HIDDEN);
+  });
+});
+
+describe("countTablesBySchema", () => {
+  it("counts per schema in groupTablesBySchema order, unqualified last", () => {
+    expect(countTablesBySchema(["billing.a", "Auth.b", "loose", "auth.c", "billing.d"])).toEqual([
+      { schema: "Auth", key: "Auth", tableCount: 1 },
+      { schema: "auth", key: "auth", tableCount: 1 },
+      { schema: "billing", key: "billing", tableCount: 2 },
+      { schema: null, key: NO_SCHEMA_KEY, tableCount: 1 },
+    ]);
+  });
+
+  it("omits the unqualified bucket when empty, and handles no tables", () => {
+    expect(countTablesBySchema(["a.x"]).map((c) => c.key)).toEqual(["a"]);
+    expect(countTablesBySchema([])).toEqual([]);
   });
 });
 

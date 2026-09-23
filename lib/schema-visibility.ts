@@ -74,3 +74,30 @@ export function renameInHiddenSet(hidden: readonly string[], from: string, to: s
   next.push(to);
   return next;
 }
+
+export interface SchemaCount {
+  schema: string | null;
+  /** The hidden-set key: `schemaKey(schema)`. */
+  key: string;
+  tableCount: number;
+}
+
+/**
+ * Table count per schema, from table names alone, in `groupTablesBySchema`
+ * order — named schemas case-insensitively, the unqualified bucket last and
+ * only when non-empty — so every list of schemas reads in the same order.
+ */
+export function countTablesBySchema(names: readonly string[]): SchemaCount[] {
+  const named = new Map<string, number>();
+  let unqualified = 0;
+  for (const name of names) {
+    const { schema } = splitSchemaName(name);
+    if (schema === null) unqualified++;
+    else named.set(schema, (named.get(schema) ?? 0) + 1);
+  }
+  const out: SchemaCount[] = [...named.entries()]
+    .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .map(([schema, tableCount]) => ({ schema, key: schemaKey(schema), tableCount }));
+  if (unqualified > 0) out.push({ schema: null, key: schemaKey(null), tableCount: unqualified });
+  return out;
+}
