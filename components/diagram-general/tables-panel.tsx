@@ -275,7 +275,7 @@ export function TablesPanel() {
   }, [tables, relationships]);
 
   // Memoised on `tables` itself, not on `tablesStructureSignature` the way the
-  // Database tab does it: rows here also render colour, comment and lock state,
+  // Schemas tab does it: rows here also render colour, comment and lock state,
   // which that signature doesn't cover — but the array identity does. Selecting
   // a table re-renders this panel (it expands the picked row), and regrouping
   // all 428 tables each time was most of its cost.
@@ -316,7 +316,7 @@ export function TablesPanel() {
 
   // Moves rewrite `tables` AND `tableGroups` together — group members are
   // schema-qualified strings, so writing one without the other empties them.
-  // Same as the Database tab's applyPlan.
+  // Same as the Schemas tab's applyPlan.
   const moveToSchema = (tableId: string, to: string | null) => {
     const store = useCanvasStore.getState();
     const plan: SchemaEditPlan = moveTableToSchema(tableId, to, store.tables, store.tableGroups);

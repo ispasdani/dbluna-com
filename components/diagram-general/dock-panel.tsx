@@ -14,6 +14,7 @@ import { RelationshipsPanel } from "./relationships-panel";
 import { CodeEditor } from "./code-editor";
 import { DatabasePanel } from "./database-panel";
 import { EnumsPanel } from "./enums-panel";
+import { SchemasPanel } from "./schemas-panel";
 import { IssuesPanel } from "./issues-panel";
 import { TemplatesPanel } from "./templates-panel";
 
@@ -77,6 +78,8 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
             <CodeEditor readOnly={!canEditCode} />
           ) : effectiveActiveTab === "database" ? (
             <DatabasePanel />
+          ) : effectiveActiveTab === "schemas" ? (
+            <SchemasPanel />
           ) : effectiveActiveTab === "enums" ? (
             <EnumsPanel />
           ) : effectiveActiveTab === "issues" ? (

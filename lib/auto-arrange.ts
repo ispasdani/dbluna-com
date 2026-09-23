@@ -230,7 +230,7 @@ function boundsOf(placed: Placed[]): Rect {
  * another; laying each group out is only half the job.
  *
  * Group order comes from `groupTablesBySchema` — named schemas alphabetically,
- * unqualified tables last — matching the Database tab and Docs sidebar, so the
+ * unqualified tables last — matching the Schemas tab and Docs sidebar, so the
  * canvas reads in the same order as the panels beside it.
  */
 function layoutBySchema(
