@@ -28,6 +28,9 @@ import menu from "@/components/diagram-general/toolbar-menus.module.scss";
 import { cn } from "@/lib/utils";
 import { useViewStore } from "@/store/useViewStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
+import { getHiddenSchemas } from "@/store/useEditorStore";
+import { filterVisibleTables } from "@/lib/schema-visibility";
+import { getActiveGrouping } from "@/components/diagram-general/use-grouping";
 import { countRender } from "@/lib/debug-profiler";
 import { SavingIndicator } from "@/components/diagram-general/saving-indicator";
 import { MyDiagramsDialog } from "@/components/diagram-sections/top-navbar/my-diagrams-dialog";
@@ -191,8 +194,13 @@ export function TopNavbar({ readOnly = false }: TopNavbarProps) {
       useUpgradeToastStore.getState().trigger();
       return;
     }
+    // Image export is "what you see": the canvas doesn't draw hidden schemas,
+    // so crop to the visible tables. DBML / SQL / JSON / share links above
+    // always take the full set — a view filter must never truncate the schema.
     const ok = await exportDiagramAsSvg(
-      tables,
+      getHiddenSchemas().length === 0
+        ? tables
+        : filterVisibleTables(tables, getHiddenSchemas(), getActiveGrouping().keyByTableId),
       notes,
       areas,
       currentDiagramName,

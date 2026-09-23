@@ -260,6 +260,8 @@ type CanvasState = {
   addArea: () => void;
   updateArea: (id: string, updates: Partial<Area>) => void;
   deleteArea: (id: string) => void;
+  /** Replaces every area at once — `arrange by schema` and its undo. */
+  setAreas: (areas: Area[]) => void;
   setSelectedAreaIds: (ids: string[]) => void;
   moveAreas: (moves: { id: string, x: number, y: number }[]) => void;
   savingStatus: "idle" | "saving" | "saved";
@@ -927,6 +929,16 @@ export const useCanvasStore = create<CanvasState>()(
           areas: s.areas.filter((a) => a.id !== id),
           selectedAreaIds: s.selectedAreaIds.filter((aid) => aid !== id),
         }));
+      },
+      setAreas: (areas) => {
+        if (get().readOnly) {
+          useUpgradeToastStore.getState().trigger();
+          return;
+        }
+        set((s) => {
+          const ids = new Set(areas.map((a) => a.id));
+          return { areas, selectedAreaIds: s.selectedAreaIds.filter((id) => ids.has(id)) };
+        });
       },
       setSelectedAreaIds: (ids) =>
         set((s) => ({

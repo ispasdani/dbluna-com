@@ -55,12 +55,11 @@ const NODE_SEP = 50;
 const GROUP_GAP = 160;
 
 /**
- * Empty strip reserved above every schema block. Nothing draws in it yet — it
- * is where a per-schema Area header would sit, and it doubles as the visual
- * separation that makes the blocks read as groups rather than one field of
- * tables.
+ * Strip reserved above every schema block. The schema's Area title sits in it
+ * (see lib/schema-areas.ts), and it doubles as the visual separation that makes
+ * the blocks read as groups rather than one field of tables.
  */
-const GROUP_HEADER = 56;
+export const GROUP_HEADER = 56;
 
 /** Gap between isolated tables in the trailing grid. */
 const ISOLATED_GAP = 60;
@@ -90,6 +89,17 @@ interface Rect {
   y: number;
   width: number;
   height: number;
+}
+
+/** Where one schema's tables landed: the bounding box of the tables alone. */
+export interface SchemaBlock extends Rect {
+  schema: string | null;
+}
+
+export interface ArrangeResult {
+  moves: TableMove[];
+  /** Per-schema blocks, in world coordinates. Empty unless `mode` is "schema". */
+  schemaBlocks: SchemaBlock[];
 }
 
 const EMPTY_BLOCK: Block = { placed: [], width: 0, height: 0 };
@@ -230,19 +240,19 @@ function boundsOf(placed: Placed[]): Rect {
  * another; laying each group out is only half the job.
  *
  * Group order comes from `groupTablesBySchema` — named schemas alphabetically,
- * unqualified tables last — matching the Database tab and Docs sidebar, so the
+ * unqualified tables last — matching the Schemas tab and Docs sidebar, so the
  * canvas reads in the same order as the panels beside it.
  */
 function layoutBySchema(
   tables: Table[],
   relationships: Relationship[],
   measure: (table: Table) => Size
-): Placed[] {
+): { placed: Placed[]; blocks: SchemaBlock[] } {
   const blocks = groupTablesBySchema(tables)
-    .map((group) => layoutBlock(group.tables, relationships, measure))
+    .map((group) => ({ schema: group.schema, ...layoutBlock(group.tables, relationships, measure) }))
     .filter((block) => block.placed.length > 0);
 
-  if (blocks.length === 0) return [];
+  if (blocks.length === 0) return { placed: [], blocks: [] };
 
   // Steer the packed result towards a readable aspect rather than one very long
   // row: the area the blocks need, reshaped to TARGET_ASPECT, but never
@@ -255,6 +265,7 @@ function layoutBySchema(
   const targetWidth = Math.max(widest, Math.sqrt(totalArea * TARGET_ASPECT));
 
   const result: Placed[] = [];
+  const rects: SchemaBlock[] = [];
   let x = 0;
   let y = 0;
   let rowHeight = 0;
@@ -269,12 +280,13 @@ function layoutBySchema(
     for (const p of block.placed) {
       result.push({ ...p, x: p.x + x, y: p.y + y + GROUP_HEADER });
     }
+    rects.push({ schema: block.schema, x, y: y + GROUP_HEADER, width: block.width, height: block.height });
 
     x += block.width + GROUP_GAP;
     rowHeight = Math.max(rowHeight, block.height + GROUP_HEADER);
   }
 
-  return result;
+  return { placed: result, blocks: rects };
 }
 
 /**
@@ -289,21 +301,30 @@ function layoutBySchema(
  * the diagram roughly where it was on the canvas instead of teleporting it to
  * the origin.
  */
-export function autoArrange({
+export function autoArrange(options: ArrangeOptions): TableMove[] {
+  return arrangeLayout(options).moves;
+}
+
+/**
+ * `autoArrange`, plus where each schema's block landed — what `arrange by
+ * schema` needs to draw an Area around every schema.
+ */
+export function arrangeLayout({
   tables,
   relationships,
   mode,
   measure,
-}: ArrangeOptions): TableMove[] {
+}: ArrangeOptions): ArrangeResult {
+  const none: ArrangeResult = { moves: [], schemaBlocks: [] };
   const movable = tables.filter((t) => !t.isLocked);
-  if (movable.length === 0) return [];
+  if (movable.length === 0) return none;
 
-  const placed =
+  const { placed, blocks } =
     mode === "schema"
       ? layoutBySchema(movable, relationships, measure)
-      : layoutBlock(movable, relationships, measure).placed;
+      : { placed: layoutBlock(movable, relationships, measure).placed, blocks: [] };
 
-  if (placed.length === 0) return [];
+  if (placed.length === 0) return none;
 
   // Anchor on where the diagram already is, so the camera doesn't have to jump
   // across the canvas to find it afterwards.
@@ -322,9 +343,16 @@ export function autoArrange({
     originY = lockedBounds.y + lockedBounds.height + GROUP_GAP;
   }
 
-  return placed.map((p) => ({
-    id: p.id,
-    x: Math.round(originX + p.x),
-    y: Math.round(originY + p.y),
-  }));
+  return {
+    moves: placed.map((p) => ({
+      id: p.id,
+      x: Math.round(originX + p.x),
+      y: Math.round(originY + p.y),
+    })),
+    schemaBlocks: blocks.map((b) => ({
+      ...b,
+      x: Math.round(originX + b.x),
+      y: Math.round(originY + b.y),
+    })),
+  };
 }

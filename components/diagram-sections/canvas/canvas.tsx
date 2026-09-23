@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useEditorStore } from "@/store/useEditorStore";
+import { getHiddenSchemas, useEditorStore, useGroupSource, useHiddenSchemas } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore, type TabId, type DockSide } from "@/store/useDockStore";
 import {
@@ -41,6 +41,16 @@ import {
   type HoverStore,
 } from "./hover-highlight";
 import { cn } from "@/lib/utils";
+import {
+  buildCrossGroupStubs,
+  crossGroupStubLabel,
+  emptiedAreaIds,
+  filterVisibleTables,
+  type CrossGroupStub,
+} from "@/lib/schema-visibility";
+import { buildGrouping } from "@/lib/table-grouping";
+import { revealTablesOnCanvas } from "@/components/diagram-general/use-diagram-issues";
+import { getActiveGrouping } from "@/components/diagram-general/use-grouping";
 import { dlog, mark, logMount } from "@/lib/debug-selection";
 import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -181,6 +191,10 @@ const PAN_IDLE_MS = 100;
 // How far outside the viewport, in screen pixels, content is still drawn. Must
 // stay comfortably above PAN_COMMIT_PX so a gesture can't outrun the cull set.
 const CULL_MARGIN_PX = 300;
+
+/** Length of a cross-schema stub, in world units, out from the column's edge. */
+const CROSS_STUB_LEN = 34;
+const NO_STUBS: CrossGroupStub[] = [];
 
 /**
  * Every relationship line on the canvas.
@@ -370,6 +384,35 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
   const moveAreas = useCanvasStore((s) => s.moveAreas);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
+  const relationships = useCanvasStore((s) => s.relationships);
+  const tableGroups = useCanvasStore((s) => s.tableGroups);
+  const hiddenSchemas = useHiddenSchemas();
+  const groupSource = useGroupSource();
+  const anyHidden = hiddenSchemas.length > 0;
+
+  // Which group each table belongs to — schema, TableGroup or FK cluster, per
+  // the active source (lib/table-grouping.ts). Only built while something is
+  // hidden, and then memoised on a NAME signature, never on `tables`:
+  // `moveTables` replaces `tables` on every pointermove, and grouping runs a
+  // regex per name (or a clustering pass). x/y are deliberately excluded, so a
+  // drag never rebuilds it. See release-1-0/schemas-tab-and-visibility-plan.md §7.
+  const nameSignature = useMemo(
+    () => (anyHidden ? tables.map((t) => `${t.id} ${t.name}`).join("|") : ""),
+    [tables, anyHidden]
+  );
+  const grouping = useMemo(
+    () => (anyHidden ? buildGrouping(groupSource, tables, relationships, tableGroups) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nameSignature, anyHidden, groupSource, relationships, tableGroups]
+  );
+
+  // The tables this canvas draws. `tables` itself, by identity, when nothing is
+  // hidden — so every memo downstream behaves exactly as it did before groups
+  // could be hidden. A fresh array here would rebuild every line per drag frame.
+  const visibleTables = useMemo(
+    () => (grouping ? filterVisibleTables(tables, hiddenSchemas, grouping.keyByTableId) : tables),
+    [tables, hiddenSchemas, grouping]
+  );
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -503,7 +546,17 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
         if (!isTyping) {
-          if (selectedTableIds.length > 0) deleteTables(selectedTableIds);
+          // Hiding is a view, not a deletion: a selection can outlive a hide,
+          // but Delete only ever removes tables you can see.
+          const hidden = getHiddenSchemas();
+          const ids = hidden.length === 0
+            ? selectedTableIds
+            : (() => {
+                const all = useCanvasStore.getState().tables;
+                const visible = new Set(filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId).map((t) => t.id));
+                return selectedTableIds.filter((id) => visible.has(id));
+              })();
+          if (ids.length > 0) deleteTables(ids);
           if (selectedNoteIds.length > 0) selectedNoteIds.forEach(id => deleteNote(id));
         }
       }
@@ -741,7 +794,6 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   }>({ active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
 
   // Actions
-  const relationships = useCanvasStore((s) => s.relationships);
   // Hovering dims every line that is not lit. On a large schema that repaints
   // the canvas on every hover, so past a point the dim is dropped — see
   // MAX_DIMMED_RELS.
@@ -749,6 +801,40 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const addRelationship = useCanvasStore((s) => s.addRelationship);
 
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
+
+  // Where relationships cross into a hidden group — drawn as short dashed
+  // stubs so a filtered view never looks self-contained when it isn't.
+  // Built from ids and names only, through the grouping memo: it runs when a
+  // group is hidden or shown, a table renamed or a relationship edited —
+  // never during a drag. Nothing at all when nothing is hidden.
+  const crossStubs = useMemo(
+    () =>
+      grouping ? buildCrossGroupStubs(tables, relationships, hiddenSchemas, grouping.keyByTableId) : NO_STUBS,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [relationships, hiddenSchemas, grouping]
+  );
+
+  // Positions of the hidden tables the stubs point at — only which way a stub
+  // leaves the card depends on them. Empty (and free) with no stubs.
+  const stubTargetX = useMemo(() => {
+    if (crossStubs.length === 0) return null;
+    const wanted = new Set(crossStubs.flatMap((s) => s.targets.map((t) => t.tableId)));
+    const out = new Map<string, number>();
+    for (const t of tables) if (wanted.has(t.id)) out.set(t.id, t.x);
+    return out;
+  }, [crossStubs, tables]);
+
+  // Areas framing only hidden tables hide with them — arrange by schema puts
+  // an area around every schema, and an empty dashed box where a hidden one
+  // sits reads as a bug. `areas` itself when nothing is hidden.
+  const drawnAreas = useMemo(() => {
+    if (visibleTables === tables || areas.length === 0) return areas;
+    const emptied = emptiedAreaIds(areas, tables, new Set(visibleTables.map((t) => t.id)), (t) => ({
+      width: geo.width,
+      height: tableHeight(geo, t.columns.length),
+    }));
+    return emptied.size === 0 ? areas : areas.filter((a) => !emptied.has(a.id));
+  }, [areas, tables, visibleTables, geo]);
 
   // Connection dragging
   const dragConnection = useRef<{
@@ -781,11 +867,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   // Every relationship endpoint resolves a table by id on every render; with a
   // linear find that is O(relationships × tables) per frame during a drag.
-  const tablesById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
+  //
+  // Built from the *visible* tables, which is how a hidden schema's lines
+  // disappear: `routedRelationships` skips any relationship with an endpoint it
+  // can't resolve, so an edge touching a hidden table drops out of routing, the
+  // DOM, the ports and the highlight sets without a second filter.
+  const tablesById = useMemo(() => new Map(visibleTables.map((t) => [t.id, t])), [visibleTables]);
 
   const minimapTables = useMemo(
-    () => tables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
-    [tables, geo]
+    () => visibleTables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
+    [visibleTables, geo]
   );
 
   // Where a table is drawn right now — its stored position plus any live drag
@@ -967,8 +1058,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
     // Prepare group drag
     const initialPositions = new Map<string, { x: number, y: number }>();
+    // Through `tablesById`, so a selected table in a hidden schema stays put.
     newSelectedIds.forEach(id => {
-      const t = tables.find(t => t.id === id);
+      const t = tablesById.get(id);
       if (t) initialPositions.set(id, { x: t.x, y: t.y });
     });
 
@@ -1519,7 +1611,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       if (Math.abs(currentX - startX) > 5 || Math.abs(currentY - startY) > 5) {
         const insideIds: string[] = [];
 
-        tables.forEach(t => {
+        // A marquee can't select what it can't see.
+        visibleTables.forEach(t => {
           // Estimate Table Bounds
           const estWidth = geo.width;
           const estHeight = tableHeight(geo, t.columns?.length || 0);
@@ -1795,6 +1888,59 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
               openTab={openTab}
             />
 
+            {/* Cross-schema stubs: a hint, not a line — a short dashed run out of
+                the visible column toward the hidden table, and at readable zoom
+                its name. Click to show that schema. Left out of exports ("what
+                you see" means the real diagram) and at `block` zoom, which stays
+                text-free and cheap. Culled with the tables they hang off. */}
+            {stubTargetX && lod !== "block" && !isExporting && (
+              <g data-cross-stubs>
+                {crossStubs.map((stub) => {
+                  const live = getLiveTablePosition(stub.tableId);
+                  if (!live) return null;
+                  const h = tableHeight(geo, live.table.columns.length);
+                  if (live.x + geo.width + 200 < vLeft || live.x - 200 > vRight || live.y + h < vTop || live.y > vBottom) {
+                    return null;
+                  }
+
+                  // Leave from the edge facing the (first) hidden table.
+                  const targetX = stubTargetX.get(stub.targets[0].tableId) ?? live.x;
+                  const [side] = pickSides(live.x, targetX, geo.width);
+                  const port = getColumnPosition(stub.tableId, stub.columnId, side);
+                  if (!port) return null;
+
+                  const endX = port.x + side * CROSS_STUB_LEN;
+                  const names = stub.targets.map((t) => t.name);
+                  const title = `Hidden: ${names.slice(0, 12).join(", ")}${names.length > 12 ? ` and ${names.length - 12} more` : ""}. Click to show.`;
+                  const reveal = (e: React.PointerEvent) => {
+                    if (e.button !== 0 || spaceDown) return;
+                    // Keep the world layer from starting a marquee or a pan.
+                    e.stopPropagation();
+                    revealTablesOnCanvas(stub.targets.map((t) => t.tableId));
+                  };
+
+                  return (
+                    <g key={`${stub.tableId}:${stub.columnId}`} className={styles.crossStub} onPointerDown={reveal}>
+                      <title>{title}</title>
+                      <path d={`M${port.x},${port.y} H${endX}`} className={styles.crossStubLine} />
+                      <circle cx={endX} cy={port.y} r={3} className={styles.crossStubEnd} />
+                      {lod === "full" && (
+                        <text
+                          x={endX + side * 7}
+                          y={port.y}
+                          dy="0.35em"
+                          textAnchor={side === 1 ? "start" : "end"}
+                          className={styles.crossStubLabel}
+                        >
+                          {crossGroupStubLabel(stub, grouping!.labelOf)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
             {/* Travelling dots on the lit lines. Kept out of the groups above:
                 an `<animateMotion>` per relationship would run for every line on
                 the canvas, lit or not, and SMIL doesn't stop when hidden. */}
@@ -1809,7 +1955,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             )}
 
             {/* Areas */}
-            {areas.map((area) => {
+            {drawnAreas.map((area) => {
               let adjustedX = area.x;
               let adjustedY = area.y;
               if (dragOffset.active && dragArea.current.active && dragArea.current.initialPositions.has(area.id)) {
@@ -1874,7 +2020,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             )})}
 
             {/* Tables */}
-            {tables.map((table) => {
+            {visibleTables.map((table) => {
               let adjustedX = table.x;
               let adjustedY = table.y;
               if (dragOffset.active) {
@@ -1992,7 +2138,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         camera={camera}
         tables={minimapTables}
         notes={notes}
-        areas={areas}
+        areas={drawnAreas}
         onRecenter={(worldX, worldY) => {
           // Drop any pan still buffered in the ref — the jump replaces it,
           // and committing it afterwards would drag the camera back off-target.

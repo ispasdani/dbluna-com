@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronsDownUp,
   Crosshair,
+  EyeOff,
   Lock,
   MessageSquare,
   Plus,
@@ -16,6 +17,7 @@ import {
 import { useCanvasStore, TABLE_COLORS, type Column, type Table } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { usePanelStyle } from "@/store/usePanelStyleStore";
+import { useGroupSource, useHiddenSchemas } from "@/store/useEditorStore";
 import {
   groupTablesBySchema,
   moveTableToSchema,
@@ -178,6 +180,11 @@ export function TablesPanel() {
   const deleteField = useCanvasStore((s) => s.deleteField);
   const openTab = useDockStore((s) => s.openTab);
   const { variant } = usePanelStyle("tables");
+  // The panel lists the model, not the view: hidden schemas stay listed, marked.
+  const hiddenSchemas = useHiddenSchemas();
+  // This panel buckets by schema; the marker only means something when the
+  // canvas is grouped by schema too.
+  const groupedBySchema = useGroupSource() === "schema";
 
   const isSingleSelection = selectedTableIds.length === 1;
   const selectionKey = selectedTableIds.join(",");
@@ -275,7 +282,7 @@ export function TablesPanel() {
   }, [tables, relationships]);
 
   // Memoised on `tables` itself, not on `tablesStructureSignature` the way the
-  // Database tab does it: rows here also render colour, comment and lock state,
+  // Schemas tab does it: rows here also render colour, comment and lock state,
   // which that signature doesn't cover — but the array identity does. Selecting
   // a table re-renders this panel (it expands the picked row), and regrouping
   // all 428 tables each time was most of its cost.
@@ -316,7 +323,7 @@ export function TablesPanel() {
 
   // Moves rewrite `tables` AND `tableGroups` together — group members are
   // schema-qualified strings, so writing one without the other empties them.
-  // Same as the Database tab's applyPlan.
+  // Same as the Schemas tab's applyPlan.
   const moveToSchema = (tableId: string, to: string | null) => {
     const store = useCanvasStore.getState();
     const plan: SchemaEditPlan = moveTableToSchema(tableId, to, store.tables, store.tableGroups);
@@ -876,6 +883,11 @@ export function TablesPanel() {
                           <ChevronDown className="w-3 h-3" />
                         </span>
                         {schemaLabel(schema)}
+                        {groupedBySchema && hiddenSchemas.includes(key) && (
+                          <span className={styles.schemaHidden} title="Hidden on the canvas. Show it from the Schemas tab.">
+                            <EyeOff className="w-3 h-3" />
+                          </span>
+                        )}
                         <span className={styles.schemaCount}>{schemaTables.length}</span>
                       </button>
                       {!isCollapsed && schemaTables.map(renderTable)}

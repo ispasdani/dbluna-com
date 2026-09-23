@@ -1,5 +1,29 @@
 # Schemas Tab, Visibility & Schema Graph — Implementation Plan
 
+## Status (2026-09-23)
+
+**Phases 0–6 are implemented** on `feat/schemas-tab-visibility` (branched from
+`perf/canvas-hover-selection`). The design sections below are kept as written, since they record
+*why*. Each phase ends with an **As built** note recording what shipped and where it departs
+from the plan.
+
+Outstanding:
+
+- [ ] §9 manual checks (regression and new behaviour), by hand.
+- [ ] §7 measurement gate against `next build && next start` on the 428-table schema, dock mounted.
+- [ ] Follow-ups listed under [After Phase 6](#after-phase-6--follow-ups).
+
+Departures worth knowing before reading on:
+
+1. **Phase 4 was decided: stubs, not ghost cards.** It uses a cheap hint (a dashed stub with a label
+   off the visible column) instead of a ghost card at the view edge. See Phase 4.
+2. **Phase 6 shipped the grouping-source switcher** rather than only designing for it. Visibility
+   is now keyed by *group*, where a group is a schema, a DBML TableGroup or an FK cluster.
+3. **`useCanvasStore` was touched once:** a `setAreas` action for Phase 5. §10's "not touched"
+   list is corrected below.
+4. **Areas framing only hidden tables hide with them.** This was not in the plan; Phase 5 made it
+   necessary. See Phase 6.
+
 ## Context
 
 A real customer schema (LeanLinking, SQL Server) landed on the canvas at **428 tables / 672
@@ -114,6 +138,20 @@ alone does not crash.
 **Verify:** both tabs render, drag, dock, close and reopen; rename and move-table still work from the
 new tab; `schema-organization.test.ts` and `schema-namespace.test.ts` untouched and green.
 
+**As built.**
+- `useTableColors` turned out to be used only by `Schemas()`, so it moved with it. Later the
+  panel stopped needing it (see below).
+- The tab also got:
+  - a `schemas` entry in `usePanelStyleStore`, which fills missing keys with defaults, so no
+    migration was needed;
+  - the `Layers` icon in `tabs-dropdown.tsx`'s icon map;
+  - a row in the onboarding modal, which now points at the Schemas tab.
+- The panel header follows the Enums tab: title, count and "Add schema".
+- Its intro line carries the §8 Code-tab warning.
+- **Drag re-render fix:** the panel originally subscribed to `tables`, so it re-rendered on every
+  drag frame. It now subscribes to one id/name/colour string (`panelSignature` in
+  `schemas-panel.tsx`) and reads `tables` imperatively when that string changes.
+
 ---
 
 ## Phase 1 — `hiddenSchemas` and the canvas
@@ -218,6 +256,31 @@ and returns a plan for `tables` + `tableGroups`; do **not** couple it to view st
 This is the same failure mode `applyRenames` already guards for `tableGroups`, and the reason that
 function's docstring calls it "the single most dangerous thing this section can do."
 
+**As built.**
+- **State.** `hiddenSchemas`, `EMPTY_HIDDEN`, `useHiddenSchemas()` and `getHiddenSchemas()` live
+  in `useEditorStore`. The set is persisted in `editor-storage` next to the cameras, so it
+  survives a reload and never syncs.
+- **Helpers.** The store-free helpers are in `lib/schema-visibility.ts`. Phase 6 generalised them
+  from schema keys to any group index; see Phase 6.
+- **Canvas.**
+  - The grouping index and `visibleTables` are computed **only while something is hidden**, so
+    with nothing hidden the canvas does no work at all. That is stricter than the §7 identity
+    rule.
+  - The four swap sites are as planned.
+  - The group-drag start now resolves positions through `tablesById`, so a selected table in a
+    hidden schema is never dragged unseen.
+  - Delete removes only visible selected tables (§8).
+- **Auto-reveal.** `revealTablesOnCanvas` (in `use-diagram-issues.ts`) runs before
+  `focusTableOnCanvas` and `focusRelationshipOnCanvas` move the camera. The app had no general
+  toast, so there is a new `useNoticeStore` + `NoticeToast` mounted on the editor page.
+- **Export.** SVG is cropped to the visible tables; DBML, SQL, JSON and share links always
+  include every table. The only image export is SVG; there is no PNG.
+- **§1f.** There is **one** rename call site, not two: `tables-panel.tsx:330` is `moveToSchema`,
+  and the Tables panel never renames a schema. Renaming *onto an existing* schema merges into it,
+  and the merged tables take the target schema's visibility. The source key is dropped rather
+  than renamed.
+- **Panel.** The Tables panel marks a hidden schema's bucket header with an `EyeOff` glyph.
+
 ---
 
 ## Phase 2 — Toolbar chip
@@ -228,6 +291,20 @@ beside `ArrangeMenu`, opening a popover of the same toggles. Hidden entirely whe
 
 Reads the same `useEditorStore` state. No new state, no duplication of the toggle logic — extract the
 list into a small shared component used by both surfaces.
+
+**As built.**
+- **Shared logic.** A shared *hook*, `useSchemaVisibility` (`use-schema-visibility.ts`), is shared
+  rather than a list component. The toolbar menu and the dock cards look nothing alike, so the
+  shared part is the entries and actions: `toggle`, `showOnly`, `showAll`, `hideAll`.
+- **Menu** (`schemas-menu.tsx`):
+  - per-group switches that keep the menu open;
+  - an "Only" button that appears on hover, closes the menu and fits the view;
+  - Show all / Hide all;
+  - a scrolling list.
+- **Read-only.** The menu is shown in read-only mode too (Free plan, share links), because
+  visibility is a view, not an edit.
+- **Drag cost.** The hook listens to table names, not `tables`, so a drag never re-renders the
+  menu.
 
 ---
 
@@ -274,9 +351,25 @@ schemas turn out denser than expected.
 Memoise on a signature of table **names** plus `relationships`, never on the `tables` array. The panel
 must not recompute during a canvas drag (§7).
 
+**As built.**
+- **Derivation.** `lib/schema-graph.ts`. After Phase 6 it is `buildGroupGraph(grouping,
+  relationships)`, so the graph draws whatever the active source groups by.
+- **Edge carries more.** Each edge also carries `tableIds`.
+- **Edge click.** It shows only that pair and fits the view. The store selects **one**
+  relationship at a time, so:
+  - an edge carrying a single relationship selects that relationship;
+  - otherwise it selects the tables on both ends.
+- **Node re-click.** Clicking the only group shown brings the others back, so the graph can undo
+  itself.
+- **Layout.** Circular, with nodes sized by the square root of the table count and edges bowed
+  toward the centre.
+- **Hover.** Hovering lights a node, its lines and its neighbours.
+- **Keyboard.** Nodes and lines are reachable with Tab and Enter.
+- **Crowding.** With 20+ groups the circle gets crowded; see the follow-ups.
+
 ---
 
-## Phase 4 — Cross-schema stubs *(open decision — do not start without a call)*
+## Phase 4 — Cross-schema stubs *(decided 2026-09-23 — built as a cheap hint)*
 
 With `Auth` hidden and `Billing` shown, every FK from `Billing` into `Auth` currently just vanishes.
 The view becomes a filter you cannot trust: nothing on screen says whether `Billing` is self-contained.
@@ -293,6 +386,30 @@ touches the canvas render path and inherits every compositing constraint documen
 [hover-highlight.ts](../components/diagram-sections/canvas/hover-highlight.ts) — notably that
 `opacity` on a `<g>` allocates a buffer the size of the group.
 
+**Decision and as built.** We chose the ghost-node direction, on the condition that it stays a
+*hint* and costs next to nothing. There is no card at the view edge. Instead:
+
+- **What's drawn.** A short dashed **stub** leaves the visible column toward the hidden table,
+  with a small italic label:
+  - `auth.users` for one hidden table;
+  - `12 in billing` for several in one group;
+  - `5 hidden tables` across groups.
+- **Interaction.** Hovering lists the hidden tables. Clicking reveals their group(s) through
+  `revealTablesOnCanvas`.
+- **One stub per column**, not per relationship (`buildCrossGroupStubs` in
+  `lib/schema-visibility.ts`), so a heavily referenced key draws one hint.
+- **Cost:**
+  - The stub list is memoised on relationships, the hidden set and the grouping, whose own memo
+    runs on names, never positions. It is recomputed on a hide, a rename or a relationship edit,
+    never on a drag.
+  - Only the stub's *direction* reads positions, and only for the stubs' targets.
+  - Placement uses the live column position, as real lines do. There is no routing and no text
+    measurement.
+  - Stubs are culled with their tables.
+- **What is never drawn.** No stubs at `block` LOD, which keeps that zoom level text-free. No
+  text at `compact`. No stubs in exports.
+- **Styling.** Colour and dashes only, with no `opacity` on groups, per the compositor note above.
+
 ---
 
 ## Phase 5 — Draw an Area per schema
@@ -305,9 +422,29 @@ Cheap, and it turns a field of 428 cards into visible districts even with nothin
 `Area` is content (it syncs, unlike `hiddenSchemas`), so this must go through the existing `readOnly`
 gate, and the arrange confirm dialog's one-step undo must restore the areas too, not just positions.
 
+**As built.**
+- **Layout.** `arrangeLayout` in `lib/auto-arrange.ts` returns the moves plus each schema block's
+  rectangle; `autoArrange` keeps its old signature.
+- **Area rules** (`lib/schema-areas.ts`, store-free). Arrange-managed areas carry the id prefix
+  `schema-area:<schema>`, so a re-arrange updates them in place instead of stacking copies, and
+  never touches an area the user drew.
+  - An existing managed area is moved and resized, but keeps the user's title and colour.
+  - A *locked* managed area is left alone, the same rule arrange applies to locked tables.
+  - Unlocked managed areas with no block this time are removed: the schema is gone, or the
+    arrange was by relationships.
+  - Unqualified tables get no area.
+  - With fewer than two blocks there are no areas.
+- **Colours.** Area colours cycle through an 8-colour palette.
+- **Header strip.** The title sits in the existing `GROUP_HEADER` strip (AreaNode draws it 30px
+  above the rectangle).
+- **Store action.** New `setAreas` action in `useCanvasStore`, behind the `readOnly` gate.
+- **Undo.** Undo arrange restores the managed areas as they were and keeps any area drawn since.
+- **Confirm dialog.** It says what happens to areas, and mentions removal only if managed areas
+  exist.
+
 ---
 
-## Phase 6 — Grouping source *(deferred)*
+## Phase 6 — Grouping source *(shipped 2026-09-23; originally deferred)*
 
 **MySQL and SQLite have no schemas** — database *is* schema — so a MySQL import gives one bucket of
 428 tables and Phases 1–4 are a no-op. The fallback is FK-cluster detection (connected components,
@@ -316,6 +453,58 @@ then Louvain) synthesising groups the database never provided.
 Design the panel so the grouping *source* is swappable from day one — `group by: schema /
 table groups / FK clusters` — rather than hardcoding the prefix. Shipping the switcher is deferred;
 not designing for it is not.
+
+**As built: the switcher shipped.**
+
+- **One shape for every source.** `lib/table-grouping.ts` → `buildGrouping(source, tables,
+  relationships, tableGroups)` returns groups plus a table-id → group-key index. Everything that
+  used schema keys now reads that index: the canvas filter, stubs, fit, reveal, Delete, SVG export,
+  the graph and the toolbar menu.
+  - `schema`: unchanged behaviour. The keys are the bare `schemaKey`, so earlier hidden sets are
+    still valid.
+  - `tableGroup`: DBML `TableGroup` blocks in declared order, first group wins, plus a "Not in a
+    group" remainder.
+  - `fkCluster`: `lib/fk-clusters.ts`, Louvain community detection over the undirected
+    relationship graph.
+    - It is deterministic.
+    - Self-references are ignored, and singletons are merged into their strongest neighbour.
+    - Tables with no relationships go into one "No relationships" remainder instead of hundreds
+      of single-table clusters.
+    - Each cluster is named after, and keyed by the id of, its highest-degree table.
+    - Measured at about 2 ms for 428 tables / 672 relationships on a synthetic graph.
+- **Keys are namespaced per source** (control-character prefixes), in the one shared hidden list.
+  Every action rewrites only the active source's keys, so each source keeps its own hidden set
+  across switches.
+- **`groupBy`** is per diagram in `useEditorStore`: persisted, never synced, absent means `schema`.
+- **Panel.**
+  - A segmented Schemas / Table groups / Relationships control.
+  - Add, rename and move stay schema-only.
+  - The other sources render read-only cards (`group-cards.tsx`) with the same visibility
+    controls.
+  - When a source yields only its remainder bucket, the panel says so and offers "Group by
+    relationships instead".
+- **Toolbar menu** label follows the source: Schemas, Groups or Clusters.
+- **Tables panel.** Its hidden-schema marker shows only when grouping by schema.
+- **Not planned: emptied areas.** With Phase 5 drawing an area per schema, hiding a schema left an
+  empty dashed box and made fit frame empty space. `emptiedAreaIds` hides an area whose tables are
+  all hidden: on the canvas, in the minimap and in fit. Areas with no tables inside, or with any
+  visible table, are unaffected.
+
+---
+
+## After Phase 6 — follow-ups
+
+- **Graph crowding.** A large MySQL schema can produce 20+ clusters, which crowds the circular
+  layout. Options: the dagre fallback Phase 3 mentions, or graph only the top N groups plus
+  "others".
+- **Schema rename vs. schema areas.** A managed area's id is `schema-area:<old name>`, so the next
+  arrange after a rename replaces it, losing a custom title or colour. Fix: carry the area id
+  over in the Schemas panel's rename handler, next to `renameHiddenSchema`.
+- **Cluster key churn.** Adding relationships can change a cluster's hub table and so its key.
+  A hidden cluster can then quietly become visible again. That is the safe direction, but worth
+  knowing.
+- **Keyboard access in the toolbar menu.** Show all, Hide all and Only are mouse-only there. The
+  Schemas tab offers all three by keyboard.
 
 ---
 
@@ -365,21 +554,31 @@ validation plus DevTools walking the fiber tree on every commit).
 | Changing a schema prefix **in the Code tab** loses the table's position, colour, lock state and ids — `parsedTablesToCanvasTables` matches on the exact qualified name (`dsl-parser.ts:366`). | Not introduced here, but the Schemas panel is now the supported way to reorganise. Say so in the panel copy. |
 | Relationships survive a rename because they key off table *ids*, never names. | Already asserted in `schema-organization.test.ts`. Keep the assertion. |
 | Compositor layers on this canvas are scarce — `will-change: opacity` on ~200 relationship groups rendered the canvas **blank**. | Phase 4 only. Prefer `stroke-opacity` on leaves over `opacity` on a `<g>`. Verify visually, not by frame rate. |
-| Hiding leaves `selectedTableIds` pointing at invisible tables. | Leave the selection intact (it is not a deletion) but suppress its contribution to `fitDiagramOnCanvas`, and make Delete-key handling ignore hidden ids. |
+| Hiding leaves `selectedTableIds` pointing at invisible tables. | Leave the selection intact (it is not a deletion) but suppress its contribution to `fitDiagramOnCanvas`, and make Delete-key handling ignore hidden ids. **Done.** A group drag also skips hidden selected tables. |
+| A group key collides across sources in the one shared hidden list. | Schema keys are bare; TableGroup and FK-cluster keys carry a control-character prefix no schema name can contain. Asserted in `table-grouping.test.ts`. |
+| `hiddenSchemas` now holds keys from every grouping source. | The name predates Phase 6. It is left as-is to avoid churn, and documented at its declaration in `useEditorStore`. |
+| A per-schema area frames nothing once its schema is hidden. | `emptiedAreaIds` hides such areas on the canvas and in fit (Phase 6 as-built). |
 
 ---
 
 ## §9 Verification checklist
 
 ### Automated
-- [ ] New `lib/__tests__/schema-graph.test.ts`: node/edge counts on a fixture with cross-schema and
-      same-schema refs; `internalRefs` not emitted as an edge; unqualified tables bucket to `null`.
-- [ ] New: `renameHiddenSchema` rewrites the hidden set; a rename with nothing hidden is a no-op.
-- [ ] New: stale hidden names (schema no longer present) are ignored, not crashed on.
-- [ ] New: DBML / SQL / share-link export includes tables in hidden schemas (§1d).
-- [ ] Existing suites green and unchanged: `schema-namespace`, `schema-organization`, `table-groups`,
+- [x] New `lib/__tests__/schema-graph.test.ts`: node/edge counts on a fixture with cross-schema and
+      same-schema refs; `internalRefs` not emitted as an edge; unqualified tables bucket to the
+      remainder node.
+- [x] New: `renameHiddenSchema` rewrites the hidden set; a rename with nothing hidden is a no-op.
+- [x] New: stale hidden names (schema no longer present) are ignored, not crashed on.
+- [x] New: DBML / SQL export includes tables in hidden schemas (§1d). The share-link path wasn't
+      separately asserted: share links encode the full diagram data, which hiding never touches.
+- [x] Beyond the plan:
+  - `schema-visibility.test.ts`: stubs, emptied areas, and per-diagram `groupBy`.
+  - `schema-areas.test.ts`: area rules and undo.
+  - `table-grouping.test.ts`: Louvain splits, determinism, all three sources, key namespacing.
+- [x] Existing suites green and unchanged: `schema-namespace`, `schema-organization`, `table-groups`,
       `dbml-roundtrip`, `auto-arrange`, `hover-highlight`, `share-link-roundtrip`, `canvas-export`.
-- [ ] `tsc --noEmit` clean.
+      291 tests total at Phase 6.
+- [x] `tsc --noEmit` clean.
 
 ### Manual — regression (nothing hidden)
 - [ ] Canvas drag, pan, zoom, marquee, hover glow, focus mode: indistinguishable from `main`.
@@ -401,6 +600,18 @@ validation plus DevTools walking the fiber tree on every commit).
       relationships select.
 - [ ] A diagram with no schema prefixes at all: the panel says so plainly and the toolbar chip is
       absent — no empty affordances.
+- [ ] Hide a schema with visible FKs into it: dashed stubs appear on the visible columns and are
+      labelled at normal zoom. None appear at the lowest zoom, and none in SVG export. Clicking one
+      reveals the schema.
+- [ ] Arrange by schema draws one area per schema. Re-arranging moves them without duplicates.
+  - A renamed or recoloured area keeps its changes.
+  - A locked one stays put.
+  - Undo arrange restores them.
+  - Arrange by relationships removes them, and the dialog says so.
+- [ ] Hide a schema after arrange by schema: its area disappears with it, and fit ignores it.
+- [ ] Group by Relationships on a MySQL import: sensible clusters, a "No relationships" bucket,
+      and the toolbar reads "Clusters". Hide a cluster, switch to Schemas and back: still hidden.
+- [ ] Group by Table groups with no `TableGroup` blocks: the panel says so and offers Relationships.
 
 ---
 
@@ -424,6 +635,23 @@ validation plus DevTools walking the fiber tree on every commit).
 **Not touched:** `convex/schema.ts`, `lib/diagram-envelope.ts`, `useCanvasStore.tsx` (no new fields, no
 new actions), `lib/parser/dsl-parser.ts`, `lib/generator/`, `capabilities-context.tsx`,
 `hooks/use-cloud-autosave.ts`, anything under `components/documentation/`.
+
+**As built:**
+- `useCanvasStore.tsx` gained one action, `setAreas` (Phase 5), and no new fields. Areas already
+  sync, so no persistence or Convex change followed. Everything else on the "not touched" list
+  held.
+- Files added beyond the table above:
+  - `lib/schema-visibility.ts`, `lib/schema-areas.ts`, `lib/table-grouping.ts`,
+    `lib/fk-clusters.ts`;
+  - `components/diagram-general/schema-graph.tsx`, `schemas-menu.tsx`, `group-cards.tsx`,
+    `use-schema-visibility.ts`, `use-grouping.ts`, `notice-toast.tsx`;
+  - `store/useNoticeStore.ts`.
+- Files edited beyond the table above:
+  - `components/diagram-general/arrange-menu.tsx`, `canvas-arrange.ts`, `tabs-dropdown.tsx`,
+    `onboarding-modal.tsx`;
+  - `components/diagram-sections/top-navbar/top-navbar.tsx`;
+  - `store/usePanelStyleStore.tsx`;
+  - `app/(diagram)/d/[id]/page.tsx`, which mounts `NoticeToast`.
 
 That list is the evidence for C1 and D2: the persistence, sync and round-trip paths are all untouched,
 and the one high-risk file is high-risk for a performance reason with a measurement gate attached.

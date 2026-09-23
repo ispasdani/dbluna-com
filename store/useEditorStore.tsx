@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createDebouncedStorage } from "./debounced-storage";
+import { renameInHiddenSet } from "@/lib/schema-visibility";
+import type { GroupSource } from "@/lib/table-grouping";
 
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3.0;
@@ -10,6 +12,13 @@ const clamp = (n: number, min: number, max: number) =>
 
 
 export type Camera = { x: number; y: number; zoom: number };
+
+/**
+ * The hidden set for a diagram with nothing hidden. Module-level so selectors
+ * return the same identity every time — a fresh `[]` per call would hand the
+ * canvas a new array on every render and invalidate every memo downstream.
+ */
+export const EMPTY_HIDDEN: readonly string[] = [];
 
 type EditorState = {
   hasHydrated: boolean;
@@ -42,7 +51,38 @@ type EditorState = {
   // diagram rather than just what's currently on screen. Never persisted.
   isExporting: boolean;
   setIsExporting: (v: boolean) => void;
+
+  // Groups hidden from the canvas, per diagram, keyed like `cameras`. Values
+  // are group keys (lib/table-grouping.ts; for schemas, the bare `schemaKey`),
+  // never table ids: visibility is view state, not content, so it is private
+  // to this browser and never synced. See
+  // release-1-0/schemas-tab-and-visibility-plan.md D2. The name predates the
+  // other grouping sources; keys from every source share this one list. All
+  // actions act on `activeDiagramId`.
+  hiddenSchemas: Record<string, readonly string[]>;
+  setSchemaHidden: (schema: string, hidden: boolean) => void;
+  /** Bulk: "only this one", "show all". */
+  setHiddenSchemas: (schemas: readonly string[]) => void;
+  /** Keeps a hidden schema hidden across a rename. */
+  renameHiddenSchema: (from: string, to: string) => void;
+
+  // What "a group" means for this diagram — schemas, DBML TableGroups or FK
+  // clusters. Per diagram, view state like the rest; absent means "schema".
+  groupBy: Record<string, GroupSource>;
+  setGroupBy: (source: GroupSource) => void;
 };
+
+/** Writes one diagram's hidden set, dropping the entry once it is empty. */
+function withHidden(
+  all: Record<string, readonly string[]>,
+  diagramId: string,
+  next: readonly string[]
+): Record<string, readonly string[]> {
+  const out = { ...all };
+  if (next.length === 0) delete out[diagramId];
+  else out[diagramId] = next;
+  return out;
+}
 
 export const useEditorStore = create<EditorState>()(
   persist(
@@ -125,6 +165,38 @@ export const useEditorStore = create<EditorState>()(
 
       isExporting: false,
       setIsExporting: (v) => set({ isExporting: v }),
+
+      hiddenSchemas: {},
+      setSchemaHidden: (schema, hidden) => {
+        const { activeDiagramId: id, hiddenSchemas } = get();
+        if (!id) return;
+        const current = hiddenSchemas[id] ?? EMPTY_HIDDEN;
+        if (current.includes(schema) === hidden) return;
+        const next = hidden ? [...current, schema] : current.filter((k) => k !== schema);
+        set({ hiddenSchemas: withHidden(hiddenSchemas, id, next) });
+      },
+      setHiddenSchemas: (schemas) => {
+        const { activeDiagramId: id, hiddenSchemas } = get();
+        if (!id) return;
+        set({ hiddenSchemas: withHidden(hiddenSchemas, id, [...new Set(schemas)]) });
+      },
+      groupBy: {},
+      setGroupBy: (source) => {
+        const { activeDiagramId: id, groupBy } = get();
+        if (!id || (groupBy[id] ?? "schema") === source) return;
+        const next = { ...groupBy };
+        if (source === "schema") delete next[id];
+        else next[id] = source;
+        set({ groupBy: next });
+      },
+      renameHiddenSchema: (from, to) => {
+        const { activeDiagramId: id, hiddenSchemas } = get();
+        if (!id) return;
+        const current = hiddenSchemas[id] ?? EMPTY_HIDDEN;
+        const next = renameInHiddenSet(current, from, to);
+        if (next === current) return;
+        set({ hiddenSchemas: withHidden(hiddenSchemas, id, next) });
+      },
     }),
     {
       name: "editor-storage",
@@ -136,14 +208,34 @@ export const useEditorStore = create<EditorState>()(
         useEditorStore.setState({ hasHydrated: true });
       },
       partialize: (state) => {
-        const { activeDiagramId, cameras, camera } = state;
+        const { activeDiagramId, cameras, camera, hiddenSchemas, groupBy } = state;
         const newCameras = { ...cameras };
         if (activeDiagramId) {
           newCameras[activeDiagramId] = camera;
         }
         // hasHydrated is intentionally NOT here — runtime-only.
-        return { cameras: newCameras };
+        return { cameras: newCameras, hiddenSchemas, groupBy };
       },
     }
   )
 );
+
+/** The active diagram's hidden schema keys. Identity-stable while unchanged. */
+export const useHiddenSchemas = (): readonly string[] =>
+  useEditorStore((s) => s.hiddenSchemas[s.activeDiagramId ?? ""] ?? EMPTY_HIDDEN);
+
+/** Non-reactive read of the same, for event handlers and imperative helpers. */
+export function getHiddenSchemas(): readonly string[] {
+  const { hiddenSchemas, activeDiagramId } = useEditorStore.getState();
+  return hiddenSchemas[activeDiagramId ?? ""] ?? EMPTY_HIDDEN;
+}
+
+/** The active diagram's grouping source. */
+export const useGroupSource = (): GroupSource =>
+  useEditorStore((s) => s.groupBy[s.activeDiagramId ?? ""] ?? "schema");
+
+/** Non-reactive read of the same. */
+export function getGroupSource(): GroupSource {
+  const { groupBy, activeDiagramId } = useEditorStore.getState();
+  return groupBy[activeDiagramId ?? ""] ?? "schema";
+}

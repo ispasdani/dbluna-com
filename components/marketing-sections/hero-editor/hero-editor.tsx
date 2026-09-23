@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   animate,
+  AnimatePresence,
   motion,
   useInView,
   useMotionValue,
@@ -17,9 +18,12 @@ import {
   Copy,
   Download,
   Eye,
+  EyeOff,
   FileText,
+  Focus,
   HardDrive,
   History,
+  Layers,
   Minus,
   Moon,
   Palette,
@@ -41,6 +45,7 @@ import { DbLunaFuturistic } from "@/components/uiJsxAssets/dbluna-logo";
 import { cn } from "@/lib/utils";
 import {
   LINKS,
+  SCHEMA_NAMES,
   TABLES,
   TABLE_W,
   HEAD,
@@ -49,9 +54,12 @@ import {
   buildDbml,
   colTokens,
   endPoint,
+  heroStubs,
   lineLength,
   route,
   rowY,
+  schemaGraph,
+  schemaTables,
   tableH,
   type CodeLine,
   type HeroLinkDef,
@@ -62,8 +70,11 @@ import {
 /* ─────────────────────────────────────────────────────────────────────────────
    The hero's picture of the editor: top navbar, tab bar, Code dock and canvas,
    drawn at a fixed 1440 × 810 and scaled to fit. On a loop it lights up
-   relationships (with the matching DBML line), drags a table, and types a new
-   column that appears on the canvas. Pure markup — no stores, no Convex.
+   relationships (with the matching DBML line), drags a table, types a new
+   column that appears on the canvas, then opens the Schemas tab, hides two
+   schemas (one from the tab, one from the toolbar's Schemas menu) — leaving
+   dashed stubs where their relationships went — and shows them again.
+   Pure markup — no stores, no Convex.
    Keep it roughly in step with app/(diagram)/d/[id]/page.tsx.
 ───────────────────────────────────────────────────────────────────────────── */
 
@@ -80,7 +91,18 @@ const INTRO_DELAY = 1.1; // the hero wrapper fades in after 1s
 const DRAG_DY = 80;
 const TYPED_FULL = lineLength(colTokens(TYPED_COL));
 
-type StepId = "l1" | "l3" | "dragDown" | "l8" | "type" | "dragUp" | "l4";
+type StepId =
+  | "l1"
+  | "l3"
+  | "dragDown"
+  | "l8"
+  | "type"
+  | "dragUp"
+  | "l4"
+  | "schemasTab"
+  | "hideAuth"
+  | "hideCatalog"
+  | "showAll";
 const STEPS: { id: StepId; ms: number }[] = [
   { id: "l1", ms: 2600 },
   { id: "l3", ms: 2600 },
@@ -89,7 +111,14 @@ const STEPS: { id: StepId; ms: number }[] = [
   { id: "type", ms: 3400 },
   { id: "dragUp", ms: 2800 },
   { id: "l4", ms: 2600 },
+  { id: "schemasTab", ms: 2200 },
+  { id: "hideAuth", ms: 2800 },
+  { id: "hideCatalog", ms: 3800 },
+  { id: "showAll", ms: 3200 },
 ];
+// Steps whose pointer targets are measured from the DOM (their controls sit in
+// laid-out HTML — the dock and the centred toolbar — not at fixed coordinates).
+const AIMED: StepId[] = ["schemasTab", "hideAuth", "hideCatalog", "showAll"];
 const INTRO_MS = 4200;
 
 type Pt = { x: number; y: number };
@@ -107,6 +136,7 @@ const CURSOR_AT: Record<string, Pt> = {
 };
 
 type SaveState = "idle" | "saving" | "saved";
+type DockTab = "code" | "schemas";
 
 export function HeroEditor() {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -125,6 +155,26 @@ export function HeroEditor() {
   const saveTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const dragY = useMotionValue(0);
 
+  // The Schemas segment: which dock tab shows, which schemas are hidden, the
+  // toolbar menu, and where the pointer is aimed (measured from the DOM).
+  const stageRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(0);
+  const [dockTab, setDockTab] = useState<DockTab>("code");
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [aim, setAim] = useState<Pt | null>(null);
+  const [clicking, setClicking] = useState(false);
+
+  // Centre of a `data-hero` element, in editor coordinates.
+  const aimAt = (target: string) => {
+    const el = stageRef.current?.querySelector(`[data-hero="${target}"]`);
+    const stage = stageRef.current?.getBoundingClientRect();
+    const k = scaleRef.current;
+    if (!el || !stage || !k) return;
+    const r = el.getBoundingClientRect();
+    setAim({ x: (r.left + r.width / 2 - stage.left) / k, y: (r.top + r.height / 2 - stage.top) / k });
+  };
+
   // Saving chip: Saving… → Saved → Saved on this device.
   const flashSave = () => {
     saveTimers.current.forEach(clearTimeout);
@@ -137,7 +187,10 @@ export function HeroEditor() {
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setScale(e.contentRect.width / W));
+    const ro = new ResizeObserver(([e]) => {
+      scaleRef.current = e.contentRect.width / W;
+      setScale(scaleRef.current);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -167,9 +220,38 @@ export function HeroEditor() {
     if (!stepId) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
+    const tap = (ms: number, fn: () => void) => {
+      at(ms, () => {
+        setClicking(true);
+        fn();
+      });
+      at(ms + 160, () => setClicking(false));
+    };
     let typing: ReturnType<typeof setInterval> | undefined;
 
-    if (stepId === "dragDown" || stepId === "dragUp") {
+    if (stepId === "l1") {
+      // A new pass starts from the plain editor, whatever the last one left.
+      setDockTab("code");
+      setHidden([]);
+      setMenuOpen(false);
+    } else if (stepId === "schemasTab") {
+      at(0, () => aimAt("tab-schemas"));
+      tap(800, () => setDockTab("schemas"));
+    } else if (stepId === "hideAuth") {
+      at(100, () => aimAt("eye-auth"));
+      tap(950, () => setHidden((h) => [...h, "auth"]));
+    } else if (stepId === "hideCatalog") {
+      at(0, () => aimAt("schemas-chip"));
+      tap(800, () => setMenuOpen(true));
+      at(1350, () => aimAt("menu-catalog"));
+      tap(2150, () => setHidden((h) => [...h, "catalog"]));
+      at(3100, () => setMenuOpen(false));
+    } else if (stepId === "showAll") {
+      at(0, () => aimAt("show-all"));
+      tap(800, () => setHidden([]));
+      at(1500, () => aimAt("tab-code"));
+      tap(2300, () => setDockTab("code"));
+    } else if (stepId === "dragDown" || stepId === "dragUp") {
       at(750, () => {
         setDragStep(stepKey);
         setPressStep(stepKey);
@@ -198,12 +280,14 @@ export function HeroEditor() {
       if (typing) clearInterval(typing);
       // Leaving a step early (hero scrolled away) must not strand it half-done.
       setPressStep(-1);
+      setClicking(false);
       if (typingNow) setTyped(TYPED_FULL);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per step
   }, [stepId, typingNow]);
 
   const cursor = (() => {
+    if (stepId && AIMED.includes(stepId)) return { ...(aim ?? CURSOR_AT.l4), dur: 0.7 };
     if (stepId === "dragDown" || stepId === "dragUp") {
       const down = stepId === "dragDown";
       const moving = dragStep === stepKey;
@@ -213,7 +297,7 @@ export function HeroEditor() {
     if (stepId === "type") return { ...(typingNow ? CURSOR_AT.type : CURSOR_AT.l2), dur: 0.8 };
     return { ...CURSOR_AT[stepId ?? "intro"], dur: 0.7 };
   })();
-  const pressed = pressStep === stepKey && step >= 0;
+  const pressed = (pressStep === stepKey && step >= 0) || clicking;
 
   const typedChars = reduce ? TYPED_FULL : typed;
   const typedDone = typedChars === TYPED_FULL;
@@ -244,17 +328,22 @@ export function HeroEditor() {
 
   const drawn = started || !!reduce;
 
+  const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
+  const stubs = useMemo(() => heroStubs(hiddenSet), [hiddenSet]);
+  const isHidden = (tableId: string) => hiddenSet.has(TABLES.find((t) => t.id === tableId)!.schema);
+
   return (
     <div
       ref={boxRef}
       role="img"
-      aria-label="The DBLuna editor: DBML code on the left, the matching tables and relationships on the canvas."
+      aria-label="The DBLuna editor: DBML code and the Schemas tab on the left, the matching tables and relationships on the canvas, with schemas switched off and back on."
       className="relative w-full overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_40px_-12px_rgb(0_0_0/0.18)] dark:border-neutral-700 dark:bg-neutral-900"
       style={{ aspectRatio: `${W} / ${H}` }}
     >
       <div
         aria-hidden
         className="absolute top-0 left-0 origin-top-left text-neutral-800 select-none dark:text-neutral-200"
+        ref={stageRef}
         style={{ width: W, height: H, transform: `scale(${scale})`, visibility: scale ? "visible" : "hidden" }}
       >
         <TopNavbar save={save} />
@@ -272,6 +361,7 @@ export function HeroEditor() {
                 key={l.id}
                 def={l}
                 lit={l.id === litId}
+                hidden={isHidden(l.from.table) || isHidden(l.to.table)}
                 dragY={dragY}
                 drawn={drawn}
                 delay={reduce ? 0 : INTRO_DELAY + 0.8 + i * 0.07}
@@ -288,19 +378,31 @@ export function HeroEditor() {
                 ]}
                 offsetY={t.id === "categories" ? dragY : undefined}
                 shown={drawn}
+                hidden={hiddenSet.has(t.schema)}
                 delay={reduce ? 0 : INTRO_DELAY + i * 0.07}
               />
             ))}
+            <AnimatePresence>
+              {stubs.map((st) => (
+                <CrossSchemaStub key={`${st.table}:${st.row}`} stub={st} />
+              ))}
+            </AnimatePresence>
           </svg>
 
-          <FloatingToolbar />
-          <Minimap dragY={dragY} />
+          <FloatingToolbar hidden={hiddenSet} menuOpen={menuOpen} />
+          <Minimap dragY={dragY} hidden={hiddenSet} />
           <div className="absolute right-4 flex size-9 items-center justify-center rounded-lg bg-brand text-white shadow-md" style={{ top: 534 }}>
             <WandSparkles className="size-4" />
           </div>
         </div>
 
-        <CodeDock lines={lines} focusLine={focusLine} typing={typingNow && typedChars !== null && !typedDone} />
+        <CodeDock
+          tab={dockTab}
+          hidden={hiddenSet}
+          lines={lines}
+          focusLine={focusLine}
+          typing={typingNow && typedChars !== null && !typedDone}
+        />
 
         {/* Pointer */}
         {!reduce && (
@@ -445,15 +547,16 @@ function TabBar() {
       <Btn variant="outlined">
         <PanelsTopLeft />
         Tabs
-        <span className="rounded bg-indigo-500/12 px-1 text-[10px] leading-4 text-indigo-600 dark:text-indigo-300">9</span>
+        <span className="rounded bg-indigo-500/12 px-1 text-[10px] leading-4 text-indigo-600 dark:text-indigo-300">10</span>
         <ChevronDown className="!size-3 text-neutral-400" />
       </Btn>
     </div>
   );
 }
 
-function FloatingToolbar() {
+function FloatingToolbar({ hidden, menuOpen }: { hidden: ReadonlySet<string>; menuOpen: boolean }) {
   const item = "flex h-7 items-center gap-1.5 rounded-md px-2 [&_svg]:size-3.5";
+  const shown = SCHEMA_NAMES.length - hidden.size;
   return (
     <div
       className="absolute bottom-4 flex h-10 -translate-x-1/2 items-center gap-0.5 rounded-xl border border-neutral-200 bg-white px-1.5 text-[12px] font-medium text-neutral-700 shadow-[0_4px_16px_-4px_rgb(0_0_0/0.12)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
@@ -470,6 +573,21 @@ function FloatingToolbar() {
       <span className={item}>
         <Square />
         Area
+      </span>
+      <Divider />
+      {/* The Schemas menu: switch schemas on and off without opening the dock. */}
+      <span
+        data-hero="schemas-chip"
+        className={cn(item, "relative", (menuOpen || hidden.size > 0) && "text-teal-600 dark:text-teal-400")}
+      >
+        <Layers />
+        Schemas
+        <span className={cn("tabular-nums", hidden.size > 0 ? "font-semibold" : "text-neutral-400")}>
+          {shown}/{SCHEMA_NAMES.length}
+        </span>
+        <AnimatePresence>
+          {menuOpen && <SchemasMenu hidden={hidden} />}
+        </AnimatePresence>
       </span>
       <Divider />
       <span className={cn(item, "text-neutral-500")}>
@@ -495,7 +613,7 @@ function FloatingToolbar() {
   );
 }
 
-function Minimap({ dragY }: { dragY: MotionValue<number> }) {
+function Minimap({ dragY, hidden }: { dragY: MotionValue<number>; hidden: ReadonlySet<string> }) {
   const mapW = 176;
   const mapH = 112;
   // Same framing as the canvas, plus a margin so the tables sit inside.
@@ -517,7 +635,9 @@ function Minimap({ dragY }: { dragY: MotionValue<number> }) {
             height={tableH(t.cols.length)}
             rx={12}
             fill={t.color}
-            fillOpacity={0.35}
+            initial={false}
+            animate={{ fillOpacity: hidden.has(t.schema) ? 0 : 0.35 }}
+            transition={{ duration: 0.35 }}
             style={t.id === "categories" ? { y: dragY } : undefined}
           />
         ))}
@@ -539,7 +659,19 @@ const TOKEN_CLASS: Record<TokenKind, string> = {
   plain: "",
 };
 
-function CodeDock({ lines, focusLine, typing }: { lines: CodeLine[]; focusLine: number; typing: boolean }) {
+function CodeDock({
+  tab,
+  hidden,
+  lines,
+  focusLine,
+  typing,
+}: {
+  tab: DockTab;
+  hidden: ReadonlySet<string>;
+  lines: CodeLine[];
+  focusLine: number;
+  typing: boolean;
+}) {
   const maxScroll = Math.max(0, lines.length - VISIBLE_LINES);
   const scroll = focusLine < 0 ? 0 : Math.min(maxScroll, Math.max(0, focusLine - 9));
   const thumbH = (VISIBLE_LINES / lines.length) * CODE_AREA_H;
@@ -554,98 +686,122 @@ function CodeDock({ lines, focusLine, typing }: { lines: CodeLine[]; focusLine: 
     >
       {/* Tabs */}
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-neutral-200 px-2 text-[12px] dark:border-neutral-800">
-        <span className="flex h-7 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 font-medium shadow-sm dark:border-neutral-700 dark:bg-neutral-800">
+        <DockTabLabel active={tab === "code"} target="tab-code">
           Code
-          <X className="size-3 text-neutral-400" />
-        </span>
+        </DockTabLabel>
         <span className="px-2 text-neutral-500">Database</span>
+        <DockTabLabel active={tab === "schemas"} target="tab-schemas">
+          Schemas
+        </DockTabLabel>
         <span className="flex items-center gap-1 px-2 text-neutral-500">
           Issues
           <span className="rounded bg-amber-500/15 px-1 text-[10px] leading-4 font-medium text-amber-600">2</span>
         </span>
-        <span className="px-2 text-neutral-500">Templates</span>
         <ChevronRight className="ml-auto size-3.5 text-neutral-400" />
       </div>
 
-      {/* Format */}
-      <div className="flex h-[38px] shrink-0 items-center justify-between px-2 text-[11.5px]">
-        <span className="flex items-center rounded-md bg-neutral-100 p-0.5 dark:bg-neutral-800">
-          <span className="rounded bg-white px-2 py-0.5 font-medium shadow-sm dark:bg-neutral-700">DBML</span>
-          <span className="px-2 py-0.5 text-neutral-500">JSON</span>
-          <span className="px-2 py-0.5 text-neutral-500">Mermaid</span>
-        </span>
-        <span className="flex items-center gap-3 pr-1.5 text-neutral-400">
-          <Copy className="size-3.5" />
-          <Download className="size-3.5" />
-        </span>
-      </div>
+      {tab === "schemas" ? (
+        <SchemasPanel hidden={hidden} />
+      ) : (
+        <>
+          {/* Format */}
+          <div className="flex h-[38px] shrink-0 items-center justify-between px-2 text-[11.5px]">
+            <span className="flex items-center rounded-md bg-neutral-100 p-0.5 dark:bg-neutral-800">
+              <span className="rounded bg-white px-2 py-0.5 font-medium shadow-sm dark:bg-neutral-700">DBML</span>
+              <span className="px-2 py-0.5 text-neutral-500">JSON</span>
+              <span className="px-2 py-0.5 text-neutral-500">Mermaid</span>
+            </span>
+            <span className="flex items-center gap-3 pr-1.5 text-neutral-400">
+              <Copy className="size-3.5" />
+              <Download className="size-3.5" />
+            </span>
+          </div>
 
-      {/* Editor */}
-      <div className="relative min-h-0 flex-1 overflow-hidden border-t border-neutral-100 font-mono text-[11.5px] dark:border-neutral-800">
-        <motion.div
-          initial={false}
-          animate={{ y: -scroll * LINE_H }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
-          className="pt-1"
-        >
-          {lines.map((line, i) => {
-            const active = i === focusLine;
-            return (
-              <div
-                key={i}
-                className={cn("flex items-center transition-colors duration-300", active && "bg-indigo-500/[0.08]")}
-                style={{ height: LINE_H }}
-              >
-                <span
-                  className={cn(
-                    "w-10 shrink-0 pr-3 text-right tabular-nums",
-                    active ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-600",
-                  )}
-                >
-                  {i + 1}
-                </span>
-                <span className="whitespace-pre">
-                  {line.tokens.map((tok, j) => (
-                    <span key={j} className={TOKEN_CLASS[tok.kind]}>
-                      {tok.text}
-                      {j === 0 && line.dot && (
-                        <span className="mx-1 inline-block size-[7px] rounded-[2px] align-middle" style={{ background: line.dot }} />
+          {/* Editor */}
+          <div className="relative min-h-0 flex-1 overflow-hidden border-t border-neutral-100 font-mono text-[11.5px] dark:border-neutral-800">
+            <motion.div
+              initial={false}
+              animate={{ y: -scroll * LINE_H }}
+              transition={{ duration: 0.6, ease: "easeInOut" }}
+              className="pt-1"
+            >
+              {lines.map((line, i) => {
+                const active = i === focusLine;
+                return (
+                  <div
+                    key={i}
+                    className={cn("flex items-center transition-colors duration-300", active && "bg-indigo-500/[0.08]")}
+                    style={{ height: LINE_H }}
+                  >
+                    <span
+                      className={cn(
+                        "w-10 shrink-0 pr-3 text-right tabular-nums",
+                        active ? "text-neutral-700 dark:text-neutral-200" : "text-neutral-400 dark:text-neutral-600",
+                      )}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="whitespace-pre">
+                      {line.tokens.map((tok, j) => (
+                        <span key={j} className={TOKEN_CLASS[tok.kind]}>
+                          {tok.text}
+                          {j === 0 && line.dot && (
+                            <span className="mx-1 inline-block size-[7px] rounded-[2px] align-middle" style={{ background: line.dot }} />
+                          )}
+                        </span>
+                      ))}
+                      {line.typed && typing && (
+                        <span className="ml-px inline-block h-[13px] w-px animate-pulse bg-neutral-800 align-middle dark:bg-neutral-200" />
                       )}
                     </span>
-                  ))}
-                  {line.typed && typing && (
-                    <span className="ml-px inline-block h-[13px] w-px animate-pulse bg-neutral-800 align-middle dark:bg-neutral-200" />
-                  )}
-                </span>
-              </div>
-            );
-          })}
-        </motion.div>
+                  </div>
+                );
+              })}
+            </motion.div>
 
-        {/* Scrollbar */}
-        <motion.span
-          className="absolute right-1 w-1.5 rounded-full bg-neutral-300 dark:bg-neutral-700"
-          initial={false}
-          animate={{ top: thumbTop, height: thumbH }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
-        />
-      </div>
+            {/* Scrollbar */}
+            <motion.span
+              className="absolute right-1 w-1.5 rounded-full bg-neutral-300 dark:bg-neutral-700"
+              initial={false}
+              animate={{ top: thumbTop, height: thumbH }}
+              transition={{ duration: 0.6, ease: "easeInOut" }}
+            />
+          </div>
 
-      {/* Status */}
-      <div className="flex h-7 shrink-0 items-center gap-3 border-t border-neutral-200 px-2 text-[10.5px] text-neutral-500 dark:border-neutral-800">
-        <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          Synced with canvas
-        </span>
-        <span className="ml-auto">
-          {TABLES.length} tables · {LINKS.length} refs
-        </span>
-        <span className="tabular-nums">
-          Ln {focusLine < 0 ? 1 : focusLine + 1}, Col {col}
-        </span>
-        <span>DBML</span>
-      </div>
+          {/* Status */}
+          <div className="flex h-7 shrink-0 items-center gap-3 border-t border-neutral-200 px-2 text-[10.5px] text-neutral-500 dark:border-neutral-800">
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              Synced with canvas
+            </span>
+            <span className="ml-auto">
+              {TABLES.length} tables · {LINKS.length} refs
+            </span>
+            <span className="tabular-nums">
+              Ln {focusLine < 0 ? 1 : focusLine + 1}, Col {col}
+            </span>
+            <span>DBML</span>
+          </div>
+        </>
+      )}
     </aside>
+  );
+}
+
+function DockTabLabel({ active, target, children }: { active: boolean; target: string; children: React.ReactNode }) {
+  return (
+    <span
+      data-hero={target}
+      className={cn(
+        "flex h-7 items-center gap-1.5 rounded-md border px-2.5",
+        active
+          ? "border-neutral-200 bg-white font-medium shadow-sm dark:border-neutral-700 dark:bg-neutral-800"
+          : "border-transparent text-neutral-500",
+      )}
+    >
+      {children}
+      {active && <X className="size-3 text-neutral-400" />}
+    </span>
   );
 }
 
@@ -666,6 +822,7 @@ function TableCard({
   litRows,
   offsetY,
   shown,
+  hidden,
   delay,
 }: {
   t: HeroTable;
@@ -673,12 +830,18 @@ function TableCard({
   litRows: number[];
   offsetY?: MotionValue<number>;
   shown: boolean;
+  hidden: boolean;
   delay: number;
 }) {
   const cols = extraCol ? [...t.cols, TYPED_COL] : t.cols;
   const newRow = t.cols.length;
   return (
-    <motion.g style={offsetY ? { y: offsetY } : undefined}>
+    <motion.g
+      style={offsetY ? { y: offsetY } : undefined}
+      initial={false}
+      animate={{ opacity: hidden ? 0 : 1 }}
+      transition={{ duration: 0.35 }}
+    >
       <motion.g
         initial={{ opacity: 0, y: -10 }}
         animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: -10 }}
@@ -789,12 +952,14 @@ function TableCard({
 function Relationship({
   def,
   lit,
+  hidden,
   dragY,
   drawn,
   delay,
 }: {
   def: HeroLinkDef;
   lit: boolean;
+  hidden: boolean;
   dragY: MotionValue<number>;
   drawn: boolean;
   delay: number;
@@ -811,7 +976,7 @@ function Relationship({
   const ends = lit ? { stroke: ACCENT } : { className: quiet };
 
   return (
-    <g>
+    <motion.g initial={false} animate={{ opacity: hidden ? 0 : 1 }} transition={{ duration: 0.35 }}>
       <motion.path
         d={d}
         fill="none"
@@ -843,7 +1008,295 @@ function Relationship({
         <motion.line style={{ y: mvA }} x1={a.x + dirA * 8} x2={a.x + dirA * 8} y1={a.y - 5} y2={a.y + 5} {...ends} />
         <motion.path style={{ y: mvB }} d={`M${b.x} ${b.y - 5}L${b.x + dirB * 10} ${b.y}L${b.x} ${b.y + 5}`} {...ends} />
       </motion.g>
-    </g>
+    </motion.g>
   );
 }
 
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+/** A hidden table's hint: a short dashed run out of the visible column, and its name. */
+function CrossSchemaStub({ stub }: { stub: ReturnType<typeof heroStubs>[number] }) {
+  const t = TABLES.find((x) => x.id === stub.table)!;
+  const dir = stub.side === "R" ? 1 : -1;
+  const x = stub.side === "R" ? t.x + TABLE_W : t.x;
+  const y = rowY(t.y, stub.row);
+  const ex = x + dir * 34;
+  return (
+    <motion.g
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35, delay: 0.15 }}
+    >
+      <path
+        d={`M${x} ${y}H${ex}`}
+        fill="none"
+        strokeWidth={1.5}
+        strokeDasharray="4 3"
+        className="stroke-neutral-400 dark:stroke-neutral-500"
+      />
+      <circle
+        cx={ex}
+        cy={y}
+        r={3}
+        strokeWidth={1.5}
+        className="fill-neutral-50 stroke-neutral-400 dark:fill-neutral-950 dark:stroke-neutral-500"
+      />
+      <text
+        x={ex + dir * 7}
+        y={y}
+        dominantBaseline="central"
+        textAnchor={dir === 1 ? "start" : "end"}
+        fontSize={11.5}
+        fontStyle="italic"
+        paintOrder="stroke"
+        strokeWidth={4}
+        strokeLinejoin="round"
+        className="fill-neutral-500 stroke-neutral-50 dark:fill-neutral-400 dark:stroke-neutral-950"
+      >
+        {stub.label}
+      </text>
+    </motion.g>
+  );
+}
+
+function SchemaGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinejoin="round">
+      <path d="M1.2 3.2a1 1 0 0 1 1-1h2.4l1.2 1.3h4a1 1 0 0 1 1 1v4.8a1 1 0 0 1-1 1H2.2a1 1 0 0 1-1-1Z" />
+    </svg>
+  );
+}
+
+function Switch({ on }: { on: boolean }) {
+  return (
+    <span
+      className={cn(
+        "relative h-[18px] w-[30px] shrink-0 rounded-full transition-colors duration-200",
+        on ? "bg-indigo-500" : "bg-neutral-300 dark:bg-neutral-700",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200",
+          on && "translate-x-3",
+        )}
+      />
+    </span>
+  );
+}
+
+/** The toolbar's Schemas menu, opening upwards from the chip. */
+function SchemasMenu({ hidden }: { hidden: ReadonlySet<string> }) {
+  return (
+    <motion.span
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.15 }}
+      className="absolute bottom-full left-1/2 mb-3 flex w-[236px] -translate-x-1/2 flex-col rounded-xl border border-neutral-200 bg-white p-1.5 text-neutral-800 shadow-[0_12px_32px_rgb(0_0_0/0.12)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+    >
+      <span className="flex items-center gap-2.5 px-2 pt-1.5 pb-1 text-[10px] font-semibold tracking-[0.06em] text-neutral-400 uppercase">
+        <span className="flex-1">Show on the canvas</span>
+        <span className="font-medium tracking-normal text-indigo-500 normal-case">Show all</span>
+      </span>
+      {SCHEMA_NAMES.map((schema) => {
+        const on = !hidden.has(schema);
+        return (
+          <span key={schema} data-hero={`menu-${schema}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+            <span
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md transition-colors duration-200",
+                on ? "bg-indigo-500/12 text-indigo-500" : "bg-neutral-100 text-neutral-400 dark:bg-neutral-800",
+              )}
+            >
+              <SchemaGlyph />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col text-[12.5px] leading-tight">
+              {schema}
+              <small className="text-[11px] text-neutral-400">{schemaTables(schema).length} tables</small>
+            </span>
+            <Switch on={on} />
+          </span>
+        );
+      })}
+    </motion.span>
+  );
+}
+
+/** The dock's Schemas tab: group-by switch, the schema graph, and a card per schema. */
+function SchemasPanel({ hidden }: { hidden: ReadonlySet<string> }) {
+  const shown = SCHEMA_NAMES.length - hidden.size;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col text-[12px]">
+      <div className="flex flex-col gap-2.5 border-b border-neutral-200 px-4 pt-3.5 pb-3 dark:border-neutral-800">
+        <div className="flex items-center gap-2">
+          <span className="text-[14px] font-semibold">Schemas</span>
+          <span className="rounded-md bg-neutral-100 px-1.5 text-[11px] text-neutral-500 dark:bg-neutral-800">
+            {SCHEMA_NAMES.length}
+          </span>
+          <span className="ml-auto flex h-7 items-center gap-1 rounded-lg bg-indigo-500 px-2.5 text-[11.5px] font-medium text-white">
+            <Plus className="size-3.5" />
+            Add schema
+          </span>
+        </div>
+        <span className="grid grid-cols-3 gap-0.5 rounded-lg bg-neutral-100 p-0.5 text-[11px] dark:bg-neutral-800">
+          <span className="rounded-md bg-white py-1 text-center font-medium shadow-sm dark:bg-neutral-700">Schemas</span>
+          <span className="py-1 text-center text-neutral-500">Table groups</span>
+          <span className="py-1 text-center text-neutral-500">Relationships</span>
+        </span>
+        <span className="flex items-center gap-2.5 text-[11.5px] text-neutral-500">
+          <span className="flex-1">
+            {hidden.size === 0 ? "All schemas on the canvas" : `${shown} of ${SCHEMA_NAMES.length} on the canvas`}
+          </span>
+          <span
+            data-hero="show-all"
+            className={cn("font-medium", hidden.size ? "text-indigo-500" : "text-neutral-300 dark:text-neutral-600")}
+          >
+            Show all
+          </span>
+          <span className="font-medium text-indigo-500">Hide all</span>
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden p-3">
+        <SchemaGraphMini hidden={hidden} />
+        {SCHEMA_NAMES.map((schema) => {
+          const off = hidden.has(schema);
+          const tables = schemaTables(schema);
+          return (
+            <div
+              key={schema}
+              className="shrink-0 overflow-hidden rounded-[10px] border border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900"
+            >
+              <div className="flex h-[34px] items-center gap-2 px-3">
+                <ChevronDown className="size-3 -rotate-90 text-neutral-400" />
+                <span
+                  className={cn(
+                    "flex size-5 items-center justify-center rounded-md bg-indigo-500/12 text-indigo-500 transition-opacity duration-300",
+                    off && "opacity-50",
+                  )}
+                >
+                  <SchemaGlyph />
+                </span>
+                <span className={cn("font-semibold transition-opacity duration-300", off && "opacity-50")}>{schema}</span>
+                <span className="ml-auto text-[10.5px] font-medium text-neutral-400">{tables.length} tables</span>
+                <span className="flex size-6 items-center justify-center text-neutral-400">
+                  <Focus className="size-3.5" />
+                </span>
+                <span
+                  data-hero={`eye-${schema}`}
+                  className={cn(
+                    "-mr-1.5 flex size-6 items-center justify-center rounded-md",
+                    off ? "text-neutral-600 dark:text-neutral-300" : "text-neutral-400",
+                  )}
+                >
+                  {off ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </span>
+              </div>
+              <div className={cn("flex flex-wrap gap-1.5 px-3 pb-2.5 transition-opacity duration-300", off && "opacity-50")}>
+                {tables.map((t) => (
+                  <span
+                    key={t.id}
+                    className="flex items-center gap-1.5 rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] dark:bg-neutral-800"
+                  >
+                    <i className="size-[7px] rounded-[2px]" style={{ background: t.color }} />
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const GRAPH = schemaGraph();
+
+/** Which schema talks to which: a ring of schemas, line width by relationship count. */
+function SchemaGraphMini({ hidden }: { hidden: ReadonlySet<string> }) {
+  const gw = 334;
+  const gh = 150;
+  const cx = gw / 2;
+  const cy = gh / 2;
+  const max = Math.max(...GRAPH.nodes.map((n) => n.tables));
+  const pos = new Map(
+    GRAPH.nodes.map((n, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / GRAPH.nodes.length;
+      const r = 9 + 9 * Math.sqrt(n.tables / max);
+      return [n.schema, { x: cx + 82 * Math.cos(a), y: cy + 46 * Math.sin(a), a, r }];
+    }),
+  );
+  return (
+    <div className="shrink-0 rounded-[10px] border border-neutral-200 bg-neutral-50 px-2 pt-1 pb-2 dark:border-neutral-700 dark:bg-neutral-800/50">
+      <svg width="100%" viewBox={`0 0 ${gw} ${gh}`} className="block">
+        {GRAPH.edges.map((e) => {
+          const a = pos.get(e.a)!;
+          const b = pos.get(e.b)!;
+          const qx = (a.x + b.x) / 2 + (cx - (a.x + b.x) / 2) * 0.45;
+          const qy = (a.y + b.y) / 2 + (cy - (a.y + b.y) / 2) * 0.45;
+          const off = hidden.has(e.a) || hidden.has(e.b);
+          return (
+            <path
+              key={`${e.a}|${e.b}`}
+              d={`M${a.x} ${a.y}Q${qx} ${qy} ${b.x} ${b.y}`}
+              fill="none"
+              strokeWidth={e.count > 1 ? 1.75 : 1.2}
+              strokeLinecap="round"
+              className={cn("stroke-neutral-400 transition-opacity duration-300 dark:stroke-neutral-500", off && "opacity-30")}
+            />
+          );
+        })}
+        {GRAPH.nodes.map((n) => {
+          const p = pos.get(n.schema)!;
+          const off = hidden.has(n.schema);
+          const cos = Math.cos(p.a);
+          const sin = Math.sin(p.a);
+          const anchor = cos > 0.35 ? "start" : cos < -0.35 ? "end" : "middle";
+          return (
+            <g key={n.schema} className={cn("transition-opacity duration-300", off && "opacity-40")}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={p.r}
+                strokeWidth={1.5}
+                strokeDasharray={off ? "3 2" : undefined}
+                className={
+                  off
+                    ? "fill-white stroke-neutral-400 dark:fill-neutral-900"
+                    : "fill-indigo-100 stroke-indigo-500 dark:fill-indigo-950"
+                }
+              />
+              <text
+                x={p.x}
+                y={p.y}
+                dominantBaseline="central"
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight={600}
+                className="fill-neutral-800 dark:fill-neutral-100"
+              >
+                {n.tables}
+              </text>
+              <text
+                x={p.x + (p.r + 6) * cos}
+                y={p.y + (p.r + 6) * sin}
+                dy={anchor !== "middle" ? "0.35em" : sin < 0 ? "-0.2em" : "0.9em"}
+                textAnchor={anchor}
+                fontSize={10.5}
+                fontWeight={500}
+                className="fill-neutral-700 dark:fill-neutral-200"
+              >
+                {n.schema}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="px-1 text-[10.5px] text-neutral-500">Click a schema to show only it, or a line to show a pair.</p>
+    </div>
+  );
+}

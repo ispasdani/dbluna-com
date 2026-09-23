@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type TabId = "code" | "database" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas" | "enums";
+export type TabId = "code" | "database" | "schemas" | "issues" | "templates" | "tables" | "relationships" | "notes" | "areas" | "enums";
 export type DockSide = "left" | "right";
 
 export interface TabInfo {
@@ -11,10 +11,10 @@ export interface TabInfo {
 
 export const TABS: TabInfo[] = [
   { id: "code", label: "Code", icon: "Code" },
-  // "Database", not "Schema": this tab holds database-wide settings plus the
-  // list of schemas. Calling it "Schema" collided with the schemas listed
-  // inside it, and with the per-table `schema.` prefix the canvas uses.
+  // "Database" is the database's identity (the DBML `Project` block);
+  // "Schemas" is the namespaces inside it — the `schema.` prefix on table names.
   { id: "database", label: "Database", icon: "Database" },
+  { id: "schemas", label: "Schemas", icon: "Layers" },
   { id: "issues", label: "Issues", icon: "AlertCircle" },
   { id: "templates", label: "Templates", icon: "LayoutTemplate" },
   { id: "tables", label: "Tables", icon: "Table" },

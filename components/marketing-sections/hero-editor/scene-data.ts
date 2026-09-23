@@ -309,3 +309,57 @@ export function buildDbml(typed: number | null): CodeLine[] {
   }
   return lines;
 }
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+// What the Schemas tab, the toolbar's Schemas menu and the cross-schema stubs
+// show. Derived from TABLES and LINKS, like the DBML, so they always agree.
+
+export const SCHEMA_NAMES = [...new Set(TABLES.map((t) => t.schema))].sort();
+
+export const schemaTables = (schema: string) => TABLES.filter((t) => t.schema === schema);
+
+/** A hidden table's hint on the visible end of a relationship — see the app's cross-group stubs. */
+export type HeroStub = { table: string; row: number; side: "L" | "R"; label: string };
+
+/** The edge of `a` facing `b`, as the canvas's `pickSides` chooses it. */
+function sideToward(ax: number, bx: number): "L" | "R" {
+  if (ax + TABLE_W + 40 <= bx) return "R";
+  if (bx + TABLE_W + 40 <= ax) return "L";
+  return ax >= bx ? "R" : "L";
+}
+
+/** One stub per visible column joined to a table in a hidden schema. */
+export function heroStubs(hidden: ReadonlySet<string>): HeroStub[] {
+  const stubs = new Map<string, { table: string; row: number; side: "L" | "R"; targets: string[] }>();
+  for (const l of LINKS) {
+    const a = TABLE_BY_ID[l.from.table];
+    const b = TABLE_BY_ID[l.to.table];
+    const aHidden = hidden.has(a.schema);
+    if (aHidden === hidden.has(b.schema)) continue;
+    const [vis, row, hid] = aHidden ? [b, l.to.row, a] : [a, l.from.row, b];
+    const key = `${vis.id}:${row}`;
+    const stub = stubs.get(key) ?? { table: vis.id, row, side: sideToward(vis.x, hid.x), targets: [] };
+    stub.targets.push(`${hid.schema}.${hid.name}`);
+    stubs.set(key, stub);
+  }
+  return [...stubs.values()].map(({ targets, ...s }) => ({
+    ...s,
+    label: targets.length === 1 ? targets[0] : `${targets.length} hidden tables`,
+  }));
+}
+
+/** Schema-to-schema relationship counts, for the Schemas tab's graph. */
+export function schemaGraph() {
+  const nodes = SCHEMA_NAMES.map((schema) => ({ schema, tables: schemaTables(schema).length }));
+  const edges = new Map<string, { a: string; b: string; count: number }>();
+  for (const l of LINKS) {
+    const a = TABLE_BY_ID[l.from.table].schema;
+    const b = TABLE_BY_ID[l.to.table].schema;
+    if (a === b) continue;
+    const [x, y] = a < b ? [a, b] : [b, a];
+    const e = edges.get(`${x}|${y}`) ?? { a: x, b: y, count: 0 };
+    e.count++;
+    edges.set(`${x}|${y}`, e);
+  }
+  return { nodes, edges: [...edges.values()] };
+}

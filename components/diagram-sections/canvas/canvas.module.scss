@@ -237,3 +237,49 @@
     display: none;
   }
 }
+
+// ─── Cross-schema stubs ──────────────────────────────────────────────────
+// Hints where a relationship leads into a hidden schema. Deliberately quiet:
+// no opacity on the group (a compositor layer per stub — see hover-highlight.ts),
+// colour and dashes only.
+
+.crossStub {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.crossStubLine {
+  fill: none;
+  stroke: color-mix(in oklab, var(--muted-foreground) 70%, var(--canvas-bg));
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.crossStubEnd {
+  fill: var(--canvas-bg);
+  stroke: color-mix(in oklab, var(--muted-foreground) 70%, var(--canvas-bg));
+  stroke-width: 1.5;
+}
+
+.crossStubLabel {
+  fill: var(--muted-foreground);
+  font-size: 12px;
+  font-style: italic;
+  // A halo in the canvas colour keeps the text legible over lines and dots.
+  paint-order: stroke;
+  stroke: var(--canvas-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.crossStub:hover {
+  .crossStubLine,
+  .crossStubEnd {
+    stroke: var(--primary);
+  }
+
+  .crossStubLabel {
+    fill: var(--primary);
+  }
+}
+

@@ -1,6 +1,7 @@
 import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
-import { autoArrange, type ArrangeMode, type TableMove } from "@/lib/auto-arrange";
-import { useCanvasStore } from "@/store/useCanvasStore";
+import { arrangeLayout, type ArrangeMode, type TableMove } from "@/lib/auto-arrange";
+import { schemaAreasAfterArrange } from "@/lib/schema-areas";
+import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { getTableGeometry } from "@/store/useCanvasStyleStore";
 
 /**
@@ -12,12 +13,19 @@ import { getTableGeometry } from "@/store/useCanvasStyleStore";
  * `fitDiagramOnCanvas` and `lib/ai/placement.ts` do.
  */
 
-/** Runs the layout against current canvas state. Applies nothing. */
-export function arrangeMoves(mode: ArrangeMode): TableMove[] {
-  const { tables, relationships } = useCanvasStore.getState();
+/**
+ * Runs the layout against current canvas state. Applies nothing.
+ *
+ * Returns the table moves and the areas as they should be afterwards: one per
+ * schema for an arrange by schema (see lib/schema-areas.ts), and without the
+ * old per-schema areas for any other arrange, since they would frame the wrong
+ * tables.
+ */
+export function arrangeMoves(mode: ArrangeMode): { moves: TableMove[]; areas: Area[] } {
+  const { tables, relationships, areas } = useCanvasStore.getState();
   const geo = getTableGeometry();
 
-  return autoArrange({
+  const { moves, schemaBlocks } = arrangeLayout({
     tables,
     relationships,
     mode,
@@ -26,6 +34,8 @@ export function arrangeMoves(mode: ArrangeMode): TableMove[] {
       height: tableHeight(geo, table.columns.length),
     }),
   });
+
+  return { moves, areas: moves.length > 0 ? schemaAreasAfterArrange(schemaBlocks, areas) : areas };
 }
 
 /**
