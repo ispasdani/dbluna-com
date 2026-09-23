@@ -324,3 +324,50 @@
   line-height: 1.45;
   color: var(--muted-foreground);
 }
+
+// ─── Group-by switcher ───────────────────────────────────────────────────
+
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--sub);
+
+  button {
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--foreground);
+    }
+
+    &[aria-checked="true"] {
+      background: var(--background);
+      color: var(--foreground);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+    }
+  }
+}
+
+.panel[data-v="dense"] .seg,
+.panel[data-v="dense"] .seg button {
+  border-radius: 3px;
+}
+
+// The schema a table sits in, when a TableGroup or cluster spans several.
+.rowSchema {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+

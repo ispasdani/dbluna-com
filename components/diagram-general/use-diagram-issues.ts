@@ -13,8 +13,9 @@ import {
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { getHiddenSchemas, useEditorStore } from "@/store/useEditorStore";
 import { useNoticeStore } from "@/store/useNoticeStore";
-import { filterVisibleTables, hiddenSchemasOf } from "@/lib/schema-visibility";
-import { schemaLabel, NO_SCHEMA_KEY } from "@/lib/schema-namespace";
+import { emptiedAreaIds, filterVisibleTables, hiddenGroupsOf } from "@/lib/schema-visibility";
+import { sourceInfo } from "@/lib/table-grouping";
+import { getActiveGrouping } from "./use-grouping";
 import { getTableGeometry } from "@/store/useCanvasStyleStore";
 import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 
@@ -50,9 +51,9 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
 }
 
 /**
- * Un-hides whichever of these tables' schemas are hidden, and says so.
+ * Un-hides whichever of these tables' groups are hidden, and says so.
  *
- * Every path that focuses a table goes through here first: hiding a schema is a
+ * Every path that focuses a table goes through here first: hiding a group is a
  * view, not a deletion, so the Issues, Tables and Relationships panels must
  * still land on a table in a hidden schema — and centring the camera on a card
  * that isn't drawn would look like the jump failed. Also what a cross-schema
@@ -60,12 +61,15 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
  */
 export function revealTablesOnCanvas(tableIds: readonly string[]) {
   const hidden = getHiddenSchemas();
-  const toReveal = hiddenSchemasOf(tableIds, useCanvasStore.getState().tables, hidden);
+  if (hidden.length === 0) return;
+  const grouping = getActiveGrouping();
+  const toReveal = hiddenGroupsOf(tableIds, grouping.keyByTableId, hidden);
   if (toReveal.length === 0) return;
 
   useEditorStore.getState().setHiddenSchemas(hidden.filter((k) => !toReveal.includes(k)));
-  const names = toReveal.map((k) => schemaLabel(k === NO_SCHEMA_KEY ? null : k)).join(", ");
-  useNoticeStore.getState().show(`Showing ${toReveal.length === 1 ? "schema" : "schemas"} ${names}`);
+  const { noun, plural } = sourceInfo(grouping.source);
+  const names = toReveal.map(grouping.labelOf).join(", ");
+  useNoticeStore.getState().show(`Showing ${toReveal.length === 1 ? noun : plural} ${names}`);
 }
 
 /**
@@ -151,23 +155,33 @@ export function focusAreaOnCanvas(areaId: string) {
 }
 
 /**
- * Zooms and centres the camera so every visible table, and every note and area,
- * is in view, with some breathing room. Tables in hidden schemas don't count —
- * fitting around them would frame empty space. Notes and areas aren't
- * schema-scoped, so they always do. Never zooms in past 100%, so a tiny diagram
- * isn't blown up to fill the screen.
+ * Zooms and centres the camera so every visible table, and every note and
+ * drawn area, is in view, with some breathing room. Tables in hidden groups
+ * don't count, nor do areas framing only them — fitting around those would
+ * frame empty space. Notes are never grouped, so they always count. Never zooms
+ * in past 100%, so a tiny diagram isn't blown up to fill the screen.
  */
 export function fitDiagramOnCanvas() {
   const { notes, areas } = useCanvasStore.getState();
-  const tables = filterVisibleTables(useCanvasStore.getState().tables, getHiddenSchemas());
+  const hidden = getHiddenSchemas();
+  const all = useCanvasStore.getState().tables;
+  const tables = hidden.length === 0 ? all : filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId);
   const { viewport, setZoomAt, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;
 
   const geo = getTableGeometry();
+  // An area around nothing but hidden tables isn't drawn, so it isn't framed.
+  const emptied =
+    tables === all
+      ? null
+      : emptiedAreaIds(areas, all, new Set(tables.map((t) => t.id)), (t) => ({
+          width: geo.width,
+          height: tableHeight(geo, t.columns.length),
+        }));
   const boxes = [
     ...tables.map((t) => ({ x: t.x, y: t.y, w: geo.width, h: tableHeight(geo, t.columns.length) })),
     ...notes.map((n) => ({ x: n.x, y: n.y, w: n.width, h: n.height })),
-    ...areas.map((a) => ({ x: a.x, y: a.y, w: a.width, h: a.height })),
+    ...areas.filter((a) => !emptied?.has(a.id)).map((a) => ({ x: a.x, y: a.y, w: a.width, h: a.height })),
   ];
   if (boxes.length === 0) return;
 

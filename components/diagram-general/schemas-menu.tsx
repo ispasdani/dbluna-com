@@ -11,19 +11,22 @@ import menu from "./toolbar-menus.module.scss";
 import styles from "./canvas-floating-toolbar.module.scss";
 
 /**
- * Which schemas are on the canvas, switchable from the floating toolbar.
+ * Which groups are on the canvas — schemas, TableGroups or FK clusters, per the
+ * Schemas tab's Group by — switchable from the floating toolbar.
  *
- * The Schemas tab manages schemas; this switches them while navigating, without
+ * The Schemas tab manages them; this switches them while navigating, without
  * opening the dock. Both read the same state through `useSchemaVisibility`.
- * Hidden when there is nothing to switch — no schemas, or just one, as on a
- * MySQL import where the database is the schema.
+ * Hidden when there is nothing to switch — fewer than two groups, as on a MySQL
+ * import grouped by schema, where the database is the schema.
  *
  * Available read-only too: visibility is a view of the diagram in this browser,
  * not an edit, so it never needs write access.
  */
 export function SchemasMenu() {
   const visibility = useSchemaVisibility();
-  const { entries, total, shownCount, hiddenCount } = visibility;
+  const { entries, total, shownCount, hiddenCount, info } = visibility;
+  // "Schemas", "Groups" or "Clusters", after the Schemas tab's Group by.
+  const title = info.plural[0].toUpperCase() + info.plural.slice(1);
   // Controlled only so "Only" can close the menu: it stops its click from
   // reaching the item underneath, which also stops Radix closing it.
   const [open, setOpen] = useState(false);
@@ -40,10 +43,10 @@ export function SchemasMenu() {
             type="button"
             className={cn(styles.add, hiddenCount > 0 && styles.filtered)}
             style={{ "--tc": "#14b8a6" } as CSSProperties}
-            title="Choose which schemas the canvas shows"
+            title={`Choose which ${info.plural} the canvas shows`}
           >
             <Layers className="size-4" />
-            <span>Schemas</span>
+            <span>{title}</span>
             <span className={styles.schemaCount}>
               {shownCount}/{total}
             </span>
@@ -76,7 +79,7 @@ export function SchemasMenu() {
                     <SchemaGlyph />
                   </span>
                   <span className={menu.text}>
-                    <span className={cn(entry.schema === null && styles.unqualified)}>{entry.label}</span>
+                    <span className={cn(entry.isRemainder && styles.unqualified)}>{entry.label}</span>
                     <small>
                       {entry.tableCount} table{entry.tableCount === 1 ? "" : "s"}
                     </small>
@@ -103,7 +106,7 @@ export function SchemasMenu() {
 
             <Menu.Separator className={menu.sep} />
             <p className={menu.foot}>
-              {hiddenCount === 0 ? `All ${total} schemas shown` : `${shownCount} of ${total} shown`}. Only this
+              {hiddenCount === 0 ? `All ${total} ${info.plural} shown` : `${shownCount} of ${total} shown`}. Only this
               browser sees the change.
             </p>
           </Menu.Content>

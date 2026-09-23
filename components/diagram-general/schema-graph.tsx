@@ -2,8 +2,7 @@
 
 import { memo, useMemo, useState } from "react";
 
-import { buildSchemaGraph, edgeWeight, type SchemaGraphEdge } from "@/lib/schema-graph";
-import { schemaLabel, NO_SCHEMA_KEY } from "@/lib/schema-namespace";
+import { buildGroupGraph, edgeWeight, type GroupGraphEdge } from "@/lib/schema-graph";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useSchemaVisibility } from "./use-schema-visibility";
@@ -19,45 +18,38 @@ const NODE_MIN = 9;
 const NODE_MAX = 20;
 const LABEL_CHARS = 14;
 
-const labelOf = (key: string) => schemaLabel(key === NO_SCHEMA_KEY ? null : key);
 const clip = (s: string) => (s.length > LABEL_CHARS ? `${s.slice(0, LABEL_CHARS - 1)}…` : s);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const edgeId = (e: SchemaGraphEdge) => `${e.from}\u0000${e.to}`;
+const edgeId = (e: GroupGraphEdge) => `${e.from}\u0000${e.to}`;
 
 /**
- * Which schema talks to which — the entry point into a large diagram. Click a
- * schema to show only it; click a line to show only that pair. Hidden schemas
- * stay on the graph, dimmed: the graph is the map, not the view.
+ * Which group talks to which — the entry point into a large diagram. Groups are
+ * schemas, TableGroups or FK clusters, per the active source. Click a group to
+ * show only it; click a line to show only that pair. Hidden groups stay on the
+ * graph, dimmed: the graph is the map, not the view.
  *
- * A circular layout rather than dagre: for the handful of schemas a real
+ * A circular layout rather than dagre: for the handful of groups a real
  * database has, a ring is more readable and far simpler.
  *
- * Its own component, subscribed to ids + names rather than `tables`, so a
- * canvas drag (which rewrites `tables` on every pointermove but never a name)
- * doesn't rebuild the graph or re-render it.
+ * Its own component, built from the shared grouping (which subscribes to ids +
+ * names rather than `tables`), so a canvas drag — which rewrites `tables` on
+ * every pointermove but never a name — doesn't rebuild the graph or re-render it.
  */
 export const SchemaGraph = memo(function SchemaGraph() {
-  const idNames = useCanvasStore((s) => s.tables.map((t) => `${t.id}\t${t.name}`).join("\n"));
   const relationships = useCanvasStore((s) => s.relationships);
   const visibility = useSchemaVisibility();
-  const [hover, setHover] = useState<{ node?: string; edge?: string } | null>(null);
+  const { grouping, info } = visibility;
+  const labelOf = grouping.labelOf;
+  const [hover, setHover] = useState<{ node?: string; edge?: GroupGraphEdge } | null>(null);
 
-  const graph = useMemo(() => {
-    const tables = idNames
-      ? idNames.split("\n").map((line) => {
-          const tab = line.indexOf("\t");
-          return { id: line.slice(0, tab), name: line.slice(tab + 1) };
-        })
-      : [];
-    return buildSchemaGraph(tables, relationships);
-  }, [idNames, relationships]);
+  const graph = useMemo(() => buildGroupGraph(grouping, relationships), [grouping, relationships]);
 
   const layout = useMemo(() => {
     const n = graph.nodes.length;
     const maxTables = Math.max(1, ...graph.nodes.map((node) => node.tableCount));
     return new Map(
       graph.nodes.map((node, i) => {
-        // Start at the top and go clockwise; two schemas sit side by side.
+        // Start at the top and go clockwise; two groups sit side by side.
         const angle = n === 2 ? (i === 0 ? Math.PI : 0) : -Math.PI / 2 + (i * 2 * Math.PI) / n;
         const r = NODE_MIN + (NODE_MAX - NODE_MIN) * Math.sqrt(node.tableCount / maxTables);
         return [node.key, { x: CX + RING * Math.cos(angle), y: CY + RING * Math.sin(angle), r, angle }];
@@ -69,14 +61,14 @@ export const SchemaGraph = memo(function SchemaGraph() {
 
   const onlyShown = visibility.shownCount === 1 ? visibility.entries.find((e) => !e.isHidden)?.key : undefined;
 
-  // Clicking the schema that is already the only one shown brings the rest
+  // Clicking the group that is already the only one shown brings the rest
   // back, so the graph can undo what it did.
   const clickNode = (key: string) => {
     if (onlyShown === key) visibility.showAll();
     else visibility.showOnly(key);
   };
 
-  const clickEdge = (edge: SchemaGraphEdge) => {
+  const clickEdge = (edge: GroupGraphEdge) => {
     visibility.showOnly([edge.from, edge.to]);
     // Relationships select one at a time, so a single one is selected itself;
     // otherwise the tables carrying these keys are.
@@ -89,9 +81,9 @@ export const SchemaGraph = memo(function SchemaGraph() {
     hover?.node === key ||
     (hover?.node !== undefined &&
       graph.edges.some((e) => (e.from === hover.node && e.to === key) || (e.to === hover.node && e.from === key))) ||
-    (hover?.edge !== undefined && hover.edge.split("\u0000").includes(key));
-  const isEdgeLit = (e: SchemaGraphEdge) =>
-    hover?.edge === edgeId(e) || (hover?.node !== undefined && (e.from === hover.node || e.to === hover.node));
+    (hover?.edge !== undefined && (hover.edge.from === key || hover.edge.to === key));
+  const isEdgeLit = (e: GroupGraphEdge) =>
+    hover?.edge === e || (hover?.node !== undefined && (e.from === hover.node || e.to === hover.node));
 
   const onKey = (e: React.KeyboardEvent, fn: () => void) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -106,7 +98,7 @@ export const SchemaGraph = memo(function SchemaGraph() {
         viewBox={`0 0 ${W} ${H}`}
         className={cn(styles.graphSvg, hover && styles.graphHovering)}
         role="group"
-        aria-label="Schema graph"
+        aria-label={`${info.noun[0].toUpperCase()}${info.noun.slice(1)} graph`}
         onPointerLeave={() => setHover(null)}
       >
         {graph.edges.map((edge) => {
@@ -125,10 +117,10 @@ export const SchemaGraph = memo(function SchemaGraph() {
               className={cn(styles.graphEdge, hidden && styles.graphDim, isEdgeLit(edge) && styles.graphLit)}
               role="button"
               tabIndex={0}
-              aria-label={`${title}. Show only these two schemas.`}
+              aria-label={`${title}. Show only these two ${info.plural}.`}
               onClick={() => clickEdge(edge)}
               onKeyDown={(e) => onKey(e, () => clickEdge(edge))}
-              onPointerEnter={() => setHover({ edge: edgeId(edge) })}
+              onPointerEnter={() => setHover({ edge })}
             >
               <title>{title}</title>
               {/* Wide invisible stroke: a 1px line is too thin to click. */}
@@ -158,7 +150,7 @@ export const SchemaGraph = memo(function SchemaGraph() {
               className={cn(styles.graphNode, hidden && styles.graphDim, isNodeLit(node.key) && styles.graphLit)}
               role="button"
               tabIndex={0}
-              aria-label={`${title}. ${onlyShown === node.key ? "Show all schemas." : "Show only this schema."}`}
+              aria-label={`${title}. ${onlyShown === node.key ? `Show all ${info.plural}.` : `Show only this ${info.noun}.`}`}
               aria-pressed={onlyShown === node.key}
               onClick={() => clickNode(node.key)}
               onKeyDown={(e) => onKey(e, () => clickNode(node.key))}
@@ -174,7 +166,7 @@ export const SchemaGraph = memo(function SchemaGraph() {
                 y={ly}
                 dy={dy}
                 textAnchor={anchor}
-                className={cn(styles.graphLabel, node.schema === null && styles.graphUnqualified)}
+                className={cn(styles.graphLabel, node.isRemainder && styles.graphUnqualified)}
               >
                 {clip(label)}
               </text>
@@ -184,8 +176,8 @@ export const SchemaGraph = memo(function SchemaGraph() {
       </svg>
       <p className={styles.graphHint}>
         {graph.edges.length === 0
-          ? "No relationships cross schemas. Click a schema to show only it."
-          : "Click a schema to show only it, or a line to show a pair. Thicker lines carry more relationships."}
+          ? `No relationships cross ${info.plural}. Click a ${info.noun} to show only it.`
+          : `Click a ${info.noun} to show only it, or a line to show a pair. Thicker lines carry more relationships.`}
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { getHiddenSchemas, useEditorStore, useHiddenSchemas } from "@/store/useEditorStore";
+import { getHiddenSchemas, useEditorStore, useGroupSource, useHiddenSchemas } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore, type TabId, type DockSide } from "@/store/useDockStore";
 import {
@@ -42,13 +42,15 @@ import {
 } from "./hover-highlight";
 import { cn } from "@/lib/utils";
 import {
-  buildCrossSchemaStubs,
-  buildSchemaIndex,
-  crossSchemaStubLabel,
+  buildCrossGroupStubs,
+  crossGroupStubLabel,
+  emptiedAreaIds,
   filterVisibleTables,
-  type CrossSchemaStub,
+  type CrossGroupStub,
 } from "@/lib/schema-visibility";
+import { buildGrouping } from "@/lib/table-grouping";
 import { revealTablesOnCanvas } from "@/components/diagram-general/use-diagram-issues";
+import { getActiveGrouping } from "@/components/diagram-general/use-grouping";
 import { dlog, mark, logMount } from "@/lib/debug-selection";
 import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -192,7 +194,7 @@ const CULL_MARGIN_PX = 300;
 
 /** Length of a cross-schema stub, in world units, out from the column's edge. */
 const CROSS_STUB_LEN = 34;
-const NO_STUBS: CrossSchemaStub[] = [];
+const NO_STUBS: CrossGroupStub[] = [];
 
 /**
  * Every relationship line on the canvas.
@@ -382,30 +384,34 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
   const moveAreas = useCanvasStore((s) => s.moveAreas);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
+  const relationships = useCanvasStore((s) => s.relationships);
+  const tableGroups = useCanvasStore((s) => s.tableGroups);
   const hiddenSchemas = useHiddenSchemas();
+  const groupSource = useGroupSource();
   const anyHidden = hiddenSchemas.length > 0;
 
-  // Which schema each table belongs to — only built while something is hidden,
-  // and then memoised on a NAME signature, never on `tables`: `moveTables`
-  // replaces `tables` on every pointermove, and `splitSchemaName` runs a regex.
-  // x/y are deliberately excluded, so a drag never rebuilds the index. See
-  // release-1-0/schemas-tab-and-visibility-plan.md §7.
+  // Which group each table belongs to — schema, TableGroup or FK cluster, per
+  // the active source (lib/table-grouping.ts). Only built while something is
+  // hidden, and then memoised on a NAME signature, never on `tables`:
+  // `moveTables` replaces `tables` on every pointermove, and grouping runs a
+  // regex per name (or a clustering pass). x/y are deliberately excluded, so a
+  // drag never rebuilds it. See release-1-0/schemas-tab-and-visibility-plan.md §7.
   const nameSignature = useMemo(
     () => (anyHidden ? tables.map((t) => `${t.id} ${t.name}`).join("|") : ""),
     [tables, anyHidden]
   );
-  const schemaIndex = useMemo(
-    () => (anyHidden ? buildSchemaIndex(tables) : undefined),
+  const grouping = useMemo(
+    () => (anyHidden ? buildGrouping(groupSource, tables, relationships, tableGroups) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nameSignature, anyHidden]
+    [nameSignature, anyHidden, groupSource, relationships, tableGroups]
   );
 
   // The tables this canvas draws. `tables` itself, by identity, when nothing is
-  // hidden — so every memo downstream behaves exactly as it did before schemas
+  // hidden — so every memo downstream behaves exactly as it did before groups
   // could be hidden. A fresh array here would rebuild every line per drag frame.
   const visibleTables = useMemo(
-    () => filterVisibleTables(tables, hiddenSchemas, schemaIndex),
-    [tables, hiddenSchemas, schemaIndex]
+    () => (grouping ? filterVisibleTables(tables, hiddenSchemas, grouping.keyByTableId) : tables),
+    [tables, hiddenSchemas, grouping]
   );
 
   const openTab = useDockStore((s) => s.openTab);
@@ -546,7 +552,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
           const ids = hidden.length === 0
             ? selectedTableIds
             : (() => {
-                const visible = new Set(filterVisibleTables(useCanvasStore.getState().tables, hidden).map((t) => t.id));
+                const all = useCanvasStore.getState().tables;
+                const visible = new Set(filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId).map((t) => t.id));
                 return selectedTableIds.filter((id) => visible.has(id));
               })();
           if (ids.length > 0) deleteTables(ids);
@@ -787,7 +794,6 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   }>({ active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, pointerId: null });
 
   // Actions
-  const relationships = useCanvasStore((s) => s.relationships);
   // Hovering dims every line that is not lit. On a large schema that repaints
   // the canvas on every hover, so past a point the dim is dropped — see
   // MAX_DIMMED_RELS.
@@ -796,15 +802,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
 
-  // Where relationships cross into a hidden schema — drawn as short dashed
+  // Where relationships cross into a hidden group — drawn as short dashed
   // stubs so a filtered view never looks self-contained when it isn't.
-  // Built from ids and names only, on the name signature: it runs when a
-  // schema is hidden or shown, a table renamed or a relationship edited —
+  // Built from ids and names only, through the grouping memo: it runs when a
+  // group is hidden or shown, a table renamed or a relationship edited —
   // never during a drag. Nothing at all when nothing is hidden.
   const crossStubs = useMemo(
-    () => (anyHidden ? buildCrossSchemaStubs(tables, relationships, hiddenSchemas) : NO_STUBS),
+    () =>
+      grouping ? buildCrossGroupStubs(tables, relationships, hiddenSchemas, grouping.keyByTableId) : NO_STUBS,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [relationships, hiddenSchemas, nameSignature, anyHidden]
+    [relationships, hiddenSchemas, grouping]
   );
 
   // Positions of the hidden tables the stubs point at — only which way a stub
@@ -816,6 +823,18 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
     for (const t of tables) if (wanted.has(t.id)) out.set(t.id, t.x);
     return out;
   }, [crossStubs, tables]);
+
+  // Areas framing only hidden tables hide with them — arrange by schema puts
+  // an area around every schema, and an empty dashed box where a hidden one
+  // sits reads as a bug. `areas` itself when nothing is hidden.
+  const drawnAreas = useMemo(() => {
+    if (visibleTables === tables || areas.length === 0) return areas;
+    const emptied = emptiedAreaIds(areas, tables, new Set(visibleTables.map((t) => t.id)), (t) => ({
+      width: geo.width,
+      height: tableHeight(geo, t.columns.length),
+    }));
+    return emptied.size === 0 ? areas : areas.filter((a) => !emptied.has(a.id));
+  }, [areas, tables, visibleTables, geo]);
 
   // Connection dragging
   const dragConnection = useRef<{
@@ -1913,7 +1932,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
                           textAnchor={side === 1 ? "start" : "end"}
                           className={styles.crossStubLabel}
                         >
-                          {crossSchemaStubLabel(stub)}
+                          {crossGroupStubLabel(stub, grouping!.labelOf)}
                         </text>
                       )}
                     </g>
@@ -1936,7 +1955,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             )}
 
             {/* Areas */}
-            {areas.map((area) => {
+            {drawnAreas.map((area) => {
               let adjustedX = area.x;
               let adjustedY = area.y;
               if (dragOffset.active && dragArea.current.active && dragArea.current.initialPositions.has(area.id)) {
@@ -2119,7 +2138,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         camera={camera}
         tables={minimapTables}
         notes={notes}
-        areas={areas}
+        areas={drawnAreas}
         onRecenter={(worldX, worldY) => {
           // Drop any pan still buffered in the ref — the jump replaces it,
           // and committing it afterwards would drag the camera back off-target.

@@ -23,6 +23,8 @@ import { CommittedInput } from "./committed-input";
 import { SchemaGlyph } from "./panel-glyphs";
 import { useSchemaVisibility } from "./use-schema-visibility";
 import { SchemaGraph } from "./schema-graph";
+import { GroupCards } from "./group-cards";
+import { GROUP_SOURCES } from "@/lib/table-grouping";
 import styles from "./schemas-panel.module.scss";
 
 const ACCENT = { "--tc": "var(--primary)" } as CSSProperties;
@@ -68,6 +70,8 @@ export function SchemasPanel() {
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const openTab = useDockStore((s) => s.openTab);
   const visibility = useSchemaVisibility();
+  const { source, info } = visibility;
+  const setGroupBy = useEditorStore((s) => s.setGroupBy);
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [draftSchemas, setDraftSchemas] = useState<string[]>([]);
@@ -80,6 +84,11 @@ export function SchemasPanel() {
     () => groupTablesBySchema(useCanvasStore.getState().tables),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [signature]
+  );
+  // For the TableGroup and FK-cluster cards, which list tables by id.
+  const tableById = useMemo(
+    () => new Map(groups.flatMap((g) => g.tables).map((t) => [t.id, t])),
+    [groups]
   );
 
   // Named schemas that exist on the canvas, plus any created here that have no
@@ -310,19 +319,50 @@ export function SchemasPanel() {
       <div className={styles.header}>
         <div className={styles.titleRow}>
           <h3>Schemas</h3>
-          <span className={styles.count}>{allSchemaNames.length}</span>
+          <span className={styles.count}>{source === "schema" ? allSchemaNames.length : visibility.total}</span>
           <span className={styles.spacer} />
-          <button type="button" className={styles.addBtn} onClick={addSchema}>
-            <Plus className="w-3.5 h-3.5" />
-            Add schema
-          </button>
+          {source === "schema" && (
+            <button type="button" className={styles.addBtn} onClick={addSchema}>
+              <Plus className="w-3.5 h-3.5" />
+              Add schema
+            </button>
+          )}
         </div>
+
+        {/* What "a group" means here. Schemas come from the database;
+            databases without them (MySQL, SQLite) group by TableGroup blocks
+            or by the clusters their foreign keys form. A view setting, per
+            diagram, like the hidden set. */}
+        <div className={styles.seg} role="radiogroup" aria-label="Group tables by">
+          {GROUP_SOURCES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="radio"
+              aria-checked={source === s.id}
+              onClick={() => setGroupBy(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         {/* Changing a prefix in the Code tab re-creates the table (the parser
             matches on the qualified name), losing its position and colour —
             this panel is the supported way to reorganise. */}
         <p className={styles.intro}>
-          The namespaces inside this database. Rename or move tables here rather than editing the prefix in
-          the Code tab, which resets the table&apos;s position and colour.
+          {source === "schema" ? (
+            <>
+              The namespaces inside this database. Rename or move tables here rather than editing the prefix
+              in the Code tab, which resets the table&apos;s position and colour.
+            </>
+          ) : source === "tableGroup" ? (
+            <>
+              The <b>TableGroup</b> blocks in your DBML. Add or change them in the Code tab.
+            </>
+          ) : (
+            <>Tables that reference each other more than anything else, found from your relationships.</>
+          )}
         </p>
         {/* Hiding is a view of this diagram in this browser, never an edit:
             nothing is deleted, synced or left out of the DBML. */}
@@ -330,7 +370,7 @@ export function SchemasPanel() {
           <div className={styles.visRow}>
             <span>
               {visibility.hiddenCount === 0
-                ? "All schemas on the canvas"
+                ? `All ${info.plural} on the canvas`
                 : `${visibility.shownCount} of ${visibility.total} on the canvas`}
             </span>
             <span className={styles.spacer} />
@@ -358,21 +398,37 @@ export function SchemasPanel() {
         <div className={styles.list}>
           <SchemaGraph />
 
-          {/* Every table unqualified: say so, rather than showing one lonely
-              "(no schema)" card and a graph with nothing to draw. */}
-          {existingNames.length === 0 && groups.length > 0 && (
+          {/* Nothing to switch between: say so plainly rather than show one
+              lonely catch-all card, and point at a source that would help. */}
+          {groups.length > 0 && visibility.entries.every((e) => e.isRemainder) && (
             <p className={styles.intro}>
-              No schemas yet. Add one and move tables into it, or prefix a table name like{" "}
-              <b>auth.users</b>, to group tables and switch them on and off.
+              {source === "schema" ? (
+                <>
+                  No schemas yet. Add one and move tables into it, or prefix a table name like <b>auth.users</b>.
+                </>
+              ) : source === "tableGroup" ? (
+                <>
+                  No table groups yet. Declare one in the Code tab, like <b>TableGroup billing {"{ … }"}</b>.
+                </>
+              ) : (
+                <>No relationships yet, so there is nothing to cluster.</>
+              )}{" "}
+              {source !== "fkCluster" && (
+                <button type="button" className={styles.linkBtn} onClick={() => setGroupBy("fkCluster")}>
+                  Group by relationships instead
+                </button>
+              )}
             </p>
           )}
 
           {error && <p className={styles.error}>{error}</p>}
 
-          {sections.length === 0 ? (
+          {groups.length === 0 && sections.length === 0 ? (
             <p className={styles.empty}>No tables yet. Add one, then give it a schema here.</p>
-          ) : (
+          ) : source === "schema" ? (
             sections.map(renderSchema)
+          ) : (
+            <GroupCards visibility={visibility} tableById={tableById} onShowTable={showTable} />
           )}
         </div>
       </div>

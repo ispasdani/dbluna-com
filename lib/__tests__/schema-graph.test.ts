@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSchemaGraph, edgeWeight } from "@/lib/schema-graph";
+import { buildGroupGraph, edgeWeight } from "@/lib/schema-graph";
 import { NO_SCHEMA_KEY } from "@/lib/schema-namespace";
+import { buildGrouping } from "@/lib/table-grouping";
 
 const tables = [
   { id: "u", name: "auth.users" },
@@ -13,8 +14,8 @@ const tables = [
 
 const rel = (id: string, sourceTableId: string, targetTableId: string) => ({ id, sourceTableId, targetTableId });
 
-describe("buildSchemaGraph", () => {
-  const graph = buildSchemaGraph(tables, [
+describe("buildGroupGraph", () => {
+  const graph = buildGroupGraph(buildGrouping("schema", tables, [], []), [
     rel("r1", "s", "u"), // auth → auth: internal
     rel("r2", "i", "u"), // billing → auth
     rel("r3", "u", "p"), // auth → billing: same pair, other direction
@@ -23,16 +24,16 @@ describe("buildSchemaGraph", () => {
     rel("r6", "i", "gone"), // dangling endpoint: skipped
   ]);
 
-  it("has one node per schema, in groupTablesBySchema order", () => {
-    expect(graph.nodes.map((n) => [n.key, n.tableCount])).toEqual([
-      ["auth", 2],
-      ["billing", 2],
-      [NO_SCHEMA_KEY, 1],
+  it("has one node per group, in the grouping's order", () => {
+    expect(graph.nodes.map((n) => [n.key, n.label, n.tableCount])).toEqual([
+      ["auth", "auth", 2],
+      ["billing", "billing", 2],
+      [NO_SCHEMA_KEY, "(no schema)", 1],
     ]);
-    expect(graph.nodes[2].schema).toBeNull();
+    expect(graph.nodes[2].isRemainder).toBe(true);
   });
 
-  it("counts same-schema refs on the node instead of emitting a self-loop", () => {
+  it("counts same-group refs on the node instead of emitting a self-loop", () => {
     expect(graph.nodes.map((n) => n.internalRefs)).toEqual([1, 1, 0]);
     expect(graph.edges.some((e) => e.from === e.to)).toBe(false);
   });
@@ -45,7 +46,7 @@ describe("buildSchemaGraph", () => {
   });
 
   it("handles an empty diagram", () => {
-    expect(buildSchemaGraph([], [])).toEqual({ nodes: [], edges: [] });
+    expect(buildGroupGraph(buildGrouping("schema", [], [], []), [])).toEqual({ nodes: [], edges: [] });
   });
 });
 

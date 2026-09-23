@@ -1,26 +1,27 @@
-import type { Relationship, Table } from "@/store/useCanvasStore";
-import { schemaKey, splitSchemaName } from "@/lib/schema-namespace";
-import { countTablesBySchema } from "@/lib/schema-visibility";
+import type { Relationship } from "@/store/useCanvasStore";
+import type { TableGrouping } from "@/lib/table-grouping";
 
 /**
- * The schema graph: which schema talks to which, and how much. One node per
- * schema, one edge per pair of schemas joined by at least one relationship.
+ * The group graph: which group talks to which, and how much. One node per
+ * group — schema, TableGroup or FK cluster, whatever the active source is — and
+ * one edge per pair of groups joined by at least one relationship.
  *
  * Store-free so it can be unit-tested under vitest's `node` environment, the
  * same reasoning as lib/auto-arrange.ts. See
- * release-1-0/schemas-tab-and-visibility-plan.md Phase 3.
+ * release-1-0/schemas-tab-and-visibility-plan.md Phases 3 and 6.
  */
 
-export interface SchemaGraphNode {
-  schema: string | null;
-  /** `schemaKey(schema)` — the id edges and the hidden set refer to. */
+export interface GroupGraphNode {
+  /** The group key — what edges and the hidden set refer to. */
   key: string;
+  label: string;
   tableCount: number;
-  /** Relationships with both ends inside this schema. */
+  /** Relationships with both ends inside this group. */
   internalRefs: number;
+  isRemainder: boolean;
 }
 
-export interface SchemaGraphEdge {
+export interface GroupGraphEdge {
   from: string;
   to: string;
   count: number;
@@ -29,31 +30,36 @@ export interface SchemaGraphEdge {
   tableIds: string[];
 }
 
-export interface SchemaGraph {
-  nodes: SchemaGraphNode[];
-  edges: SchemaGraphEdge[];
+export interface GroupGraph {
+  nodes: GroupGraphNode[];
+  edges: GroupGraphEdge[];
 }
 
 /**
- * Builds the graph. Node order is `groupTablesBySchema` order, so the graph
- * reads in the same order as the list beside it; each edge's `from` is the
- * endpoint that comes first in that order, which makes the pair unordered.
+ * Builds the graph. Node order is the grouping's order, so the graph reads in
+ * the same order as the list beside it; each edge's `from` is the endpoint that
+ * comes first in that order, which makes the pair unordered.
  *
- * Same-schema relationships add to the node's `internalRefs` instead of becoming
+ * Same-group relationships add to the node's `internalRefs` instead of becoming
  * a self-loop: a loop on a node is noise, a number on it is information.
- * Relationships with an endpoint that no longer exists are skipped.
+ * Relationships with an endpoint no group knows are skipped.
  */
-export function buildSchemaGraph(
-  tables: readonly Pick<Table, "id" | "name">[],
+export function buildGroupGraph(
+  grouping: Pick<TableGrouping, "groups" | "keyByTableId">,
   relationships: readonly Pick<Relationship, "id" | "sourceTableId" | "targetTableId">[]
-): SchemaGraph {
-  const counts = countTablesBySchema(tables.map((t) => t.name));
-  const nodes: SchemaGraphNode[] = counts.map((c) => ({ ...c, internalRefs: 0 }));
+): GroupGraph {
+  const nodes: GroupGraphNode[] = grouping.groups.map((g) => ({
+    key: g.key,
+    label: g.label,
+    tableCount: g.tableIds.length,
+    internalRefs: 0,
+    isRemainder: g.isRemainder,
+  }));
   const order = new Map(nodes.map((n, i) => [n.key, i]));
   const nodeByKey = new Map(nodes.map((n) => [n.key, n]));
-  const keyOfTable = new Map(tables.map((t) => [t.id, schemaKey(splitSchemaName(t.name).schema)]));
+  const keyOfTable = grouping.keyByTableId;
 
-  const edges = new Map<string, SchemaGraphEdge & { tableSet: Set<string> }>();
+  const edges = new Map<string, GroupGraphEdge & { tableSet: Set<string> }>();
   for (const rel of relationships) {
     const a = keyOfTable.get(rel.sourceTableId);
     const b = keyOfTable.get(rel.targetTableId);
