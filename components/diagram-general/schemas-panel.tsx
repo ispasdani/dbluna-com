@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, Focus, Plus } from "lucide-react";
 
 import { useCanvasStore, type Table } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
+import { useEditorStore, useHiddenSchemas } from "@/store/useEditorStore";
 import { usePanelStyle } from "@/store/usePanelStyleStore";
 import { tablesStructureSignature } from "@/lib/enum-usage";
 import {
@@ -21,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CommittedInput } from "./committed-input";
 import { SchemaGlyph } from "./panel-glyphs";
+import { fitDiagramOnCanvas } from "./use-diagram-issues";
 import styles from "./schemas-panel.module.scss";
 
 const ACCENT = { "--tc": "var(--primary)" } as CSSProperties;
@@ -70,6 +72,9 @@ export function SchemasPanel() {
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const openTab = useDockStore((s) => s.openTab);
   const colors = useTableColors();
+  const hiddenSchemas = useHiddenSchemas();
+  const setSchemaHidden = useEditorStore((s) => s.setSchemaHidden);
+  const setHiddenSchemas = useEditorStore((s) => s.setHiddenSchemas);
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [draftSchemas, setDraftSchemas] = useState<string[]>([]);
@@ -92,6 +97,17 @@ export function SchemasPanel() {
   const allSchemaNames = [...existingNames, ...emptyDrafts].sort((a, b) =>
     a.toLowerCase().localeCompare(b.toLowerCase())
   );
+
+  // Visibility is keyed by schema key and only means anything for schemas that
+  // have tables. Names in the hidden set that no longer exist are ignored here
+  // rather than pruned from the store.
+  const liveKeys = groups.map((g) => schemaKey(g.schema));
+  const hiddenLive = liveKeys.filter((k) => hiddenSchemas.includes(k));
+  const showOnly = (key: string) => {
+    setHiddenSchemas(liveKeys.filter((k) => k !== key));
+    // The camera is usually somewhere else entirely; land on what's left.
+    fitDiagramOnCanvas();
+  };
 
   // Renames rewrite `tables` AND `tableGroups` together — group members are
   // schema-qualified strings resolved by exact compare, so writing one without
@@ -116,6 +132,13 @@ export function SchemasPanel() {
   const handleRename = (from: string, to: string) => {
     const store = useCanvasStore.getState();
     if (applyPlan(renameSchema(from, to, store.tables, store.tableGroups))) {
+      // Visibility is keyed by name, so it has to follow the rename or the
+      // hidden set points at a schema nobody has any more. Renaming onto an
+      // existing schema merges into it, and the merged tables take that
+      // schema's visibility.
+      const target = to.trim();
+      if (existingNames.includes(target)) setSchemaHidden(schemaKey(from), false);
+      else useEditorStore.getState().renameHiddenSchema(schemaKey(from), schemaKey(target));
       setDraftSchemas((prev) => prev.filter((d) => d !== from));
       setExpandedKey(schemaKey(to.trim()));
     }
@@ -149,10 +172,17 @@ export function SchemasPanel() {
     const key = schemaKey(schema);
     const isOpen = expandedKey === key;
     const isReserved = schema?.toLowerCase() === DEFAULT_SCHEMA;
+    const isHidden = !isDraft && hiddenSchemas.includes(key);
     const toggle = () => setExpandedKey(isOpen ? null : key);
+    // The head toggles the card open; its buttons must not.
+    const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
     return (
-      <div key={key} className={cn(styles.tb, styles.card, !isOpen && styles.closed, isOpen && styles.cardOpen)} style={ACCENT}>
+      <div
+        key={key}
+        className={cn(styles.tb, styles.card, !isOpen && styles.closed, isOpen && styles.cardOpen, isHidden && styles.cardHidden)}
+        style={ACCENT}
+      >
         <div
           className={styles.tbHead}
           role="button"
@@ -176,6 +206,31 @@ export function SchemasPanel() {
           <span className={styles.meta}>
             {isDraft ? "empty" : `${schemaTables.length} table${schemaTables.length === 1 ? "" : "s"}`}
           </span>
+          {!isDraft && (
+            <span className={styles.headActions} onClick={stop} onKeyDown={stop}>
+              {liveKeys.length > 1 && (
+                <button
+                  type="button"
+                  className={styles.headBtn}
+                  title="Show only this schema on the canvas"
+                  aria-label={`Show only ${schemaLabel(schema)}`}
+                  onClick={() => showOnly(key)}
+                >
+                  <Focus className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                className={styles.headBtn}
+                title={isHidden ? "Show on the canvas" : "Hide from the canvas"}
+                aria-label={`${isHidden ? "Show" : "Hide"} ${schemaLabel(schema)}`}
+                aria-pressed={isHidden}
+                onClick={() => setSchemaHidden(key, !isHidden)}
+              >
+                {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </span>
+          )}
         </div>
 
         {/* Closed cards preview the tables inside. */}
@@ -287,6 +342,34 @@ export function SchemasPanel() {
           The namespaces inside this database. Rename or move tables here rather than editing the prefix in
           the Code tab, which resets the table&apos;s position and colour.
         </p>
+        {/* Hiding is a view of this diagram in this browser, never an edit:
+            nothing is deleted, synced or left out of the DBML. */}
+        {liveKeys.length > 0 && (
+          <div className={styles.visRow}>
+            <span>
+              {hiddenLive.length === 0
+                ? "All schemas on the canvas"
+                : `${liveKeys.length - hiddenLive.length} of ${liveKeys.length} on the canvas`}
+            </span>
+            <span className={styles.spacer} />
+            <button
+              type="button"
+              className={styles.linkBtn}
+              disabled={hiddenLive.length === 0}
+              onClick={() => setHiddenSchemas([])}
+            >
+              Show all
+            </button>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              disabled={hiddenLive.length === liveKeys.length}
+              onClick={() => setHiddenSchemas(liveKeys)}
+            >
+              Hide all
+            </button>
+          </div>
+        )}
       </div>
 
       <div className={styles.body}>

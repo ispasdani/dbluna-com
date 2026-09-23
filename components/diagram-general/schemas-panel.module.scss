@@ -24,6 +24,81 @@
   cursor: pointer;
 }
 
+// ─── Visibility ──────────────────────────────────────────────────────────
+
+.visRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+.linkBtn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    color: var(--faint);
+    cursor: default;
+  }
+}
+
+.headActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: -6px;
+  flex: none;
+}
+
+.headBtn {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover);
+    color: var(--foreground);
+  }
+}
+
+.panel[data-v="header"] .headBtn {
+  color: rgb(255 255 255 / 0.8);
+
+  &:hover {
+    background: rgb(255 255 255 / 0.15);
+    color: #fff;
+  }
+}
+
+.panel[data-v="dense"] .headBtn {
+  border-radius: 3px;
+}
+
+// A hidden schema stays listed (the panel lists the model, the canvas shows
+// the view) but reads as switched off.
+.cardHidden .tbHead .tname,
+.cardHidden .tbHead .mk,
+.cardHidden .closedBody {
+  opacity: 0.5;
+}
+
 .tag {
   flex: none;
   padding: 1px 7px;

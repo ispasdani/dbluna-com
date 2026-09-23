@@ -19,6 +19,7 @@ import { usePresence } from "@/hooks/use-presence";
 import { useStoreHydration } from "@/hooks/use-store-hydration";
 import { DocsLayout } from "@/components/documentation/docs-layout";
 import { UpgradeToast } from "@/components/diagram-general/upgrade-toast";
+import { NoticeToast } from "@/components/diagram-general/notice-toast";
 import { ConflictBanner } from "@/components/diagram-general/conflict-banner";
 import { OnboardingModal } from "@/components/diagram-general/onboarding-modal";
 import { AiChatLauncher, AiChatSidebar } from "@/components/diagram-general/ai-chat-sidebar";
@@ -236,6 +237,7 @@ export default function DiagramPage({ params }: PageProps) {
         </div>
 
         <UpgradeToast />
+        <NoticeToast />
         <ConflictBanner />
         <OnboardingModal />
       </div>

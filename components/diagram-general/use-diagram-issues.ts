@@ -11,7 +11,10 @@ import {
   type IssueCounts,
 } from "@/lib/diagram-issues";
 import { useCanvasStore } from "@/store/useCanvasStore";
-import { useEditorStore } from "@/store/useEditorStore";
+import { getHiddenSchemas, useEditorStore } from "@/store/useEditorStore";
+import { useNoticeStore } from "@/store/useNoticeStore";
+import { filterVisibleTables, hiddenSchemasOf } from "@/lib/schema-visibility";
+import { schemaLabel, NO_SCHEMA_KEY } from "@/lib/schema-namespace";
 import { getTableGeometry } from "@/store/useCanvasStyleStore";
 import { tableHeight } from "@/components/diagram-sections/canvas/canvas-style";
 
@@ -47,7 +50,25 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
 }
 
 /**
- * Centres the camera on a table.
+ * Un-hides whichever of these tables' schemas are hidden, and says so.
+ *
+ * Every path that focuses a table goes through here first: hiding a schema is a
+ * view, not a deletion, so the Issues, Tables and Relationships panels must
+ * still land on a table in a hidden schema — and centring the camera on a card
+ * that isn't drawn would look like the jump failed.
+ */
+function revealTables(tableIds: string[]) {
+  const hidden = getHiddenSchemas();
+  const toReveal = hiddenSchemasOf(tableIds, useCanvasStore.getState().tables, hidden);
+  if (toReveal.length === 0) return;
+
+  useEditorStore.getState().setHiddenSchemas(hidden.filter((k) => !toReveal.includes(k)));
+  const names = toReveal.map((k) => schemaLabel(k === NO_SCHEMA_KEY ? null : k)).join(", ");
+  useNoticeStore.getState().show(`Showing ${toReveal.length === 1 ? "schema" : "schemas"} ${names}`);
+}
+
+/**
+ * Centres the camera on a table, revealing its schema if it is hidden.
  *
  * Selecting a table without moving the camera (what the panel used to do) is
  * invisible whenever the table is off-screen, which on a large diagram is most
@@ -57,6 +78,7 @@ export function useDiagramIssues(): { issues: Issue[]; counts: IssueCounts } {
 export function focusTableOnCanvas(tableId: string) {
   const table = useCanvasStore.getState().tables.find((t) => t.id === tableId);
   if (!table) return;
+  revealTables([tableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   // The canvas reports a 1x1 viewport until it has been measured — recentering
@@ -71,12 +93,16 @@ export function focusTableOnCanvas(tableId: string) {
   setCameraXY(viewport.w / 2 - worldX * camera.zoom, viewport.h / 2 - worldY * camera.zoom);
 }
 
-/** Centres the camera between the two tables a relationship joins. */
+/**
+ * Centres the camera between the two tables a relationship joins, revealing
+ * either schema if it is hidden.
+ */
 export function focusRelationshipOnCanvas(sourceTableId: string, targetTableId: string) {
   const { tables } = useCanvasStore.getState();
   const a = tables.find((t) => t.id === sourceTableId);
   const b = tables.find((t) => t.id === targetTableId);
   if (!a || !b) return;
+  revealTables([sourceTableId, targetTableId]);
 
   const { camera, viewport, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;
@@ -124,12 +150,15 @@ export function focusAreaOnCanvas(areaId: string) {
 }
 
 /**
- * Zooms and centres the camera so every table, note and area is in view, with
- * some breathing room. Never zooms in past 100%, so a tiny diagram isn't blown
- * up to fill the screen.
+ * Zooms and centres the camera so every visible table, and every note and area,
+ * is in view, with some breathing room. Tables in hidden schemas don't count —
+ * fitting around them would frame empty space. Notes and areas aren't
+ * schema-scoped, so they always do. Never zooms in past 100%, so a tiny diagram
+ * isn't blown up to fill the screen.
  */
 export function fitDiagramOnCanvas() {
-  const { tables, notes, areas } = useCanvasStore.getState();
+  const { notes, areas } = useCanvasStore.getState();
+  const tables = filterVisibleTables(useCanvasStore.getState().tables, getHiddenSchemas());
   const { viewport, setZoomAt, setCameraXY } = useEditorStore.getState();
   if (viewport.w <= 1 || viewport.h <= 1) return;
 

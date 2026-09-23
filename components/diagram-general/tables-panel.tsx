@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronsDownUp,
   Crosshair,
+  EyeOff,
   Lock,
   MessageSquare,
   Plus,
@@ -16,6 +17,7 @@ import {
 import { useCanvasStore, TABLE_COLORS, type Column, type Table } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { usePanelStyle } from "@/store/usePanelStyleStore";
+import { useHiddenSchemas } from "@/store/useEditorStore";
 import {
   groupTablesBySchema,
   moveTableToSchema,
@@ -178,6 +180,8 @@ export function TablesPanel() {
   const deleteField = useCanvasStore((s) => s.deleteField);
   const openTab = useDockStore((s) => s.openTab);
   const { variant } = usePanelStyle("tables");
+  // The panel lists the model, not the view: hidden schemas stay listed, marked.
+  const hiddenSchemas = useHiddenSchemas();
 
   const isSingleSelection = selectedTableIds.length === 1;
   const selectionKey = selectedTableIds.join(",");
@@ -876,6 +880,11 @@ export function TablesPanel() {
                           <ChevronDown className="w-3 h-3" />
                         </span>
                         {schemaLabel(schema)}
+                        {hiddenSchemas.includes(key) && (
+                          <span className={styles.schemaHidden} title="Hidden on the canvas. Show it from the Schemas tab.">
+                            <EyeOff className="w-3 h-3" />
+                          </span>
+                        )}
                         <span className={styles.schemaCount}>{schemaTables.length}</span>
                       </button>
                       {!isCollapsed && schemaTables.map(renderTable)}

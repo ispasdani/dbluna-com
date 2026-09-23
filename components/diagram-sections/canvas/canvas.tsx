@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useEditorStore } from "@/store/useEditorStore";
+import { getHiddenSchemas, useEditorStore, useHiddenSchemas } from "@/store/useEditorStore";
 import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 import { useDockStore, type TabId, type DockSide } from "@/store/useDockStore";
 import {
@@ -41,6 +41,7 @@ import {
   type HoverStore,
 } from "./hover-highlight";
 import { cn } from "@/lib/utils";
+import { buildSchemaIndex, filterVisibleTables } from "@/lib/schema-visibility";
 import { dlog, mark, logMount } from "@/lib/debug-selection";
 import { countRender } from "@/lib/debug-profiler";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -370,6 +371,31 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
   const moveAreas = useCanvasStore((s) => s.moveAreas);
   const isFocusModeEnabled = useCanvasStore((s) => s.isFocusModeEnabled);
+  const hiddenSchemas = useHiddenSchemas();
+  const anyHidden = hiddenSchemas.length > 0;
+
+  // Which schema each table belongs to — only built while something is hidden,
+  // and then memoised on a NAME signature, never on `tables`: `moveTables`
+  // replaces `tables` on every pointermove, and `splitSchemaName` runs a regex.
+  // x/y are deliberately excluded, so a drag never rebuilds the index. See
+  // release-1-0/schemas-tab-and-visibility-plan.md §7.
+  const nameSignature = useMemo(
+    () => (anyHidden ? tables.map((t) => `${t.id} ${t.name}`).join("|") : ""),
+    [tables, anyHidden]
+  );
+  const schemaIndex = useMemo(
+    () => (anyHidden ? buildSchemaIndex(tables) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nameSignature, anyHidden]
+  );
+
+  // The tables this canvas draws. `tables` itself, by identity, when nothing is
+  // hidden — so every memo downstream behaves exactly as it did before schemas
+  // could be hidden. A fresh array here would rebuild every line per drag frame.
+  const visibleTables = useMemo(
+    () => filterVisibleTables(tables, hiddenSchemas, schemaIndex),
+    [tables, hiddenSchemas, schemaIndex]
+  );
 
   const openTab = useDockStore((s) => s.openTab);
 
@@ -503,7 +529,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
         if (!isTyping) {
-          if (selectedTableIds.length > 0) deleteTables(selectedTableIds);
+          // Hiding is a view, not a deletion: a selection can outlive a hide,
+          // but Delete only ever removes tables you can see.
+          const hidden = getHiddenSchemas();
+          const ids = hidden.length === 0
+            ? selectedTableIds
+            : (() => {
+                const visible = new Set(filterVisibleTables(useCanvasStore.getState().tables, hidden).map((t) => t.id));
+                return selectedTableIds.filter((id) => visible.has(id));
+              })();
+          if (ids.length > 0) deleteTables(ids);
           if (selectedNoteIds.length > 0) selectedNoteIds.forEach(id => deleteNote(id));
         }
       }
@@ -781,11 +816,16 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
   // Every relationship endpoint resolves a table by id on every render; with a
   // linear find that is O(relationships × tables) per frame during a drag.
-  const tablesById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
+  //
+  // Built from the *visible* tables, which is how a hidden schema's lines
+  // disappear: `routedRelationships` skips any relationship with an endpoint it
+  // can't resolve, so an edge touching a hidden table drops out of routing, the
+  // DOM, the ports and the highlight sets without a second filter.
+  const tablesById = useMemo(() => new Map(visibleTables.map((t) => [t.id, t])), [visibleTables]);
 
   const minimapTables = useMemo(
-    () => tables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
-    [tables, geo]
+    () => visibleTables.map((t) => ({ id: t.id, x: t.x, y: t.y, width: geo.width, height: tableHeight(geo, t.columns.length) })),
+    [visibleTables, geo]
   );
 
   // Where a table is drawn right now — its stored position plus any live drag
@@ -967,8 +1007,9 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
 
     // Prepare group drag
     const initialPositions = new Map<string, { x: number, y: number }>();
+    // Through `tablesById`, so a selected table in a hidden schema stays put.
     newSelectedIds.forEach(id => {
-      const t = tables.find(t => t.id === id);
+      const t = tablesById.get(id);
       if (t) initialPositions.set(id, { x: t.x, y: t.y });
     });
 
@@ -1519,7 +1560,8 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       if (Math.abs(currentX - startX) > 5 || Math.abs(currentY - startY) > 5) {
         const insideIds: string[] = [];
 
-        tables.forEach(t => {
+        // A marquee can't select what it can't see.
+        visibleTables.forEach(t => {
           // Estimate Table Bounds
           const estWidth = geo.width;
           const estHeight = tableHeight(geo, t.columns?.length || 0);
@@ -1874,7 +1916,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
             )})}
 
             {/* Tables */}
-            {tables.map((table) => {
+            {visibleTables.map((table) => {
               let adjustedX = table.x;
               let adjustedY = table.y;
               if (dragOffset.active) {
