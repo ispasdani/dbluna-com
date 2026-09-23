@@ -58,8 +58,9 @@ export function useSchemaVisibility() {
     isHidden: (key: string) => hidden.includes(key),
     toggle: (key: string) => setSchemaHidden(key, !hidden.includes(key)),
     /** Hides every other schema, then fits the camera to what is left. */
-    showOnly: (key: string) => {
-      setHiddenSchemas(allKeys().filter((k) => k !== key));
+    showOnly: (keys: string | readonly string[]) => {
+      const keep = typeof keys === "string" ? [keys] : keys;
+      setHiddenSchemas(allKeys().filter((k) => !keep.includes(k)));
       fitDiagramOnCanvas();
     },
     showAll: () => setHiddenSchemas([]),

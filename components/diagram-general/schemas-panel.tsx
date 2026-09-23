@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { CommittedInput } from "./committed-input";
 import { SchemaGlyph } from "./panel-glyphs";
 import { useSchemaVisibility } from "./use-schema-visibility";
+import { SchemaGraph } from "./schema-graph";
 import styles from "./schemas-panel.module.scss";
 
 const ACCENT = { "--tc": "var(--primary)" } as CSSProperties;
@@ -362,6 +363,17 @@ export function SchemasPanel() {
 
       <div className={styles.body}>
         <div className={styles.list}>
+          <SchemaGraph />
+
+          {/* Every table unqualified: say so, rather than showing one lonely
+              "(no schema)" card and a graph with nothing to draw. */}
+          {existingNames.length === 0 && tables.length > 0 && (
+            <p className={styles.intro}>
+              No schemas yet. Add one and move tables into it, or prefix a table name like{" "}
+              <b>auth.users</b>, to group tables and switch them on and off.
+            </p>
+          )}
+
           {error && <p className={styles.error}>{error}</p>}
 
           {sections.length === 0 ? (

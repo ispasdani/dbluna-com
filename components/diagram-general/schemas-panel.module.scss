@@ -215,3 +215,112 @@
   color: var(--destructive);
   font-size: 12px;
 }
+
+// ─── Schema graph ────────────────────────────────────────────────────────
+// A small SVG in the dock, not on the canvas, so opacity on groups is fine
+// here — the compositor-layer limits noted in hover-highlight.ts don't apply.
+
+.graph {
+  display: grid;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--sub);
+}
+
+.panel[data-v="dense"] .graph {
+  border-radius: 4px;
+}
+
+.graphSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--data-font);
+}
+
+.graphEdge,
+.graphNode {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 0.12s ease;
+}
+
+.graphEdgeHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.graphEdgeLine {
+  fill: none;
+  stroke: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  stroke-linecap: round;
+  transition: stroke 0.12s ease;
+}
+
+.graphNode circle {
+  fill: color-mix(in oklab, var(--primary) 16%, var(--background));
+  stroke: var(--primary);
+  stroke-width: 1.5;
+  transition: fill 0.12s ease;
+}
+
+.graphCount {
+  fill: var(--foreground);
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.graphLabel {
+  fill: var(--foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.graphUnqualified {
+  fill: var(--muted-foreground);
+  font-style: italic;
+}
+
+// Hidden schemas stay on the map, switched off.
+.graphDim {
+  opacity: 0.4;
+
+  circle {
+    fill: var(--background);
+    stroke: var(--muted-foreground);
+    stroke-dasharray: 3 2;
+  }
+}
+
+// Hovering a schema lights it, its lines and its neighbours; the rest fade.
+.graphHovering .graphEdge:not(.graphLit),
+.graphHovering .graphNode:not(.graphLit) {
+  opacity: 0.25;
+}
+
+.graphLit .graphEdgeLine {
+  stroke: var(--primary);
+}
+
+.graphLit circle {
+  fill: color-mix(in oklab, var(--primary) 28%, var(--background));
+}
+
+.graphEdge:focus-visible .graphEdgeLine,
+.graphNode:focus-visible circle {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.graphHint {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
