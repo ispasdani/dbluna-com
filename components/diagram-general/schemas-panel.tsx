@@ -7,7 +7,6 @@ import { useCanvasStore, type Table } from "@/store/useCanvasStore";
 import { useDockStore } from "@/store/useDockStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { usePanelStyle } from "@/store/usePanelStyleStore";
-import { tablesStructureSignature } from "@/lib/enum-usage";
 import {
   DEFAULT_SCHEMA,
   groupTablesBySchema,
@@ -37,20 +36,16 @@ const onKey = (e: React.KeyboardEvent, fn: () => void) => {
   }
 };
 
-/** Table colours keyed by id, subscribed as a string so a canvas drag doesn't re-render. */
-function useTableColors(): Map<string, string> {
-  const colorKey = useCanvasStore((s) => s.tables.map((t) => `${t.id}=${t.color}`).join("|"));
-  return useMemo(
-    () =>
-      new Map(
-        colorKey
-          .split("|")
-          .filter(Boolean)
-          .map((entry) => entry.split("=") as [string, string])
-      ),
-    [colorKey]
-  );
-}
+/**
+ * Everything this panel draws about a table — id, name, colour — as one string.
+ *
+ * The panel subscribes to this instead of `tables`: a canvas drag replaces
+ * `tables` on every pointermove but changes none of these, so the string
+ * compares equal and the panel doesn't re-render mid-drag. Control characters
+ * as delimiters, since a name can contain any printable one.
+ */
+const panelSignature = (tables: Table[]) =>
+  tables.map((t) => `${t.id}\u0001${t.name}\u0001${t.color}`).join("\u0002");
 
 /** Unique-ifies a proposed name against the existing ones (case-insensitive). */
 function uniqueName(base: string, taken: string[]): string {
@@ -69,22 +64,20 @@ function uniqueName(base: string, taken: string[]): string {
 
 export function SchemasPanel() {
   const { variant } = usePanelStyle("schemas");
-  const tables = useCanvasStore((s) => s.tables);
+  const signature = useCanvasStore((s) => panelSignature(s.tables));
   const setSelectedTableIds = useCanvasStore((s) => s.setSelectedTableIds);
   const openTab = useDockStore((s) => s.openTab);
-  const colors = useTableColors();
   const visibility = useSchemaVisibility();
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [draftSchemas, setDraftSchemas] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Drag-path guard: group by prefix only when the structure actually changed.
-  // See release-1-0/schema-tab-plan.md §6. Colours come from `colors`, since
-  // the signature doesn't cover them.
-  const signature = useMemo(() => tablesStructureSignature(tables), [tables]);
+  // Read the tables only when the signature changes. The objects read here are
+  // current for everything the panel shows; their x/y may go stale during a
+  // drag, which is fine, because nothing here uses them.
   const groups = useMemo(
-    () => groupTablesBySchema(tables),
+    () => groupTablesBySchema(useCanvasStore.getState().tables),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [signature]
   );
@@ -150,7 +143,7 @@ export function SchemasPanel() {
     setSelectedTableIds([tableId]);
   };
 
-  const tint = (t: Table) => ({ "--tc": colors.get(t.id) ?? t.color }) as CSSProperties;
+  const tint = (t: Table) => ({ "--tc": t.color }) as CSSProperties;
 
   const sections: { schema: string | null; tables: Table[]; isDraft: boolean }[] = [
     ...groups.map((g) => ({ ...g, isDraft: false })),
@@ -367,7 +360,7 @@ export function SchemasPanel() {
 
           {/* Every table unqualified: say so, rather than showing one lonely
               "(no schema)" card and a graph with nothing to draw. */}
-          {existingNames.length === 0 && tables.length > 0 && (
+          {existingNames.length === 0 && groups.length > 0 && (
             <p className={styles.intro}>
               No schemas yet. Add one and move tables into it, or prefix a table name like{" "}
               <b>auth.users</b>, to group tables and switch them on and off.

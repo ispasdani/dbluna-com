@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { ArrangeMode, TableMove } from "@/lib/auto-arrange";
-import { useCanvasStore } from "@/store/useCanvasStore";
+import { isSchemaArea, restoreSchemaAreas, sameAreas } from "@/lib/schema-areas";
+import { useCanvasStore, type Area } from "@/store/useCanvasStore";
 
 import { arrangeMoves, movableTableCount, positionSnapshot } from "./canvas-arrange";
 import { fitDiagramOnCanvas } from "./use-diagram-issues";
@@ -27,7 +28,7 @@ const MODES: { id: ArrangeMode; label: string; hint: string; icon: typeof Workfl
   {
     id: "schema",
     label: "By schema",
-    hint: "One block per schema prefix",
+    hint: "One framed block per schema",
     icon: Layers,
   },
   {
@@ -53,11 +54,16 @@ const MODE_LABEL: Record<ArrangeMode, string> = {
  */
 export function ArrangeMenu() {
   const moveTables = useCanvasStore((s) => s.moveTables);
+  const setAreas = useCanvasStore((s) => s.setAreas);
+  const hasSchemaAreas = useCanvasStore((s) => s.areas.some((a) => isSchemaArea(a) && !a.isLocked));
   const tableCount = useCanvasStore((s) => s.tables.length);
 
   const [pendingMode, setPendingMode] = useState<ArrangeMode | null>(null);
   const [isArranging, setIsArranging] = useState(false);
   const [undoMoves, setUndoMoves] = useState<TableMove[] | null>(null);
+  // The areas before the last arrange — it can add, move or remove the
+  // per-schema ones, and the one-step undo has to put those back too.
+  const [undoAreas, setUndoAreas] = useState<Area[] | null>(null);
 
   const movable = pendingMode ? movableTableCount() : 0;
   const lockedCount = pendingMode ? tableCount - movable : 0;
@@ -72,10 +78,13 @@ export function ArrangeMenu() {
     requestAnimationFrame(() => {
       try {
         const before = positionSnapshot();
-        const moves = arrangeMoves(mode);
+        const areasBefore = useCanvasStore.getState().areas;
+        const { moves, areas } = arrangeMoves(mode);
         if (moves.length > 0) {
           moveTables(moves);
+          if (!sameAreas(areas, areasBefore)) setAreas(areas);
           setUndoMoves(before);
+          setUndoAreas(areasBefore);
           fitDiagramOnCanvas();
         }
       } finally {
@@ -89,7 +98,14 @@ export function ArrangeMenu() {
     // Tables deleted since the arrange have nothing to restore.
     const live = new Set(useCanvasStore.getState().tables.map((t) => t.id));
     moveTables(undoMoves.filter((m) => live.has(m.id)));
+    if (undoAreas) {
+      // Only the per-schema areas go back; any area drawn since is kept.
+      const current = useCanvasStore.getState().areas;
+      const restored = restoreSchemaAreas(undoAreas, current);
+      if (!sameAreas(restored, current)) setAreas(restored);
+    }
     setUndoMoves(null);
+    setUndoAreas(null);
     fitDiagramOnCanvas();
   };
 
@@ -148,7 +164,7 @@ export function ArrangeMenu() {
                   </span>
                   <span className={menu.text}>
                     Undo arrange
-                    <small>Put every table back where it was</small>
+                    <small>Put every table and schema area back</small>
                   </span>
                 </Menu.Item>
               </>
@@ -165,6 +181,11 @@ export function ArrangeMenu() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Every unlocked table moves to a new position.
+              {pendingMode === "schema"
+                ? " Each schema gets an area around it, which you can rename, recolour or lock."
+                : hasSchemaAreas
+                  ? " The schema areas from an earlier arrange by schema are removed; your own areas stay."
+                  : ""}
               {lockedCount > 0 && ` ${lockedCount} locked table${lockedCount === 1 ? " stays" : "s stay"} put.`}{" "}
               You can put them back with Undo arrange, until you reload the page.
             </AlertDialogDescription>
