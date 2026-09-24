@@ -39,7 +39,11 @@ const table = (over: Partial<Table> & Pick<Table, "name">): Table => ({
 function roundTrip(
   tables: Table[],
   relationships: Relationship[] = [],
-  meta: { enums?: CanvasEnum[]; tableGroups?: CanvasTableGroup[]; project?: CanvasProject | null } = {}
+  meta: {
+    enums?: CanvasEnum[];
+    tableGroups?: CanvasTableGroup[];
+    project?: CanvasProject | null;
+  } = {},
 ) {
   const dbml = generateDbmlFromCanvas(tables, relationships, meta);
   const parsed = parseDbml(dbml);
@@ -50,8 +54,18 @@ function roundTrip(
     originY: 0,
   });
   const schemaMeta = parsedToCanvasSchemaMeta(parsed!);
-  const canvasRelationships = parsedRefsToCanvasRelationships(parsed!.refs, canvasTables, []);
-  return { dbml, parsed: parsed!, canvasTables, schemaMeta, canvasRelationships };
+  const canvasRelationships = parsedRefsToCanvasRelationships(
+    parsed!.refs,
+    canvasTables,
+    [],
+  );
+  return {
+    dbml,
+    parsed: parsed!,
+    canvasTables,
+    schemaMeta,
+    canvasRelationships,
+  };
 }
 
 describe("DBML round-trip: tables & columns", () => {
@@ -59,8 +73,18 @@ describe("DBML round-trip: tables & columns", () => {
     const users = table({
       name: "users",
       columns: [
-        col({ name: "id", type: "INT", isPrimaryKey: true, isAutoIncrement: true }),
-        col({ name: "email", type: "VARCHAR", isUnique: true, isNotNull: true }),
+        col({
+          name: "id",
+          type: "INT",
+          isPrimaryKey: true,
+          isAutoIncrement: true,
+        }),
+        col({
+          name: "email",
+          type: "VARCHAR",
+          isUnique: true,
+          isNotNull: true,
+        }),
         col({ name: "created_at", type: "TIMESTAMP", isNotNull: true }),
       ],
     });
@@ -146,12 +170,15 @@ describe("DBML round-trip: relationships & notes", () => {
       onDelete: "No action",
     };
 
-    const { dbml, parsed, canvasRelationships, canvasTables } = roundTrip([users, orders], [rel]);
+    const { dbml, parsed, canvasRelationships, canvasTables } = roundTrip(
+      [users, orders],
+      [rel],
+    );
 
     expect(dbml).toContain(`Ref: "orders"."user_id" > "users"."id"`);
     const refCount = (parsed.raw.schemas as any[]).reduce(
       (n, s) => n + (s.refs?.length ?? 0),
-      0
+      0,
     );
     expect(refCount).toBe(1);
 
@@ -181,10 +208,17 @@ Table orders {
 Ref: orders.user_id > users.id [delete: cascade, update: restrict]
 `;
     const parsed = parseDbml(dbml)!;
-    const tables = parsedTablesToCanvasTables(parsed.tables, { existingTables: [], originX: 0, originY: 0 });
+    const tables = parsedTablesToCanvasTables(parsed.tables, {
+      existingTables: [],
+      originX: 0,
+      originY: 0,
+    });
     const first = parsedRefsToCanvasRelationships(parsed.refs, tables, []);
     expect(first).toHaveLength(1);
-    expect(first[0]).toMatchObject({ onDelete: "Cascade", onUpdate: "Restrict" });
+    expect(first[0]).toMatchObject({
+      onDelete: "Cascade",
+      onUpdate: "Restrict",
+    });
 
     // Re-parsing with the previous result as "existing" keeps the same id.
     const second = parsedRefsToCanvasRelationships(parsed.refs, tables, first);
@@ -202,8 +236,14 @@ Ref: users.id > ghosts.id
     // Dangling table refs make @dbml/core reject the whole document — nothing
     // to map. The point is parsedRefsToCanvasRelationships never throws.
     if (parsed) {
-      const tables = parsedTablesToCanvasTables(parsed.tables, { existingTables: [], originX: 0, originY: 0 });
-      expect(() => parsedRefsToCanvasRelationships(parsed.refs, tables, [])).not.toThrow();
+      const tables = parsedTablesToCanvasTables(parsed.tables, {
+        existingTables: [],
+        originX: 0,
+        originY: 0,
+      });
+      expect(() =>
+        parsedRefsToCanvasRelationships(parsed.refs, tables, []),
+      ).not.toThrow();
     }
   });
 
@@ -248,11 +288,21 @@ describe("DBML round-trip: docs metadata (enums, groups, project)", () => {
 
   it("round-trips table groups with schema-qualified members", () => {
     const groups: CanvasTableGroup[] = [
-      { id: crypto.randomUUID(), name: "Core", tableNames: ["dbo.Users", "orders"] },
+      {
+        id: crypto.randomUUID(),
+        name: "Core",
+        tableNames: ["dbo.Users", "orders"],
+      },
     ];
     const tables = [
-      table({ name: "dbo.Users", columns: [col({ name: "id", type: "INT", isPrimaryKey: true })] }),
-      table({ name: "orders", columns: [col({ name: "id", type: "INT", isPrimaryKey: true })] }),
+      table({
+        name: "dbo.Users",
+        columns: [col({ name: "id", type: "INT", isPrimaryKey: true })],
+      }),
+      table({
+        name: "orders",
+        columns: [col({ name: "id", type: "INT", isPrimaryKey: true })],
+      }),
     ];
 
     const { schemaMeta } = roundTrip(tables, [], { tableGroups: groups });
@@ -300,14 +350,21 @@ describe("parsedToCanvasSchemaMeta: id stability across re-parses", () => {
   // payload signature and pushed a semantically-identical schema to Convex.
   const metaFixture = () => {
     const enums: CanvasEnum[] = [
-      { id: crypto.randomUUID(), name: "order_status", values: [{ name: "pending" }] },
+      {
+        id: crypto.randomUUID(),
+        name: "order_status",
+        values: [{ name: "pending" }],
+      },
       { id: crypto.randomUUID(), name: "role", values: [{ name: "admin" }] },
     ];
     const tableGroups: CanvasTableGroup[] = [
       { id: crypto.randomUUID(), name: "Core", tableNames: ["users"] },
     ];
     const tables = [
-      table({ name: "users", columns: [col({ name: "id", type: "INT", isPrimaryKey: true })] }),
+      table({
+        name: "users",
+        columns: [col({ name: "id", type: "INT", isPrimaryKey: true })],
+      }),
     ];
     const dbml = generateDbmlFromCanvas(tables, [], { enums, tableGroups });
     const parsed = parseDbml(dbml);
@@ -326,7 +383,9 @@ describe("parsedToCanvasSchemaMeta: id stability across re-parses", () => {
   it("preserves table group ids by name when existing groups are supplied", () => {
     const { tableGroups, parsed } = metaFixture();
 
-    const meta = parsedToCanvasSchemaMeta(parsed, { existingTableGroups: tableGroups });
+    const meta = parsedToCanvasSchemaMeta(parsed, {
+      existingTableGroups: tableGroups,
+    });
 
     expect(meta.tableGroups[0].id).toBe(tableGroups[0].id);
   });
@@ -349,10 +408,7 @@ describe("parsedToCanvasSchemaMeta: id stability across re-parses", () => {
   it("mints a new id for a renamed enum but keeps the untouched one", () => {
     const { enums, parsed } = metaFixture();
     // Simulate the store still holding the pre-rename name for the first enum.
-    const stale: CanvasEnum[] = [
-      { ...enums[0], name: "old_status" },
-      enums[1],
-    ];
+    const stale: CanvasEnum[] = [{ ...enums[0], name: "old_status" }, enums[1]];
 
     const meta = parsedToCanvasSchemaMeta(parsed, { existingEnums: stale });
 
@@ -371,6 +427,8 @@ describe("parsedToCanvasSchemaMeta: id stability across re-parses", () => {
     expect(a.enums.map((e) => e.id)).not.toEqual(b.enums.map((e) => e.id));
     // Everything except the ids still matches.
     expect(a.enums.map((e) => e.name)).toEqual(b.enums.map((e) => e.name));
-    expect(a.tableGroups.map((g) => g.name)).toEqual(b.tableGroups.map((g) => g.name));
+    expect(a.tableGroups.map((g) => g.name)).toEqual(
+      b.tableGroups.map((g) => g.name),
+    );
   });
 });

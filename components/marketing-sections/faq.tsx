@@ -11,7 +11,7 @@ import { Button } from "../marketing-general/button";
 import { DivideX } from "../marketing-general/divideX";
 
 const ChevronDownIcon = (
-  props: React.SVGProps<SVGSVGElement> & { rotated?: boolean }
+  props: React.SVGProps<SVGSVGElement> & { rotated?: boolean },
 ) => {
   const { rotated, className, ...rest } = props;
   return (

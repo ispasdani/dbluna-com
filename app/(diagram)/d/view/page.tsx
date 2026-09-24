@@ -21,7 +21,9 @@ export default function ShareViewPage() {
   const importDiagram = useCanvasStore((s) => s.importDiagram);
 
   const [ephemeralId] = useState<string>(() => crypto.randomUUID());
-  const [decodedData, setDecodedData] = useState<DiagramData | null | undefined>(undefined);
+  const [decodedData, setDecodedData] = useState<
+    DiagramData | null | undefined
+  >(undefined);
   const [isStaged, setIsStaged] = useState(false);
 
   // Decode once on mount — location.hash only exists client-side.
@@ -58,16 +60,22 @@ export default function ShareViewPage() {
     router.push(`/d/${newId}`);
   };
 
-  const diagramName = useMemo(() => decodedData?.name ?? "Shared diagram", [decodedData]);
+  const diagramName = useMemo(
+    () => decodedData?.name ?? "Shared diagram",
+    [decodedData],
+  );
 
   if (decodedData === null) {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-3 bg-background text-center px-4">
         <FileWarning className="h-8 w-8 text-muted-foreground" />
-        <p className="text-sm font-medium">This link is invalid or has been corrupted.</p>
+        <p className="text-sm font-medium">
+          This link is invalid or has been corrupted.
+        </p>
         <p className="text-xs text-muted-foreground max-w-sm">
-          The share link may have been truncated when it was copied, or it isn&apos;t a dbluna
-          share link at all. Ask whoever sent it to copy a fresh one.
+          The share link may have been truncated when it was copied, or it
+          isn&apos;t a dbluna share link at all. Ask whoever sent it to copy a
+          fresh one.
         </p>
       </div>
     );
@@ -87,7 +95,9 @@ export default function ShareViewPage() {
         <div className="flex items-center gap-4 min-w-0">
           <DbLuna className="text-foreground w-full max-w-[100px] h-[26px] shrink-0" />
           <span className="text-sm font-medium truncate">{diagramName}</span>
-          <span className="text-xs text-muted-foreground shrink-0">Read-only</span>
+          <span className="text-xs text-muted-foreground shrink-0">
+            Read-only
+          </span>
         </div>
         <Button size="sm" className="gap-2 shrink-0" onClick={handleOpenAsCopy}>
           <Copy className="w-4 h-4" />

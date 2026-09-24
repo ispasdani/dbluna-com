@@ -119,7 +119,11 @@ export interface ParsedDbmlResult {
 const LEXER_ERROR_RE = /^line (\d+):(\d+) ([\s\S]+)$/;
 
 /** Control characters spelled out, so a quoted newline stays on one line. */
-const ESCAPED: Record<string, string> = { "\n": "\\n", "\r": "\\r", "\t": "\\t" };
+const ESCAPED: Record<string, string> = {
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+};
 
 /** A `@dbml/core` CompilerError diagnostic, as its consumers read them. */
 interface RawDiagnostic {
@@ -140,13 +144,18 @@ interface RawDiagnostic {
  * the lines at the console for the duration of the (synchronous) parse and
  * fold them into the error's `diags` alongside the parser's own diagnostics.
  */
-const parseCapturingLexerErrors = (source: string, format: SchemaSourceFormat) => {
+const parseCapturingLexerErrors = (
+  source: string,
+  format: SchemaSourceFormat,
+) => {
   const captured: RawDiagnostic[] = [];
   const consoleError = console.error;
 
   console.error = (...args: unknown[]) => {
     const match =
-      args.length === 1 && typeof args[0] === "string" ? LEXER_ERROR_RE.exec(args[0]) : null;
+      args.length === 1 && typeof args[0] === "string"
+        ? LEXER_ERROR_RE.exec(args[0])
+        : null;
     if (!match) {
       consoleError(...args);
       return;
@@ -186,7 +195,7 @@ const parseCapturingLexerErrors = (source: string, format: SchemaSourceFormat) =
  */
 export const parseSchemaSource = (
   source: string,
-  format: SchemaSourceFormat = "dbml"
+  format: SchemaSourceFormat = "dbml",
 ): ParsedDbmlResult => {
   const database = parseCapturingLexerErrors(source, format);
 
@@ -256,16 +265,22 @@ export const parseSchemaSource = (
     database.schemas.forEach((schema: any) => {
       if (schema.refs) {
         schema.refs.forEach((r: any) => {
-          const endpoints: ParsedRefEndpoint[] = (r.endpoints || []).map((e: any) => ({
-            tableName: e.tableName ?? e.fields?.[0]?.table?.name,
-            schemaName: e.schemaName ?? e.fields?.[0]?.table?.schema?.name ?? null,
-            fieldNames:
-              e.fieldNames && e.fieldNames.length
-                ? e.fieldNames
-                : (e.fields || []).map((f: any) => f?.name).filter(Boolean),
-            relation: e.relation === "*" ? "*" : "1",
-          }));
-          if (endpoints.length === 2 && endpoints.every((ep) => ep.tableName && ep.fieldNames.length)) {
+          const endpoints: ParsedRefEndpoint[] = (r.endpoints || []).map(
+            (e: any) => ({
+              tableName: e.tableName ?? e.fields?.[0]?.table?.name,
+              schemaName:
+                e.schemaName ?? e.fields?.[0]?.table?.schema?.name ?? null,
+              fieldNames:
+                e.fieldNames && e.fieldNames.length
+                  ? e.fieldNames
+                  : (e.fields || []).map((f: any) => f?.name).filter(Boolean),
+              relation: e.relation === "*" ? "*" : "1",
+            }),
+          );
+          if (
+            endpoints.length === 2 &&
+            endpoints.every((ep) => ep.tableName && ep.fieldNames.length)
+          ) {
             refs.push({
               name: r.name ?? null,
               onDelete: r.onDelete ?? undefined,
@@ -348,7 +363,9 @@ export interface ParsedToCanvasOptions {
  */
 const qualifiedTableName = (table: ParsedTable): string => {
   const schema = table.schema?.name;
-  return schema && schema !== DEFAULT_PARSE_SCHEMA ? `${schema}.${table.name}` : table.name;
+  return schema && schema !== DEFAULT_PARSE_SCHEMA
+    ? `${schema}.${table.name}`
+    : table.name;
 };
 
 /**
@@ -359,14 +376,16 @@ const qualifiedTableName = (table: ParsedTable): string => {
  */
 export const parsedTablesToCanvasTables = (
   parsedTables: ParsedTable[],
-  { existingTables, originX, originY, knownEnumNames }: ParsedToCanvasOptions
+  { existingTables, originX, originY, knownEnumNames }: ParsedToCanvasOptions,
 ): Table[] => {
   return parsedTables.map((dbTable, index) => {
     const name = qualifiedTableName(dbTable);
     const existingTable = existingTables.find((t) => t.name === name);
 
     const columns = dbTable.fields.map((field) => {
-      const existingCol = existingTable?.columns.find((c) => c.name === field.name);
+      const existingCol = existingTable?.columns.find(
+        (c) => c.name === field.name,
+      );
       return {
         id: existingCol?.id ?? crypto.randomUUID(),
         name: field.name,
@@ -405,8 +424,13 @@ export const parsedTablesToCanvasTables = (
 //  Parsed refs → Canvas relationships
 // ─────────────────────────────────────────────────────
 
-const qualifiedNameFromParts = (tableName: string, schemaName?: string | null): string =>
-  schemaName && schemaName !== DEFAULT_PARSE_SCHEMA ? `${schemaName}.${tableName}` : tableName;
+const qualifiedNameFromParts = (
+  tableName: string,
+  schemaName?: string | null,
+): string =>
+  schemaName && schemaName !== DEFAULT_PARSE_SCHEMA
+    ? `${schemaName}.${tableName}`
+    : tableName;
 
 const REF_ACTION_MAP: Record<string, Relationship["onDelete"]> = {
   cascade: "Cascade",
@@ -419,7 +443,12 @@ const REF_ACTION_MAP: Record<string, Relationship["onDelete"]> = {
 const mapRefAction = (value?: string): Relationship["onDelete"] =>
   REF_ACTION_MAP[(value ?? "").toLowerCase()] ?? "No action";
 
-const relKey = (r: Pick<Relationship, "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId">) =>
+const relKey = (
+  r: Pick<
+    Relationship,
+    "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId"
+  >,
+) =>
   `${r.sourceTableId}:${r.sourceColumnId}->${r.targetTableId}:${r.targetColumnId}`;
 
 /**
@@ -433,13 +462,17 @@ const relKey = (r: Pick<Relationship, "sourceTableId" | "sourceColumnId" | "targ
 export const parsedRefsToCanvasRelationships = (
   parsedRefs: ParsedRef[],
   canvasTables: Table[],
-  existingRelationships: Relationship[]
+  existingRelationships: Relationship[],
 ): Relationship[] => {
   const tablesByName = new Map(canvasTables.map((t) => [t.name, t]));
-  const existingByKey = new Map(existingRelationships.map((r) => [relKey(r), r]));
+  const existingByKey = new Map(
+    existingRelationships.map((r) => [relKey(r), r]),
+  );
 
   const resolve = (ep: ParsedRefEndpoint) => {
-    const table = tablesByName.get(qualifiedNameFromParts(ep.tableName, ep.schemaName));
+    const table = tablesByName.get(
+      qualifiedNameFromParts(ep.tableName, ep.schemaName),
+    );
     if (!table) return null;
     const column = table.columns.find((c) => c.name === ep.fieldNames[0]);
     if (!column) return null;
@@ -469,8 +502,10 @@ export const parsedRefsToCanvasRelationships = (
     // is "Many to one"; "1"/"1" is "One to one". "*"/"*" has no canvas
     // equivalent — fall back to "One to many".
     let cardinality: Relationship["cardinality"] = "One to many";
-    if (srcEp.relation === "1" && tgtEp.relation === "*") cardinality = "Many to one";
-    else if (srcEp.relation === "1" && tgtEp.relation === "1") cardinality = "One to one";
+    if (srcEp.relation === "1" && tgtEp.relation === "*")
+      cardinality = "Many to one";
+    else if (srcEp.relation === "1" && tgtEp.relation === "1")
+      cardinality = "One to one";
 
     const existing = existingByKey.get(key);
     out.push({
@@ -492,9 +527,14 @@ export interface CanvasSchemaMeta {
   project: CanvasProject | null;
 }
 
-const qualifiedGroupRef = (ref: { tableName: string; schemaName?: string }): string => {
+const qualifiedGroupRef = (ref: {
+  tableName: string;
+  schemaName?: string;
+}): string => {
   const schema = ref.schemaName;
-  return schema && schema !== DEFAULT_PARSE_SCHEMA ? `${schema}.${ref.tableName}` : ref.tableName;
+  return schema && schema !== DEFAULT_PARSE_SCHEMA
+    ? `${schema}.${ref.tableName}`
+    : ref.tableName;
 };
 
 // @dbml/core is inconsistent: notes arrive as a bare string in some places and
@@ -529,17 +569,26 @@ export interface ParsedToCanvasMetaOptions {
  */
 export const parsedToCanvasSchemaMeta = (
   parsed: ParsedDbmlResult,
-  { existingEnums = [], existingTableGroups = [] }: ParsedToCanvasMetaOptions = {}
+  {
+    existingEnums = [],
+    existingTableGroups = [],
+  }: ParsedToCanvasMetaOptions = {},
 ): CanvasSchemaMeta => {
   const enums: CanvasEnum[] = parsed.enums.map((en) => ({
-    id: existingEnums.find((e) => e.name === en.name)?.id ?? crypto.randomUUID(),
+    id:
+      existingEnums.find((e) => e.name === en.name)?.id ?? crypto.randomUUID(),
     name: en.name,
     note: noteText(en.note),
-    values: en.values.map((val) => ({ name: val.name, note: noteText(val.note) })),
+    values: en.values.map((val) => ({
+      name: val.name,
+      note: noteText(val.note),
+    })),
   }));
 
   const tableGroups: CanvasTableGroup[] = parsed.tableGroups.map((group) => ({
-    id: existingTableGroups.find((g) => g.name === group.name)?.id ?? crypto.randomUUID(),
+    id:
+      existingTableGroups.find((g) => g.name === group.name)?.id ??
+      crypto.randomUUID(),
     name: group.name,
     tableNames: group.tables.map(qualifiedGroupRef),
   }));

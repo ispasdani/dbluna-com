@@ -1,13 +1,25 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
 import { json } from "@codemirror/lang-json";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { Parser } from "@dbml/core";
-import { AlertCircle, Check, Copy, Download, TriangleAlert } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  Download,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { linter, lintGutter, Diagnostic } from "@codemirror/lint";
 import { tablesToJSON, jsonToTables, tablesToMermaid } from "@/lib/converters";
@@ -74,8 +86,13 @@ function dbmlProblems(code: string): Problem[] {
     // The DBML parser reports an object with a `diags` array; older error
     // shapes carry a single `location` instead.
     const err = caught as DbmlDiag & { diags?: DbmlDiag[] };
-    const diags: DbmlDiag[] = Array.isArray(err?.diags) ? err.diags : err?.location ? [err] : [];
-    if (diags.length === 0) return [{ message: err?.message || "Syntax error" }];
+    const diags: DbmlDiag[] = Array.isArray(err?.diags)
+      ? err.diags
+      : err?.location
+        ? [err]
+        : [];
+    if (diags.length === 0)
+      return [{ message: err?.message || "Syntax error" }];
     return diags.map((d) => {
       const start = d.location?.start;
       const end = d.location?.end;
@@ -128,18 +145,21 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   const codeFont = usePanelStyleStore((s) => s.codeFont);
 
   // Inline squiggles (DBML only), from the same source as the problems list.
-  const dbmlLinterSource = useCallback((view: EditorView): Diagnostic[] => {
-    if (language !== "dbml") return [];
-    return dbmlProblems(view.state.doc.toString())
-      .filter((p) => p.from !== undefined)
-      .map((p) => ({
-        from: p.from!,
-        to: Math.max(p.to ?? p.from!, p.from! + 1), // Ensure at least 1 char width
-        severity: "error",
-        message: p.message,
-        source: "DBML Parser",
-      }));
-  }, [language]);
+  const dbmlLinterSource = useCallback(
+    (view: EditorView): Diagnostic[] => {
+      if (language !== "dbml") return [];
+      return dbmlProblems(view.state.doc.toString())
+        .filter((p) => p.from !== undefined)
+        .map((p) => ({
+          from: p.from!,
+          to: Math.max(p.to ?? p.from!, p.from! + 1), // Ensure at least 1 char width
+          severity: "error",
+          message: p.message,
+          source: "DBML Parser",
+        }));
+    },
+    [language],
+  );
 
   // 1. Canvas -> Code (One-way init or update)
   useEffect(() => {
@@ -156,7 +176,13 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         // DBML (Default) — shared generator: preserves schema prefixes,
         // relationships (Ref:), table notes, and the docs metadata
         // (project note, enums, table groups).
-        setCode(generateDbmlFromCanvas(tables, relationships, { project, enums, tableGroups }));
+        setCode(
+          generateDbmlFromCanvas(tables, relationships, {
+            project,
+            enums,
+            tableGroups,
+          }),
+        );
       }
     } catch (err) {
       console.error("Failed to generate code", err);
@@ -175,7 +201,9 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
     // back under, just not add new ones.
     const overCap = (proposedCount: number) => {
       const current = useCanvasStore.getState().tables.length;
-      return tableCap != null && proposedCount > tableCap && proposedCount > current;
+      return (
+        tableCap != null && proposedCount > tableCap && proposedCount > current
+      );
     };
 
     try {
@@ -184,13 +212,15 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         try {
           newTables = jsonToTables(debouncedCode);
         } catch (err) {
-          setProblems([{ message: err instanceof Error ? err.message : "Invalid JSON" }]);
+          setProblems([
+            { message: err instanceof Error ? err.message : "Invalid JSON" },
+          ]);
           return;
         }
         setProblems([]);
         if (overCap(newTables.length)) {
           setCapError(
-            `The Free plan is capped at ${tableCap} tables per diagram. This schema defines ${newTables.length} — remove some or upgrade to Pro.`
+            `The Free plan is capped at ${tableCap} tables per diagram. This schema defines ${newTables.length} — remove some or upgrade to Pro.`,
           );
           return;
         }
@@ -217,7 +247,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
       if (overCap(parsed.tables.length)) {
         setCapError(
-          `The Free plan is capped at ${tableCap} tables per diagram. This DBML defines ${parsed.tables.length} — remove some tables or upgrade to Pro.`
+          `The Free plan is capped at ${tableCap} tables per diagram. This DBML defines ${parsed.tables.length} — remove some tables or upgrade to Pro.`,
         );
         return;
       }
@@ -235,7 +265,9 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
       // Build the set of enum names from the parse result so `parsedTablesToCanvasTables`
       // can preserve their casing instead of uppercasing them like primitive types.
-      const knownEnumNames = new Set(parsed.enums.map((e) => e.name.toLowerCase()));
+      const knownEnumNames = new Set(
+        parsed.enums.map((e) => e.name.toLowerCase()),
+      );
 
       const newTables = parsedTablesToCanvasTables(parsed.tables, {
         existingTables: currentTables,
@@ -251,7 +283,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       const newRelationships = parsedRefsToCanvasRelationships(
         parsed.refs,
         newTables,
-        currentRelationships
+        currentRelationships,
       );
 
       // Documentation metadata authored in the editor (enums, table groups,
@@ -272,18 +304,29 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       setEnums(meta.enums);
       setTableGroups(meta.tableGroups);
       setProject(meta.project);
-
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }
-  }, [debouncedCode, setTables, setRelationships, setEnums, setTableGroups, setProject, language, tableCap]);
+  }, [
+    debouncedCode,
+    setTables,
+    setRelationships,
+    setEnums,
+    setTableGroups,
+    setProject,
+    language,
+    tableCap,
+  ]);
 
-  const handleChange = useCallback((val: string) => {
-    if (readOnly) return;
-    isTypingRef.current = true;
-    setIsTyping(true);
-    setCode(val);
-  }, [readOnly]);
+  const handleChange = useCallback(
+    (val: string) => {
+      if (readOnly) return;
+      isTypingRef.current = true;
+      setIsTyping(true);
+      setCode(val);
+    },
+    [readOnly],
+  );
 
   const handleCopy = () => {
     if (readOnly) {
@@ -315,7 +358,10 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   // Table colours by the name each format writes, so the dots can find them.
   // Keyed on a string so a canvas drag (which replaces `tables`) doesn't
   // reconfigure the editor.
-  const colorKey = useMemo(() => JSON.stringify(tables.map((t) => [t.name, t.color])), [tables]);
+  const colorKey = useMemo(
+    () => JSON.stringify(tables.map((t) => [t.name, t.color])),
+    [tables],
+  );
   const colorOf = useMemo(() => {
     const byName = new Map<string, string>();
     for (const [name, color] of JSON.parse(colorKey) as [string, string][]) {
@@ -361,9 +407,16 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   const sync = readOnly
     ? { tone: styles.quiet, label: "Read only" }
     : language === "mermaid"
-      ? { tone: styles.quiet, label: "Export only · not synced", title: "Mermaid is export-only; edits here don't reach the canvas." }
+      ? {
+          tone: styles.quiet,
+          label: "Export only · not synced",
+          title: "Mermaid is export-only; edits here don't reach the canvas.",
+        }
       : problems.length > 0
-        ? { tone: styles.err, label: `${problems.length} ${problems.length === 1 ? "problem" : "problems"} · canvas paused` }
+        ? {
+            tone: styles.err,
+            label: `${problems.length} ${problems.length === 1 ? "problem" : "problems"} · canvas paused`,
+          }
         : capError
           ? { tone: styles.paused, label: "Paused · table limit" }
           : pending
@@ -388,8 +441,18 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
         </div>
         <span className={styles.spacer} />
         {!readOnly && (
-          <button type="button" className={styles.iconBtn} onClick={handleCopy} title="Copy to clipboard" aria-label="Copy to clipboard">
-            {copied ? <Check className={cn("w-3.5 h-3.5", styles.copied)} /> : <Copy className="w-3.5 h-3.5" />}
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={handleCopy}
+            title="Copy to clipboard"
+            aria-label="Copy to clipboard"
+          >
+            {copied ? (
+              <Check className={cn("w-3.5 h-3.5", styles.copied)} />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
           </button>
         )}
         {!readOnly && (
@@ -446,7 +509,9 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
               onClick={() => jumpTo(p)}
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              <span className={styles.loc}>{p.line ? `Ln ${p.line}` : "—"}</span>
+              <span className={styles.loc}>
+                {p.line ? `Ln ${p.line}` : "—"}
+              </span>
               <span className={styles.message}>{p.message}</span>
             </button>
           ))}
@@ -455,7 +520,11 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
 
       {/* Status bar */}
       <div className={styles.status}>
-        <span className={cn(styles.pill, sync.tone)} title={sync.title} role="status">
+        <span
+          className={cn(styles.pill, sync.tone)}
+          title={sync.title}
+          role="status"
+        >
           <i />
           {sync.label}
         </span>

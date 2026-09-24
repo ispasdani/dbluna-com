@@ -36,19 +36,22 @@ function extractTableAndColumn(fullName: string) {
 
 export async function POST(req: NextRequest) {
   if (!req.body) {
-    return NextResponse.json({ success: false, error: "No XML body provided" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "No XML body provided" },
+      { status: 400 },
+    );
   }
 
   try {
     const tables = new Map<string, TableInfo>();
     const relationships: Relationship[] = [];
-    const pkSet = new Set<string>(); 
+    const pkSet = new Set<string>();
 
     let saxError: Error | null = null;
 
     await new Promise<void>((resolve, reject) => {
       const saxStream = sax.createStream(true, { trim: true });
-      
+
       let isPk = false;
       let isFk = false;
       let isTypeRel = false;
@@ -60,12 +63,15 @@ export async function POST(req: NextRequest) {
       let currentFkStep = 0;
 
       saxStream.on("error", (e) => {
-          saxError = e;
-          reject(e);
+        saxError = e;
+        reject(e);
       });
 
       saxStream.on("opentag", (node: any) => {
-        if (node.name === "Element" && node.attributes?.Type === "SqlSimpleColumn") {
+        if (
+          node.name === "Element" &&
+          node.attributes?.Type === "SqlSimpleColumn"
+        ) {
           const name = node.attributes.Name;
           colContext = name;
           if (name) {
@@ -77,114 +83,147 @@ export async function POST(req: NextRequest) {
                 tables.set(parts.table, tbl);
               }
               if (!tbl.columns.find((c) => c.name === parts.column)) {
-                tbl.columns.push({ name: parts.column, type: "VARCHAR", isPk: false, isNotNull: false });
+                tbl.columns.push({
+                  name: parts.column,
+                  type: "VARCHAR",
+                  isPk: false,
+                  isNotNull: false,
+                });
               }
             }
           }
         }
 
-        if (node.name === "Property" && node.attributes?.Name === "IsNullable" && node.attributes?.Value === "False") {
-            if (colContext) {
-              const parts = extractTableAndColumn(colContext);
-              if (parts) {
-                  const tbl = tables.get(parts.table);
-                  const col = tbl?.columns.find(c => c.name === parts.column);
-                  if (col) col.isNotNull = true;
-              }
+        if (
+          node.name === "Property" &&
+          node.attributes?.Name === "IsNullable" &&
+          node.attributes?.Value === "False"
+        ) {
+          if (colContext) {
+            const parts = extractTableAndColumn(colContext);
+            if (parts) {
+              const tbl = tables.get(parts.table);
+              const col = tbl?.columns.find((c) => c.name === parts.column);
+              if (col) col.isNotNull = true;
             }
+          }
         }
 
-        if (node.name === "Element" && node.attributes?.Type === "SqlPrimaryKeyConstraint") {
-            isPk = true;
+        if (
+          node.name === "Element" &&
+          node.attributes?.Type === "SqlPrimaryKeyConstraint"
+        ) {
+          isPk = true;
         }
 
-        if (node.name === "Element" && node.attributes?.Type === "SqlForeignKeyConstraint") {
-            isFk = true;
-            currentFkStep = 0;
-            const fkName = node.attributes.Name;
-            if (fkName) {
-              const parts = extractTableAndColumn(fkName);
-            }
+        if (
+          node.name === "Element" &&
+          node.attributes?.Type === "SqlForeignKeyConstraint"
+        ) {
+          isFk = true;
+          currentFkStep = 0;
+          const fkName = node.attributes.Name;
+          if (fkName) {
+            const parts = extractTableAndColumn(fkName);
+          }
         }
 
-        if (isFk && node.name === "Relationship" && node.attributes?.Name === "Columns") {
-            currentFkStep = 1;
+        if (
+          isFk &&
+          node.name === "Relationship" &&
+          node.attributes?.Name === "Columns"
+        ) {
+          currentFkStep = 1;
         }
-        if (isFk && node.name === "Relationship" && node.attributes?.Name === "ForeignTable") {
-            currentFkStep = 2;
+        if (
+          isFk &&
+          node.name === "Relationship" &&
+          node.attributes?.Name === "ForeignTable"
+        ) {
+          currentFkStep = 2;
         }
-        if (isFk && node.name === "Relationship" && node.attributes?.Name === "ForeignColumns") {
-            currentFkStep = 3;
+        if (
+          isFk &&
+          node.name === "Relationship" &&
+          node.attributes?.Name === "ForeignColumns"
+        ) {
+          currentFkStep = 3;
         }
         if (node.name === "Relationship" && node.attributes?.Name === "Type") {
-            isTypeRel = true;
+          isTypeRel = true;
         }
 
         if (node.name === "References") {
-            if (isPk) {
-              pkSet.add(node.attributes.Name);
+          if (isPk) {
+            pkSet.add(node.attributes.Name);
+          }
+          if (isFk && currentFkStep === 1) {
+            const pkRef = node.attributes.Name;
+            const parts = extractTableAndColumn(pkRef);
+            if (parts) {
+              fkSourceTable = parts.table;
+              fkSourceCol = parts.column;
             }
-            if (isFk && currentFkStep === 1) {
-              const pkRef = node.attributes.Name;
-              const parts = extractTableAndColumn(pkRef);
-              if (parts) { 
-                fkSourceTable = parts.table;
-                fkSourceCol = parts.column;
-              }
+          }
+          if (isFk && currentFkStep === 2) {
+            fkTargetTable = node.attributes.Name;
+          }
+          if (isFk && currentFkStep === 3) {
+            const parts = extractTableAndColumn(node.attributes.Name);
+            if (parts) {
+              fkTargetTable = parts.table; // Ensure it overwrites just in case
+              fkTargetCol = parts.column;
             }
-            if (isFk && currentFkStep === 2) {
-              fkTargetTable = node.attributes.Name;
-            }
-            if (isFk && currentFkStep === 3) {
-              const parts = extractTableAndColumn(node.attributes.Name);
+          }
+          if (colContext && isTypeRel) {
+            const typeName = node.attributes?.Name;
+            if (typeName) {
+              const parts = extractTableAndColumn(colContext);
               if (parts) {
-                  fkTargetTable = parts.table; // Ensure it overwrites just in case
-                  fkTargetCol = parts.column;
+                const tbl = tables.get(parts.table);
+                const col = tbl?.columns.find((c) => c.name === parts.column);
+                if (col)
+                  col.type = typeName.replace(/[\[\]]/g, "").toUpperCase();
               }
             }
-            if (colContext && isTypeRel) {
-              const typeName = node.attributes?.Name;
-              if (typeName) {
-                  const parts = extractTableAndColumn(colContext);
-                  if (parts) {
-                    const tbl = tables.get(parts.table);
-                    const col = tbl?.columns.find(c => c.name === parts.column);
-                    if (col) col.type = typeName.replace(/[\[\]]/g, '').toUpperCase();
-                  }
-              }
-            }
+          }
         }
       });
 
       saxStream.on("closetag", (nodeName) => {
         if (nodeName === "Element") {
-            colContext = null;
-            if (isPk) isPk = false;
-            if (isFk) {
-                isFk = false;
-                if (fkSourceTable && fkTargetTable && fkSourceCol && fkTargetCol) {
-                  relationships.push({ sourceTable: fkSourceTable, sourceCol: fkSourceCol, targetTable: fkTargetTable, targetCol: fkTargetCol });
-                }
-                fkSourceTable = null;
-                fkTargetTable = null;
-                fkSourceCol = null;
-                fkTargetCol = null;
+          colContext = null;
+          if (isPk) isPk = false;
+          if (isFk) {
+            isFk = false;
+            if (fkSourceTable && fkTargetTable && fkSourceCol && fkTargetCol) {
+              relationships.push({
+                sourceTable: fkSourceTable,
+                sourceCol: fkSourceCol,
+                targetTable: fkTargetTable,
+                targetCol: fkTargetCol,
+              });
             }
+            fkSourceTable = null;
+            fkTargetTable = null;
+            fkSourceCol = null;
+            fkTargetCol = null;
           }
-          if (nodeName === "Relationship") {
-            isTypeRel = false;
-            currentFkStep = 0;
-          }
+        }
+        if (nodeName === "Relationship") {
+          isTypeRel = false;
+          currentFkStep = 0;
+        }
       });
 
       saxStream.on("end", () => {
         for (const pkCol of pkSet) {
-            const parts = extractTableAndColumn(pkCol);
-            if (parts) {
-              const tbl = tables.get(parts.table);
-              const col = tbl?.columns.find(c => c.name === parts.column);
-              if (col) col.isPk = true;
-            }
+          const parts = extractTableAndColumn(pkCol);
+          if (parts) {
+            const tbl = tables.get(parts.table);
+            const col = tbl?.columns.find((c) => c.name === parts.column);
+            if (col) col.isPk = true;
+          }
         }
         resolve();
       });
@@ -196,8 +235,15 @@ export async function POST(req: NextRequest) {
     if (saxError) throw saxError;
 
     const _tablesArray = Array.from(tables.values());
-    return NextResponse.json({ success: true, tables: _tablesArray, relationships });
+    return NextResponse.json({
+      success: true,
+      tables: _tablesArray,
+      relationships,
+    });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err?.message || String(err) }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: err?.message || String(err) },
+      { status: 500 },
+    );
   }
 }

@@ -1,6 +1,5 @@
 import { DivideX } from "@/components/marketing-general/divideX";
 import { LazyMount } from "@/components/marketing-general/lazy-mount";
-import { LogoCloud } from "@/components/marketing-general/logo-cloud";
 import { Benefits } from "@/components/marketing-sections/benefits/benefits";
 import { FAQs } from "@/components/marketing-sections/faq";
 import { Features } from "@/components/marketing-sections/features/features";

@@ -12,11 +12,13 @@ import type { CanvasBackground } from "@/store/useCanvasStore";
 export function backgroundPositionFor(
   variant: CanvasBackground,
   x: number,
-  y: number
+  y: number,
 ) {
   const origin = `${x}px ${y}px`;
   // "grid" layers four background-images, so it needs four positions.
-  return variant === "dots" ? origin : `${origin}, ${origin}, ${origin}, ${origin}`;
+  return variant === "dots"
+    ? origin
+    : `${origin}, ${origin}, ${origin}, ${origin}`;
 }
 
 export function WorldBackground({

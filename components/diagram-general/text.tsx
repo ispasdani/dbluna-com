@@ -84,7 +84,7 @@ export function Text({
     underlineClasses[underline],
     weight ? weightClasses[weight] : "",
     noTransition ? "" : "transition-colors duration-200",
-    className
+    className,
   );
 
   if (href) {

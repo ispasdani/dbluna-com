@@ -13,7 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useCanvasStore, Table as CanvasTable, TABLE_COLORS } from "@/store/useCanvasStore";
+import {
+  useCanvasStore,
+  Table as CanvasTable,
+  TABLE_COLORS,
+} from "@/store/useCanvasStore";
 import {
   importSqlSchema,
   dropPlaceholderTables,
@@ -54,7 +58,12 @@ import styles from "./import-schema-dialog.module.scss";
 ───────────────────────────────────────────────────────────────────────────── */
 /** Every tab the dialog can open on. Callers (the Import menu in TopNavbar)
     pick one so a menu item lands the user straight on the right source. */
-export type ImportSchemaTab = "postgresql" | "sqlserver" | "sql" | "csv" | "bacpac";
+export type ImportSchemaTab =
+  | "postgresql"
+  | "sqlserver"
+  | "sql"
+  | "csv"
+  | "bacpac";
 
 interface ImportSchemaDialogProps {
   open: boolean;
@@ -86,36 +95,46 @@ const DEFAULT_PORTS: Record<DbEngine, string> = {
 /** The source rail, in the order it reads down the left edge of the dialog.
     `blurb` doubles as the dialog's description, so the header explains
     whichever source is selected instead of describing all five at once. */
-const SOURCES: { id: ImportSchemaTab; label: string; icon: LucideIcon; blurb: string }[] = [
+const SOURCES: {
+  id: ImportSchemaTab;
+  label: string;
+  icon: LucideIcon;
+  blurb: string;
+}[] = [
   {
     id: "postgresql",
     label: "PostgreSQL",
     icon: Database,
-    blurb: "Connect to a live PostgreSQL database and pull its tables and foreign keys.",
+    blurb:
+      "Connect to a live PostgreSQL database and pull its tables and foreign keys.",
   },
   {
     id: "sqlserver",
     label: "SQL Server",
     icon: Server,
-    blurb: "Connect to a live SQL Server database and pull its tables and foreign keys.",
+    blurb:
+      "Connect to a live SQL Server database and pull its tables and foreign keys.",
   },
   {
     id: "sql",
     label: "SQL Script",
     icon: Terminal,
-    blurb: "Paste CREATE TABLE statements, or drop a .sql file, and parse it onto the canvas.",
+    blurb:
+      "Paste CREATE TABLE statements, or drop a .sql file, and parse it onto the canvas.",
   },
   {
     id: "csv",
     label: "CSV",
     icon: FileSpreadsheet,
-    blurb: "Drop one or more CSV files — each file becomes a table, each header a column.",
+    blurb:
+      "Drop one or more CSV files — each file becomes a table, each header a column.",
   },
   {
     id: "bacpac",
     label: "BACPAC",
     icon: FileArchive,
-    blurb: "Upload a SQL Server .bacpac export and read its schema from model.xml.",
+    blurb:
+      "Upload a SQL Server .bacpac export and read its schema from model.xml.",
   },
 ];
 
@@ -125,9 +144,17 @@ const SOURCES: { id: ImportSchemaTab; label: string; icon: LucideIcon; blurb: st
 /** Positions tables left-to-right along their relationships. Used both for the
     review preview and for the actual import, so the preview is what you get. */
 /** Either a store relationship or the `{ sourceId, targetId }` shape the DB tabs produce. */
-type EdgeLike = { sourceId?: string; targetId?: string; sourceTableId?: string; targetTableId?: string };
+type EdgeLike = {
+  sourceId?: string;
+  targetId?: string;
+  sourceTableId?: string;
+  targetTableId?: string;
+};
 
-function layoutTables(tables: CanvasTable[], relationships?: EdgeLike[]): CanvasTable[] {
+function layoutTables(
+  tables: CanvasTable[],
+  relationships?: EdgeLike[],
+): CanvasTable[] {
   const g = new dagre.graphlib.Graph();
   g.setGraph({ rankdir: "LR", ranksep: 220, nodesep: 80 });
   g.setDefaultEdgeLabel(() => ({}));
@@ -158,24 +185,24 @@ function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
   const positioned = layoutTables(tables, relationships);
 
   useCanvasStore.setState((s) => {
-    const newRelationships = (relationships ?? []).map(r => {
-       if (r.sourceTableId) return r; // already a valid store relationship
-       return {
-         id: crypto.randomUUID(),
-         name: "",
-         sourceTableId: r.sourceId,
-         sourceColumnId: "",
-         targetTableId: r.targetId,
-         targetColumnId: "",
-         cardinality: "One to many",
-         onUpdate: "No action",
-         onDelete: "No action"
-       };
+    const newRelationships = (relationships ?? []).map((r) => {
+      if (r.sourceTableId) return r; // already a valid store relationship
+      return {
+        id: crypto.randomUUID(),
+        name: "",
+        sourceTableId: r.sourceId,
+        sourceColumnId: "",
+        targetTableId: r.targetId,
+        targetColumnId: "",
+        cardinality: "One to many",
+        onUpdate: "No action",
+        onDelete: "No action",
+      };
     });
 
     return {
       tables: [...s.tables, ...positioned],
-      relationships: [...s.relationships, ...newRelationships]
+      relationships: [...s.relationships, ...newRelationships],
     };
   });
 }
@@ -186,7 +213,9 @@ function layoutAndImport(tables: CanvasTable[], relationships?: any[]) {
 function parseCsv(text: string): { headers: string[]; rowCount: number } {
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length === 0) return { headers: [], rowCount: 0 };
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().replace(/^"|"$/g, ""));
   return { headers, rowCount: Math.max(0, lines.length - 1) };
 }
 
@@ -200,7 +229,8 @@ function parseCsv(text: string): { headers: string[]; rowCount: number } {
 ───────────────────────────────────────────────────────────────────────────── */
 
 /** The monochrome primary action, shared by all four import buttons. */
-const IMPORT_ACTION = "gap-2 bg-foreground text-background hover:bg-foreground/85";
+const IMPORT_ACTION =
+  "gap-2 bg-foreground text-background hover:bg-foreground/85";
 
 /** Scrolling body + the action bar that stays pinned to the bottom edge. */
 function TabShell({
@@ -254,21 +284,24 @@ function StatusBanner({
 }) {
   const tone =
     status === "success" ? "success" : status === "error" ? "error" : "info";
-  const Icon = tone === "success" ? CheckCircle2 : tone === "error" ? AlertCircle : Info;
+  const Icon =
+    tone === "success" ? CheckCircle2 : tone === "error" ? AlertCircle : Info;
 
   return (
     <div
       className={cn(
         "flex items-start gap-2 border px-3 py-2.5 text-xs",
-        tone === "success" && "border-emerald-500/40 bg-emerald-500/10 text-foreground",
-        tone === "error" && "border-destructive/40 bg-destructive/10 text-destructive",
-        tone === "info" && "border-border bg-muted text-muted-foreground"
+        tone === "success" &&
+          "border-emerald-500/40 bg-emerald-500/10 text-foreground",
+        tone === "error" &&
+          "border-destructive/40 bg-destructive/10 text-destructive",
+        tone === "info" && "border-border bg-muted text-muted-foreground",
       )}
     >
       <Icon
         className={cn(
           "mt-px size-3.5 shrink-0",
-          tone === "success" && "text-emerald-500"
+          tone === "success" && "text-emerald-500",
         )}
       />
       <div className="min-w-0 leading-relaxed">
@@ -295,9 +328,13 @@ function ResultPanel({
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {title}
         </span>
-        <span className="text-[10px] tabular-nums text-muted-foreground">{meta}</span>
+        <span className="text-[10px] tabular-nums text-muted-foreground">
+          {meta}
+        </span>
       </div>
-      <div className="max-h-44 divide-y divide-border overflow-y-auto">{children}</div>
+      <div className="max-h-44 divide-y divide-border overflow-y-auto">
+        {children}
+      </div>
     </div>
   );
 }
@@ -320,17 +357,26 @@ function ResultRow({
 }) {
   return (
     <div className="flex items-start gap-2.5 px-3 py-2">
-      <Icon className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", iconClassName)} />
+      <Icon
+        className={cn(
+          "mt-0.5 size-3.5 shrink-0 text-muted-foreground",
+          iconClassName,
+        )}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-xs font-medium text-foreground">{name}</span>
+          <span className="truncate text-xs font-medium text-foreground">
+            {name}
+          </span>
           {badge && (
             <span className="shrink-0 border border-amber-500/50 bg-amber-500/15 px-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-foreground">
               {badge}
             </span>
           )}
         </div>
-        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{detail}</p>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          {detail}
+        </p>
       </div>
       {action}
     </div>
@@ -378,7 +424,7 @@ function DropZone({
         "focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50",
         isDragging
           ? "border-foreground bg-foreground/5"
-          : "border-border bg-muted/40 hover:border-foreground/40 hover:bg-muted"
+          : "border-border bg-muted/40 hover:border-foreground/40 hover:bg-muted",
       )}
     >
       <span className="flex size-10 items-center justify-center border border-border bg-background text-foreground">
@@ -405,9 +451,19 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string>("");
-  const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
+  const [preview, setPreview] = useState<
+    { tableName: string; columns: string[] }[] | null
+  >(null);
   const pendingDataRef = useRef<{
-    tables: { name: string; columns: { name: string; type: string; isPk?: boolean; isNotNull?: boolean }[] }[];
+    tables: {
+      name: string;
+      columns: {
+        name: string;
+        type: string;
+        isPk?: boolean;
+        isNotNull?: boolean;
+      }[];
+    }[];
     relationships: any[];
   }>({ tables: [], relationships: [] });
 
@@ -445,19 +501,34 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       // result.tables: Array<{ name: string, columns: Array<{ name, type, isPk, isNotNull }> }>
       const rawTables: {
         name: string;
-        columns: { name: string; type: string; isPk?: boolean; isNotNull?: boolean }[];
+        columns: {
+          name: string;
+          type: string;
+          isPk?: boolean;
+          isNotNull?: boolean;
+        }[];
       }[] = result.tables ?? [];
       const relationships = result.relationships ?? [];
 
-      setPreview(rawTables.map((t) => ({ tableName: t.name, columns: t.columns.map((c) => c.name) })));
+      setPreview(
+        rawTables.map((t) => ({
+          tableName: t.name,
+          columns: t.columns.map((c) => c.name),
+        })),
+      );
       setStatus("success");
-      setMessage(`Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`);
+      setMessage(
+        `Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`,
+      );
 
       // Store for import via ref (stable across renders)
       pendingDataRef.current = { tables: rawTables, relationships };
     } catch (err: any) {
       setStatus("error");
-      setMessage(err?.message ?? "Connection failed. Check your credentials and try again.");
+      setMessage(
+        err?.message ??
+          "Connection failed. Check your credentials and try again.",
+      );
     }
   };
 
@@ -483,15 +554,15 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       })),
     }));
 
-    const tableMap = new Map(canvasTables.map(t => [t.name, t]));
+    const tableMap = new Map(canvasTables.map((t) => [t.name, t]));
     const canvasRelationships = relationships
       .map((r: any) => {
         const sTbl = tableMap.get(r.sourceTable);
         const tTbl = tableMap.get(r.targetTable);
         if (!sTbl || !tTbl) return null;
 
-        const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
-        const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
+        const sCol = sTbl.columns.find((c) => c.name === r.sourceCol)?.id || "";
+        const tCol = tTbl.columns.find((c) => c.name === r.targetCol)?.id || "";
 
         return {
           id: crypto.randomUUID(),
@@ -502,7 +573,7 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
           targetColumnId: tCol,
           cardinality: "One to many",
           onUpdate: "No action",
-          onDelete: "No action"
+          onDelete: "No action",
         };
       })
       .filter(Boolean);
@@ -512,7 +583,9 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
     // the next line, so both buttons disable themselves anyway, and the banner
     // reads as a confirmation instead of a neutral note.
     setStatus("success");
-    setMessage(`Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
+    setMessage(
+      `Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`,
+    );
     setPreview(null);
     pendingDataRef.current = { tables: [], relationships: [] };
   };
@@ -597,7 +670,11 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
               aria-label={showPassword ? "Hide password" : "Show password"}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
             >
-              {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+              {showPassword ? (
+                <EyeOff className="size-3.5" />
+              ) : (
+                <Eye className="size-3.5" />
+              )}
             </button>
           </div>
         </Field>
@@ -612,7 +689,8 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
       </div>
 
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Credentials are sent to your own server to read the schema and are never stored.
+        Credentials are sent to your own server to read the schema and are never
+        stored.
       </p>
 
       {message && <StatusBanner status={status} message={message} />}
@@ -641,20 +719,26 @@ function DbConnectionTab({ engine }: { engine: DbEngine }) {
    Sub-component: CSV Import Tab
 ───────────────────────────────────────────────────────────────────────────── */
 function CsvImportTab() {
-  const [files, setFiles] = useState<{ name: string; headers: string[]; rowCount: number }[]>([]);
+  const [files, setFiles] = useState<
+    { name: string; headers: string[]; rowCount: number }[]
+  >([]);
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const processFiles = useCallback((fileList: FileList) => {
-    const pending: Promise<{ name: string; headers: string[]; rowCount: number }>[] = [];
+    const pending: Promise<{
+      name: string;
+      headers: string[];
+      rowCount: number;
+    }>[] = [];
     for (const f of Array.from(fileList)) {
       if (!f.name.toLowerCase().endsWith(".csv")) continue;
       pending.push(
         f.text().then((text) => {
           const { headers, rowCount } = parseCsv(text);
           return { name: f.name.replace(/\.csv$/i, ""), headers, rowCount };
-        })
+        }),
       );
     }
     Promise.all(pending).then((results) => {
@@ -706,7 +790,9 @@ function CsvImportTab() {
       actions={
         <Button
           onClick={handleImport}
-          disabled={files.length === 0 || status === "loading" || status === "success"}
+          disabled={
+            files.length === 0 || status === "loading" || status === "success"
+          }
           size="lg"
           className={IMPORT_ACTION}
         >
@@ -718,7 +804,8 @@ function CsvImportTab() {
           ) : (
             <>
               <Upload className="size-3.5" />
-              Import {files.length > 0 ? `${files.length} table(s)` : ""} to canvas
+              Import {files.length > 0 ? `${files.length} table(s)` : ""} to
+              canvas
             </>
           )}
         </Button>
@@ -797,8 +884,13 @@ function BacpacImportTab() {
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const pendingDataRef = useRef<{ tables: any[]; relationships: any[] }>({ tables: [], relationships: [] });
-  const [preview, setPreview] = useState<{ tableName: string; columns: string[] }[] | null>(null);
+  const pendingDataRef = useRef<{ tables: any[]; relationships: any[] }>({
+    tables: [],
+    relationships: [],
+  });
+  const [preview, setPreview] = useState<
+    { tableName: string; columns: string[] }[] | null
+  >(null);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -846,14 +938,23 @@ function BacpacImportTab() {
       const rawTables = result.tables ?? [];
       const relationships = result.relationships ?? [];
 
-      setPreview(rawTables.map((t: any) => ({ tableName: t.name, columns: t.columns.map((c: any) => c.name) })));
+      setPreview(
+        rawTables.map((t: any) => ({
+          tableName: t.name,
+          columns: t.columns.map((c: any) => c.name),
+        })),
+      );
       setStatus("success");
-      setMessage(`Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`);
+      setMessage(
+        `Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`,
+      );
 
       pendingDataRef.current = { tables: rawTables, relationships };
     } catch (err: any) {
       setStatus("error");
-      setMessage(err?.message ?? "Failed to parse BACPAC. Check the file and try again.");
+      setMessage(
+        err?.message ?? "Failed to parse BACPAC. Check the file and try again.",
+      );
     }
   };
 
@@ -878,15 +979,15 @@ function BacpacImportTab() {
       })),
     }));
 
-    const tableMap = new Map(canvasTables.map(t => [t.name, t]));
+    const tableMap = new Map(canvasTables.map((t) => [t.name, t]));
     const canvasRelationships = relationships
       .map((r: any) => {
         const sTbl = tableMap.get(r.sourceTable);
         const tTbl = tableMap.get(r.targetTable);
         if (!sTbl || !tTbl) return null;
 
-        const sCol = sTbl.columns.find(c => c.name === r.sourceCol)?.id || "";
-        const tCol = tTbl.columns.find(c => c.name === r.targetCol)?.id || "";
+        const sCol = sTbl.columns.find((c) => c.name === r.sourceCol)?.id || "";
+        const tCol = tTbl.columns.find((c) => c.name === r.targetCol)?.id || "";
 
         return {
           id: crypto.randomUUID(),
@@ -897,7 +998,7 @@ function BacpacImportTab() {
           targetColumnId: tCol,
           cardinality: "One to many",
           onUpdate: "No action",
-          onDelete: "No action"
+          onDelete: "No action",
         };
       })
       .filter(Boolean);
@@ -907,7 +1008,9 @@ function BacpacImportTab() {
     // Same as the DB tab: the preview is cleared below, so keeping `success`
     // only affects the banner's tone, not what the buttons allow.
     setStatus("success");
-    setMessage(`Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`);
+    setMessage(
+      `Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`,
+    );
     setPreview(null);
     pendingDataRef.current = { tables: [], relationships: [] };
     setFile(null);
@@ -1016,7 +1119,10 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
-  const [error, setError] = useState<{ message: string; issues: SqlImportIssue[] } | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    issues: SqlImportIssue[];
+  } | null>(null);
   const [parsed, setParsed] = useState<SqlImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -1061,8 +1167,16 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
         setSkipped(new Set());
         setStep(2);
       } catch (err) {
-        if (err instanceof SqlImportError) setError({ message: err.message, issues: err.issues });
-        else setError({ message: err instanceof Error ? err.message : "Could not read this SQL script.", issues: [] });
+        if (err instanceof SqlImportError)
+          setError({ message: err.message, issues: err.issues });
+        else
+          setError({
+            message:
+              err instanceof Error
+                ? err.message
+                : "Could not read this SQL script.",
+            issues: [],
+          });
       } finally {
         setIsParsing(false);
       }
@@ -1071,20 +1185,27 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
 
   // What the review acts on: the parse, minus placeholders if they're switched
   // off, minus anything unticked (and the relationships that touch it).
-  const base = parsed ? (includePlaceholders ? parsed : dropPlaceholderTables(parsed)) : null;
+  const base = parsed
+    ? includePlaceholders
+      ? parsed
+      : dropPlaceholderTables(parsed)
+    : null;
   const placeholderIds = new Set(parsed?.placeholderTableIds ?? []);
   const allTables = base?.tables ?? [];
   const chosenTables = allTables.filter((t) => !skipped.has(t.id));
   const chosenIds = new Set(chosenTables.map((t) => t.id));
   const chosenRelationships = (base?.relationships ?? []).filter(
-    (r) => chosenIds.has(r.sourceTableId) && chosenIds.has(r.targetTableId)
+    (r) => chosenIds.has(r.sourceTableId) && chosenIds.has(r.targetTableId),
   );
   const columnCount = chosenTables.reduce((n, t) => n + t.columns.length, 0);
   const preview = useMemo(
-    () => (chosenTables.length ? layoutTables(chosenTables, chosenRelationships) : []),
+    () =>
+      chosenTables.length
+        ? layoutTables(chosenTables, chosenRelationships)
+        : [],
     // Recomputed when the selection changes, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [parsed, includePlaceholders, skipped]
+    [parsed, includePlaceholders, skipped],
   );
 
   const toggleTable = (id: string) =>
@@ -1106,14 +1227,23 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
 
   const lineCount = Math.max(1, sql.split(/\r?\n/).length);
   const badLines = new Set(error?.issues.map((i) => i.line).filter(Boolean));
-  const outsideNames = (parsed?.tables ?? []).filter((t) => placeholderIds.has(t.id)).map((t) => t.name);
+  const outsideNames = (parsed?.tables ?? [])
+    .filter((t) => placeholderIds.has(t.id))
+    .map((t) => t.name);
 
   return (
     <div className={styles.flow} data-font={codeFont}>
       <div className={styles.body}>
         <div className={styles.steps} aria-label="Steps">
-          <span className={cn(styles.step, step === 1 ? styles.stepOn : styles.stepDone)}>
-            <span className={styles.stepNum}>{step === 1 ? 1 : <Check className="size-3" strokeWidth={3} />}</span>
+          <span
+            className={cn(
+              styles.step,
+              step === 1 ? styles.stepOn : styles.stepDone,
+            )}
+          >
+            <span className={styles.stepNum}>
+              {step === 1 ? 1 : <Check className="size-3" strokeWidth={3} />}
+            </span>
             Paste script
           </span>
           <span className={styles.stepBar} />
@@ -1127,7 +1257,10 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
           <>
             <div className={styles.label}>Dialect</div>
             <div className={styles.chips} role="group" aria-label="Dialect">
-              {[{ id: "auto" as const, label: "Auto-detect" }, ...SQL_DIALECTS].map((d) => (
+              {[
+                { id: "auto" as const, label: "Auto-detect" },
+                ...SQL_DIALECTS,
+              ].map((d) => (
                 <button
                   key={d.id}
                   type="button"
@@ -1148,13 +1281,17 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                 setIsDragging(true);
               }}
               onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
+                if (!e.currentTarget.contains(e.relatedTarget as Node))
+                  setIsDragging(false);
               }}
               onDrop={handleDrop}
             >
               <div className={styles.gutter} ref={gutterRef} aria-hidden>
                 {Array.from({ length: lineCount }, (_, i) => (
-                  <div key={i} className={badLines.has(i + 1) ? styles.badLine : undefined}>
+                  <div
+                    key={i}
+                    className={badLines.has(i + 1) ? styles.badLine : undefined}
+                  >
                     {i + 1}
                   </div>
                 ))}
@@ -1165,13 +1302,20 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                 value={sql}
                 onChange={(e) => handleSqlChange(e.target.value)}
                 onScroll={(e) => {
-                  if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+                  if (gutterRef.current)
+                    gutterRef.current.scrollTop = e.currentTarget.scrollTop;
                 }}
                 spellCheck={false}
                 aria-label="SQL script"
-                placeholder={"CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"}
+                placeholder={
+                  "CREATE TABLE users (\n  id BIGINT PRIMARY KEY,\n  email VARCHAR(255) NOT NULL\n);"
+                }
               />
-              {isDragging && <div className={styles.dropOverlay}>Drop your .sql file to load it</div>}
+              {isDragging && (
+                <div className={styles.dropOverlay}>
+                  Drop your .sql file to load it
+                </div>
+              )}
             </div>
 
             <div className={styles.meta}>
@@ -1181,11 +1325,19 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                   : "Paste CREATE TABLE statements, or drop a .sql file on the box."}
               </span>
               <span className={styles.spacer} />
-              <button type="button" className={styles.link} onClick={() => fileRef.current?.click()}>
+              <button
+                type="button"
+                className={styles.link}
+                onClick={() => fileRef.current?.click()}
+              >
                 Load .sql file
               </button>
               {sql && (
-                <button type="button" className={styles.link} onClick={() => handleSqlChange("")}>
+                <button
+                  type="button"
+                  className={styles.link}
+                  onClick={() => handleSqlChange("")}
+                >
                   Clear
                 </button>
               )}
@@ -1219,7 +1371,9 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                     </ul>
                   )}
                   {dialect === "auto" && (
-                    <div className={styles.statusHint}>If the script looks right, try picking its dialect above.</div>
+                    <div className={styles.statusHint}>
+                      If the script looks right, try picking its dialect above.
+                    </div>
                   )}
                 </div>
               </div>
@@ -1229,7 +1383,12 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
           parsed && (
             <div className={styles.review}>
               <div className={styles.col}>
-                <SchemaThumb tables={preview} relationships={chosenRelationships} height={210} className={styles.thumb} />
+                <SchemaThumb
+                  tables={preview}
+                  relationships={chosenRelationships}
+                  height={210}
+                  className={styles.thumb}
+                />
                 <div className={styles.stats}>
                   <div>
                     <b>{chosenTables.length}</b>tables
@@ -1244,8 +1403,12 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                 <div className={cn(styles.status, styles.statusOk)}>
                   <CheckCircle2 className="size-4" />
                   <span>
-                    Found {parsed.tables.length - placeholderIds.size} tables and {parsed.relationships.length}{" "}
-                    relationships{parsed.autoDetected ? `, read as ${sqlDialectLabel(parsed.dialect)}` : ""}.
+                    Found {parsed.tables.length - placeholderIds.size} tables
+                    and {parsed.relationships.length} relationships
+                    {parsed.autoDetected
+                      ? `, read as ${sqlDialectLabel(parsed.dialect)}`
+                      : ""}
+                    .
                   </span>
                 </div>
                 {placeholderIds.size > 0 && (
@@ -1260,11 +1423,13 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                     }}
                   >
                     <span className={styles.toggleText}>
-                      Add {placeholderIds.size} placeholder {placeholderIds.size === 1 ? "table" : "tables"} for outside
-                      references
+                      Add {placeholderIds.size} placeholder{" "}
+                      {placeholderIds.size === 1 ? "table" : "tables"} for
+                      outside references
                       <small>
-                        Foreign keys point at <b>{outsideNames.join(", ")}</b>, which this script doesn&apos;t define. Keep
-                        them to see those relationships.
+                        Foreign keys point at <b>{outsideNames.join(", ")}</b>,
+                        which this script doesn&apos;t define. Keep them to see
+                        those relationships.
                       </small>
                     </span>
                     <span className={styles.switch} aria-hidden />
@@ -1279,7 +1444,13 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                   <button
                     type="button"
                     className={styles.link}
-                    onClick={() => setSkipped(skipped.size ? new Set() : new Set(allTables.map((t) => t.id)))}
+                    onClick={() =>
+                      setSkipped(
+                        skipped.size
+                          ? new Set()
+                          : new Set(allTables.map((t) => t.id)),
+                      )
+                    }
                   >
                     {skipped.size ? "Select all" : "Select none"}
                   </button>
@@ -1304,10 +1475,14 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
                         <span className={styles.dot} aria-hidden />
                         <span className={styles.rowName} title={t.name}>
                           {t.name}
-                          {isPlaceholder && <span className={styles.tag}>placeholder</span>}
+                          {isPlaceholder && (
+                            <span className={styles.tag}>placeholder</span>
+                          )}
                         </span>
                         <span className={styles.rowMeta}>
-                          {isPlaceholder ? "outside" : `${t.columns.length} cols`}
+                          {isPlaceholder
+                            ? "outside"
+                            : `${t.columns.length} cols`}
                         </span>
                       </button>
                     );
@@ -1323,10 +1498,17 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
         {step === 1 ? (
           <>
             <span className={styles.footInfo}>
-              {sql.trim() ? "Next, check what was found before anything reaches the canvas." : "Nothing to read yet."}
+              {sql.trim()
+                ? "Next, check what was found before anything reaches the canvas."
+                : "Nothing to read yet."}
             </span>
             <span className={styles.spacer} />
-            <button type="button" className={styles.primary} onClick={toReview} disabled={!sql.trim() || isParsing}>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={toReview}
+              disabled={!sql.trim() || isParsing}
+            >
               {isParsing ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
@@ -1342,7 +1524,11 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
           </>
         ) : (
           <>
-            <button type="button" className={styles.secondary} onClick={() => setStep(1)}>
+            <button
+              type="button"
+              className={styles.secondary}
+              onClick={() => setStep(1)}
+            >
               <ArrowLeft className="size-3.5" />
               Edit script
             </button>
@@ -1350,7 +1536,12 @@ function SqlScriptImportTab({ onImported }: { onImported: () => void }) {
             <span className={styles.footInfo}>
               <b>{chosenTables.length}</b> of {allTables.length} tables selected
             </span>
-            <button type="button" className={styles.primary} onClick={handleImport} disabled={!chosenTables.length}>
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={handleImport}
+              disabled={!chosenTables.length}
+            >
               <Upload className="size-3.5" />
               Import {chosenTables.length} to canvas
             </button>
@@ -1410,7 +1601,9 @@ export function ImportSchemaDialog({
             <DialogTitle className={styles.title}>Import schema</DialogTitle>
             {/* The blurb follows the rail selection, so the header always
                 describes the source the user is actually looking at. */}
-            <DialogDescription className={styles.subtitle}>{active.blurb}</DialogDescription>
+            <DialogDescription className={styles.subtitle}>
+              {active.blurb}
+            </DialogDescription>
           </div>
         </DialogHeader>
 
@@ -1429,7 +1622,12 @@ export function ImportSchemaDialog({
                     const source = SOURCES.find((s) => s.id === id)!;
                     const Icon = source.icon;
                     return (
-                      <TabsTrigger key={id} value={id} title={source.label} className={styles.source}>
+                      <TabsTrigger
+                        key={id}
+                        value={id}
+                        title={source.label}
+                        className={styles.source}
+                      >
                         <span className={styles.sourceIcon}>
                           <Icon className="size-4" />
                         </span>
@@ -1447,7 +1645,11 @@ export function ImportSchemaDialog({
 
           <div className="flex min-w-0 flex-1 flex-col">
             {(["postgresql", "sqlserver"] as DbEngine[]).map((engine) => (
-              <TabsContent key={engine} value={engine} className="min-h-0 flex-1">
+              <TabsContent
+                key={engine}
+                value={engine}
+                className="min-h-0 flex-1"
+              >
                 <DbConnectionTab engine={engine} />
               </TabsContent>
             ))}

@@ -123,8 +123,8 @@ export const Features = () => {
               <CardTitle>Real-Time Schema Validation</CardTitle>
             </div>
             <CardDescription>
-              Catch duplicate table names, reserved keywords, orphaned
-              tables, and foreign-key type mismatches as you design
+              Catch duplicate table names, reserved keywords, orphaned tables,
+              and foreign-key type mismatches as you design
             </CardDescription>
           </Card>
           <Card>
@@ -133,8 +133,8 @@ export const Features = () => {
               <CardTitle>DBML & JSON Export</CardTitle>
             </div>
             <CardDescription>
-              Export a full-fidelity DBML or JSON snapshot of your diagram,
-              and import it back exactly as it was
+              Export a full-fidelity DBML or JSON snapshot of your diagram, and
+              import it back exactly as it was
             </CardDescription>
           </Card>
           <Card>
@@ -143,8 +143,8 @@ export const Features = () => {
               <CardTitle>Light &amp; Dark Mode</CardTitle>
             </div>
             <CardDescription>
-              Switch between a clean light theme and a deep dark mode that&apos;s
-              easy on the eyes during long sessions
+              Switch between a clean light theme and a deep dark mode
+              that&apos;s easy on the eyes during long sessions
             </CardDescription>
           </Card>
         </div>

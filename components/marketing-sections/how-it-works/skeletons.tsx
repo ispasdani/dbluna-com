@@ -252,12 +252,12 @@ export const DeployAndScaleSkeleton = () => {
         variant: "default" as const,
       },
     ],
-    []
+    [],
   );
 
   const extendedCards = useMemo(
     () => [...deployCards, ...deployCards, ...deployCards],
-    [deployCards]
+    [deployCards],
   );
 
   const cardHeight = 64;
@@ -327,7 +327,7 @@ export const DeployAndScaleSkeleton = () => {
               offset + (index + 1) * -itemHeight,
               offset + (index + 2) * -itemHeight,
             ],
-            [0.85, 0.95, 1.1, 0.95, 0.85]
+            [0.85, 0.95, 1.1, 0.95, 0.85],
           );
 
           const background = useTransform(
@@ -337,7 +337,7 @@ export const DeployAndScaleSkeleton = () => {
               offset + index * -itemHeight,
               offset + (index + 1) * -itemHeight,
             ],
-            ["#FFFFFF", "#f17463", "#FFFFFF"]
+            ["#FFFFFF", "#f17463", "#FFFFFF"],
           );
 
           const borderColor = useTransform(
@@ -347,7 +347,7 @@ export const DeployAndScaleSkeleton = () => {
               offset + index * -itemHeight,
               offset + (index + 1) * -itemHeight,
             ],
-            ["#FFFFFF", "#f17463", "#FFFFFF"]
+            ["#FFFFFF", "#f17463", "#FFFFFF"],
           );
 
           return (

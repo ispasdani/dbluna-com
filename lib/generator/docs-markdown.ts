@@ -47,7 +47,8 @@ function columnConstraints(col: ParsedColumn): string {
 }
 
 // Escape pipes so column names/notes don't break Markdown tables.
-const cell = (value: string | undefined): string => (value ?? "").replace(/\|/g, "\\|");
+const cell = (value: string | undefined): string =>
+  (value ?? "").replace(/\|/g, "\\|");
 
 /**
  * Renders a parsed DBML schema as human-readable Markdown documentation:
@@ -69,7 +70,7 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
 
   lines.push(
     `**${parsed.tables.length}** tables · **${refs.length}** relationships · **${parsed.enums.length}** enums`,
-    ""
+    "",
   );
 
   // ── Tables ────────────────────────────────────────────────────
@@ -81,22 +82,25 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
       const tableNote = noteText(table.note);
       if (tableNote) lines.push(tableNote, "");
 
-      lines.push("| Column | Type | Constraints | Note |", "| --- | --- | --- | --- |");
+      lines.push(
+        "| Column | Type | Constraints | Note |",
+        "| --- | --- | --- | --- |",
+      );
       table.fields.forEach((col) => {
         lines.push(
-          `| ${cell(col.name)} | ${cell(col.type?.type_name)} | ${cell(columnConstraints(col))} | ${cell(noteText(col.note))} |`
+          `| ${cell(col.name)} | ${cell(col.type?.type_name)} | ${cell(columnConstraints(col))} | ${cell(noteText(col.note))} |`,
         );
       });
       lines.push("");
 
       const related = refs.filter(
-        (r) => r.fromTable === table.name || r.toTable === table.name
+        (r) => r.fromTable === table.name || r.toTable === table.name,
       );
       if (related.length > 0) {
         lines.push("**Relationships**", "");
         related.forEach((r) => {
           lines.push(
-            `- \`${r.fromTable}.${r.fromFields.join(", ")}\` → \`${r.toTable}.${r.toFields.join(", ")}\``
+            `- \`${r.fromTable}.${r.fromFields.join(", ")}\` → \`${r.toTable}.${r.toFields.join(", ")}\``,
           );
         });
         lines.push("");

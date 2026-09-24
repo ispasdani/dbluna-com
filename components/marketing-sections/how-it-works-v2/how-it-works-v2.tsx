@@ -92,7 +92,7 @@ export const HowItWorksV2 = () => {
                 <div
                   className={cn(
                     "text-charcoal-700 relative z-20 flex items-center gap-2 font-medium dark:text-neutral-100",
-                    activeTab.id !== tab.id && "group-hover:text-brand"
+                    activeTab.id !== tab.id && "group-hover:text-brand",
                   )}
                 >
                   <tab.icon className="h-4 w-4 shrink-0" /> {tab.title}
@@ -100,7 +100,7 @@ export const HowItWorksV2 = () => {
                 <p
                   className={cn(
                     "relative z-20 mt-2 text-left text-sm text-gray-600 dark:text-neutral-300",
-                    activeTab.id === tab.id && "text-charcoal-700"
+                    activeTab.id === tab.id && "text-charcoal-700",
                   )}
                 >
                   {tab.description}
@@ -125,7 +125,7 @@ export const HowItWorksV2 = () => {
         </div>
         {/* Mobile Tabs */}
         <div className="divide-divide border-divide mt-16 flex w-full flex-col divide-y overflow-hidden border-t lg:hidden">
-          {tabs.map((tab, index) => (
+          {tabs.map((tab) => (
             <div
               key={tab.title + "mobile"}
               className="group relative flex w-full flex-col items-start overflow-hidden px-4 py-4 md:px-12 md:py-8"

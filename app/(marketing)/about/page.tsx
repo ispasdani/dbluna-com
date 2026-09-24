@@ -73,10 +73,9 @@ export default function AboutPage() {
           Database design, without the busywork
         </SectionHeading>
         <SubHeading as="p" className="mx-auto mt-6 max-w-xl px-2">
-          DBLuna is a visual database schema design and documentation tool.
-          We built it because designing a schema and documenting it always
-          felt like two separate jobs, and the second one kept getting
-          skipped.
+          DBLuna is a visual database schema design and documentation tool. We
+          built it because designing a schema and documenting it always felt
+          like two separate jobs, and the second one kept getting skipped.
         </SubHeading>
       </Container>
       <DivideX />
@@ -100,8 +99,8 @@ export default function AboutPage() {
             <p className="text-charcoal-700 mt-4 text-base leading-relaxed dark:text-neutral-200">
               DBLuna keeps the diagram, the code, and the documentation as one
               thing. Design visually or in DBML, either one stays in sync with
-              the other, and the documentation is generated automatically as
-              you go.
+              the other, and the documentation is generated automatically as you
+              go.
             </p>
           </div>
         </div>
@@ -124,10 +123,12 @@ export default function AboutPage() {
 
       <Container className="border-divide flex flex-col items-center border-x px-4 pt-10 pb-8 text-center">
         <Badge text="Who it's for" />
-        <SectionHeading className="mt-4">Built for people who ship data</SectionHeading>
+        <SectionHeading className="mt-4">
+          Built for people who ship data
+        </SectionHeading>
         <SubHeading as="p" className="mx-auto mt-6 max-w-lg px-2">
-          And for anyone who has ever joined a project and had to ask "wait,
-          how are these tables related again?"
+          And for anyone who has ever joined a project and had to ask "wait, how
+          are these tables related again?"
         </SubHeading>
       </Container>
       <DivideX />

@@ -78,7 +78,7 @@ export const HowItWorks = () => {
         {/* Desktop Tabs */}
         <div className="border-divide divide-divide mt-16 hidden w-full grid-cols-2 divide-x border-t lg:grid">
           <div className="divide-divide divide-y">
-            {tabs.map((tab, index) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.title}
                 className="group relative flex w-full flex-col items-start overflow-hidden px-12 py-8 hover:bg-gray-100 dark:hover:bg-neutral-800"
@@ -91,7 +91,7 @@ export const HowItWorks = () => {
                 <div
                   className={cn(
                     "text-charcoal-700 relative z-20 flex items-center gap-2 font-medium dark:text-neutral-100",
-                    activeTab.id !== tab.id && "group-hover:text-brand"
+                    activeTab.id !== tab.id && "group-hover:text-brand",
                   )}
                 >
                   <tab.icon className="shrink-0" /> {tab.title}
@@ -99,7 +99,7 @@ export const HowItWorks = () => {
                 <p
                   className={cn(
                     "relative z-20 mt-2 text-left text-sm text-gray-600 dark:text-neutral-300",
-                    activeTab.id === tab.id && "text-charcoal-700"
+                    activeTab.id === tab.id && "text-charcoal-700",
                   )}
                 >
                   {tab.description}

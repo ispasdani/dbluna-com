@@ -31,7 +31,9 @@ interface Relationship {
 }
 
 // ─── PostgreSQL ───────────────────────────────────────────────────────────────
-async function fetchPostgresSchema(body: ImportSchemaBody): Promise<{ tables: TableInfo[], relationships: Relationship[] }> {
+async function fetchPostgresSchema(
+  body: ImportSchemaBody,
+): Promise<{ tables: TableInfo[]; relationships: Relationship[] }> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Client } = require("pg");
   const client = new Client({
@@ -65,7 +67,7 @@ async function fetchPostgresSchema(body: ImportSchemaBody): Promise<{ tables: Ta
        WHERE c.table_schema = $1
          AND c.table_name NOT LIKE 'pg_%'
        ORDER BY c.table_name, c.ordinal_position`,
-      [body.database === "public" ? "public" : "public"]
+      [body.database === "public" ? "public" : "public"],
     );
     const tables = groupColumns(
       rows.map((r: any) => ({
@@ -74,7 +76,7 @@ async function fetchPostgresSchema(body: ImportSchemaBody): Promise<{ tables: Ta
         data_type: r.data_type,
         is_nullable: r.is_nullable === "YES" ? "YES" : "NO",
         is_pk: r.is_pk ? 1 : 0,
-      }))
+      })),
     );
 
     const relRes = await client.query(
@@ -92,7 +94,7 @@ async function fetchPostgresSchema(body: ImportSchemaBody): Promise<{ tables: Ta
          AND ccu.table_schema = tc.table_schema
        WHERE tc.constraint_type = 'FOREIGN KEY'
          AND tc.table_schema = $1`,
-       [body.database === "public" ? "public" : "public"]
+      [body.database === "public" ? "public" : "public"],
     );
 
     const relationships: Relationship[] = relRes.rows.map((r: any) => ({
@@ -109,10 +111,12 @@ async function fetchPostgresSchema(body: ImportSchemaBody): Promise<{ tables: Ta
 }
 
 // ─── SQL Server ───────────────────────────────────────────────────────────────
-async function fetchSqlServerSchema(body: ImportSchemaBody): Promise<{ tables: TableInfo[], relationships: Relationship[] }> {
+async function fetchSqlServerSchema(
+  body: ImportSchemaBody,
+): Promise<{ tables: TableInfo[]; relationships: Relationship[] }> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const sql = require("mssql");
-  
+
   const config = {
     user: body.user,
     password: body.password,
@@ -123,7 +127,7 @@ async function fetchSqlServerSchema(body: ImportSchemaBody): Promise<{ tables: T
       encrypt: false, // For local dev
       trustServerCertificate: true,
       connectTimeout: 8000,
-    }
+    },
   };
 
   const pool = await sql.connect(config);
@@ -143,7 +147,7 @@ async function fetchSqlServerSchema(body: ImportSchemaBody): Promise<{ tables: T
       LEFT JOIN sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id AND ic.index_id = 1
       WHERE t.is_ms_shipped = 0
     `);
-    
+
     const tables = groupColumns(
       recordset.map((r: any) => ({
         table_name: `[${r.schema_name}].[${r.table_name}]`,
@@ -151,7 +155,7 @@ async function fetchSqlServerSchema(body: ImportSchemaBody): Promise<{ tables: T
         data_type: r.data_type,
         is_nullable: r.is_nullable ? "YES" : "NO",
         is_pk: r.is_pk ? 1 : 0,
-      }))
+      })),
     );
 
     const relRes = await pool.request().query(`
@@ -187,7 +191,13 @@ async function fetchSqlServerSchema(body: ImportSchemaBody): Promise<{ tables: T
 
 // ─── Shared column grouper ────────────────────────────────────────────────────
 function groupColumns(
-  rows: { table_name: string; column_name: string; data_type: string; is_nullable: string; is_pk: number | boolean }[]
+  rows: {
+    table_name: string;
+    column_name: string;
+    data_type: string;
+    is_nullable: string;
+    is_pk: number | boolean;
+  }[],
 ): TableInfo[] {
   const map = new Map<string, TableInfo>();
   for (const row of rows) {
@@ -210,21 +220,31 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ success: false, error: "Invalid JSON body." }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "Invalid JSON body." },
+      { status: 400 },
+    );
   }
 
   const { engine } = body;
 
   try {
-    let result: { tables: TableInfo[], relationships: Relationship[] };
+    let result: { tables: TableInfo[]; relationships: Relationship[] };
     if (engine === "postgresql") {
       result = await fetchPostgresSchema(body);
     } else if (engine === "sqlserver") {
       result = await fetchSqlServerSchema(body);
     } else {
-      return NextResponse.json({ success: false, error: `Unsupported engine: ${engine}` }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: `Unsupported engine: ${engine}` },
+        { status: 400 },
+      );
     }
-    return NextResponse.json({ success: true, tables: result.tables, relationships: result.relationships });
+    return NextResponse.json({
+      success: true,
+      tables: result.tables,
+      relationships: result.relationships,
+    });
   } catch (err: any) {
     const msg: string = err?.message ?? String(err);
     // Friendly message for missing native drivers
@@ -235,7 +255,7 @@ export async function POST(req: NextRequest) {
           success: false,
           error: `Driver package "${pkg}" is not installed. Run: npm install ${pkg}`,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
     return NextResponse.json({ success: false, error: msg }, { status: 500 });

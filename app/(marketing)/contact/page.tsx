@@ -14,8 +14,8 @@ export default function ContactPage() {
       <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
         <SectionHeading className="lg:text-5xl">Get in touch</SectionHeading>
         <SubHeading as="p" className="mt-6 max-w-lg">
-          Questions about DBLuna, a Pro or Enterprise plan, or something
-          else? We'd like to hear from you.
+          Questions about DBLuna, a Pro or Enterprise plan, or something else?
+          We'd like to hear from you.
         </SubHeading>
 
         <div className="mt-12 flex w-full flex-col gap-8 sm:flex-row sm:justify-center sm:gap-16">
