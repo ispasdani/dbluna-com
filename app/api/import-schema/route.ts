@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { resolvePublicHost } from "@/lib/network-guard";
 
 type Engine = "postgresql" | "sqlserver";
 
@@ -216,6 +218,14 @@ function groupColumns(
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Sign in to import a schema." },
+      { status: 401 },
+    );
+  }
+
   let body: ImportSchemaBody;
   try {
     body = await req.json();
@@ -227,6 +237,26 @@ export async function POST(req: NextRequest) {
   }
 
   const { engine } = body;
+
+  if (!Number.isInteger(body.port) || body.port < 1 || body.port > 65535) {
+    return NextResponse.json(
+      { success: false, error: "Port must be a number between 1 and 65535." },
+      { status: 400 },
+    );
+  }
+
+  // In production, connect only to public addresses, pinned to the IP we
+  // checked. Local dev keeps localhost so you can import from your own DB.
+  if (process.env.NODE_ENV === "production") {
+    try {
+      body = { ...body, host: await resolvePublicHost(String(body.host ?? "")) };
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: (err as Error).message },
+        { status: 400 },
+      );
+    }
+  }
 
   try {
     let result: { tables: TableInfo[]; relationships: Relationship[] };

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { Readable } from "stream";
 import sax from "sax";
 
@@ -35,6 +36,14 @@ function extractTableAndColumn(fullName: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Sign in to import a schema." },
+      { status: 401 },
+    );
+  }
+
   if (!req.body) {
     return NextResponse.json(
       { success: false, error: "No XML body provided" },

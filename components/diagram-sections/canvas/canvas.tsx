@@ -376,9 +376,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
   const selectedRelationshipId = useCanvasStore((s) => s.selectedRelationshipId);
   const setSelectedRelationshipId = useCanvasStore((s) => s.setSelectedRelationshipId);
   const moveTables = useCanvasStore((s) => s.moveTables);
-  const deleteTables = useCanvasStore((s) => s.deleteTables);
   const moveNotes = useCanvasStore((s) => s.moveNotes);
-  const deleteNote = useCanvasStore((s) => s.deleteNote);
   const areas = useCanvasStore((s) => s.areas);
   const selectedAreaIds = useCanvasStore((s) => s.selectedAreaIds);
   const setSelectedAreaIds = useCanvasStore((s) => s.setSelectedAreaIds);
@@ -539,26 +537,27 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       if (e.code === "Space") {
         setSpaceDown(false);
       }
-      if (!readOnly && (e.code === "Delete" || e.code === "Backspace") && selectedTableIds.length > 0) {
-        // Prevent deleting if typing in input !!
-        // We already check "isTyping" in onKeyDown but not here.
-        // We should check here too or move logic.
+      if (!readOnly && (e.code === "Delete" || e.code === "Backspace")) {
         const t = e.target as HTMLElement | null;
         const isTyping = t?.tagName === "INPUT" || t?.tagName === "TEXTAREA" || t?.isContentEditable;
-        if (!isTyping) {
-          // Hiding is a view, not a deletion: a selection can outlive a hide,
-          // but Delete only ever removes tables you can see.
-          const hidden = getHiddenSchemas();
-          const ids = hidden.length === 0
-            ? selectedTableIds
-            : (() => {
-                const all = useCanvasStore.getState().tables;
-                const visible = new Set(filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId).map((t) => t.id));
-                return selectedTableIds.filter((id) => visible.has(id));
-              })();
-          if (ids.length > 0) deleteTables(ids);
-          if (selectedNoteIds.length > 0) selectedNoteIds.forEach(id => deleteNote(id));
-        }
+        if (isTyping) return;
+
+        // Read the selection at key time, not from the render that bound this
+        // listener — otherwise a note selected since then is invisible here.
+        const { tables: all, selectedTableIds, selectedNoteIds, deleteTables, deleteNote } =
+          useCanvasStore.getState();
+
+        // Hiding is a view, not a deletion: a selection can outlive a hide,
+        // but Delete only ever removes tables you can see.
+        const hidden = getHiddenSchemas();
+        const ids = hidden.length === 0
+          ? selectedTableIds
+          : (() => {
+              const visible = new Set(filterVisibleTables(all, hidden, getActiveGrouping().keyByTableId).map((t) => t.id));
+              return selectedTableIds.filter((id) => visible.has(id));
+            })();
+        if (ids.length > 0) deleteTables(ids);
+        selectedNoteIds.forEach((id) => deleteNote(id));
       }
     };
 
@@ -570,7 +569,7 @@ export function CanvasStage({ diagramId, readOnly = false }: CanvasStageProps) {
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selectedTableIds, deleteTables, readOnly]);
+  }, [readOnly]);
 
   // Pointer panning
   const drag = useRef<{
