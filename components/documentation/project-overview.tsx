@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { ObjectDependencies } from "./object-dependencies";
 import { docsItemId } from "@/lib/docs-search";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { Table as TableIcon, Link2, Hash, Database, Server, GitBranch } from "lucide-react";
@@ -210,7 +211,7 @@ export const ProjectOverview = () => {
                                 <h3 className="font-mono font-medium">{[view.schema, view.name].filter(Boolean).join(".")}</h3>
                                 <p className="text-xs text-muted-foreground">{view.kind ?? "View"}</p>
                                 {view.description && <p className="whitespace-pre-wrap text-sm">{view.description}</p>}
-                                {!!view.dependencies.length && <p className="text-sm">Dependencies {view.dependencies.join(", ")}</p>}
+                                <ObjectDependencies object={view} />
                                 {view.definition && <pre className="overflow-auto rounded bg-muted p-3 text-xs"><code>{view.definition}</code></pre>}
                             </article>
                         );

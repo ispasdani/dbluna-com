@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { ObjectDependencies } from "./object-dependencies";
 import { docsItemId } from "@/lib/docs-search";
 import type { ParsedTable } from "@/lib/parser/dsl-parser";
 import { Key } from "lucide-react";
@@ -140,6 +141,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                     </tbody>
                 </table>
             </div>
+            <ObjectDependencies object={{ name: table.name, schema: table.schema?.name, dependencies: [] }} />
             {!!table.sqlServerIndexes?.length && (
                 <section className="space-y-3">
                     <h2 className="text-xl font-semibold">Indexes and unique constraints</h2>
