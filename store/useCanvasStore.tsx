@@ -80,7 +80,16 @@ export interface CanvasTableGroup {
   tableNames: string[];
 }
 
+export interface SqlServerView {
+  schema?: string;
+  name: string;
+  definition?: string;
+  description?: string;
+  dependencies: string[];
+}
+
 export interface CanvasProject {
+  sqlServerViews?: SqlServerView[];
   name?: string;
   databaseType?: string;
   note?: string;

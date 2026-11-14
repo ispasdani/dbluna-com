@@ -89,6 +89,7 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
 
       const tableNote = noteText(table.note);
       if (tableNote) lines.push(tableNote, "");
+      if (table.description) lines.push("**SQL Server description**", "", table.description, "");
 
       const primaryKey = table.indexes?.find((index) => index.pk)?.columns;
       if (primaryKey && primaryKey.length > 1) {
@@ -102,7 +103,7 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
       );
       table.fields.forEach((col) => {
         lines.push(
-          `| ${cell(col.name)} | ${cell(col.type?.type_name)} | ${cell(columnConstraints(col))} | ${cell(noteText(col.note))} |`,
+          `| ${cell(col.name)} | ${cell(col.type?.type_name)} | ${cell(columnConstraints(col))} | ${cell([noteText(col.note), col.description && 'SQL Server description ' + col.description].filter(Boolean).join(' · '))} |`,
         );
       });
       lines.push("");
@@ -134,6 +135,22 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
         lines.push("");
       }
     });
+  }
+
+  if (parsed.project?.sqlServerViews?.length) {
+    lines.push("## SQL Server views", "");
+    for (const view of parsed.project.sqlServerViews) {
+      lines.push("### " + [view.schema, view.name].filter(Boolean).join("."), "");
+      if (view.description) lines.push(view.description, "");
+      if (view.dependencies.length) lines.push("**Dependencies** " + view.dependencies.join(", "), "");
+      if (view.definition) {
+        let fence = "~~~";
+        for (const run of view.definition.match(/~+/g) ?? []) {
+          if (run.length >= fence.length) fence = "~".repeat(run.length + 1);
+        }
+        lines.push(fence + "sql", view.definition, fence, "");
+      }
+    }
   }
 
   // ── Enums ─────────────────────────────────────────────────────

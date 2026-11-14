@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { docsItemId, searchDocs } from "@/lib/docs-search";
+import { docsItemId, findDocsTable, searchDocs } from "@/lib/docs-search";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 
 it("ranks exact names above prefix and description matches", () => {
@@ -39,4 +39,9 @@ it("filters by schema and kind and identifies the owning table for member matche
   expect(matches[0]).toMatchObject({ name: "UQ_Account", owner: { id: sales.id } });
   expect(searchDocs(tables, enums, "archive.Account.id", "", "Column")[0]?.owner).toBe(archive);
   expect(docsItemId(sales, "Column", "id")).not.toBe(docsItemId(archive, "Column", "id"));
+  expect(findDocsTable(tables, "archive.Account")).toBe(archive);
+  expect(findDocsTable(tables, "Account")).toBeUndefined();
+  expect(findDocsTable([sales], "Account")).toBe(sales);
+  archive.fields[0].description = "Imported archive identifier";
+  expect(searchDocs(tables, enums, "imported archive", "", "Column")[0]?.owner).toBe(archive);
 });

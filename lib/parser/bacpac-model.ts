@@ -1,7 +1,7 @@
 import sax from "sax";
 import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import type { Readable } from "node:stream";
-import type { Relationship, SqlServerIndex } from "@/store/useCanvasStore";
+import type { Relationship, SqlServerIndex, SqlServerView } from "@/store/useCanvasStore";
 
 interface ModelElement {
   type: string;
@@ -139,6 +139,19 @@ export async function parseBacpacModel(input: Readable) {
     input.pipe(parser);
   });
 
+  const views = new Map<string, SqlServerView>();
+  for (const element of roots) {
+    if (element.type !== "SqlView" || !element.name) continue;
+    const parts = identifierParts(element.name);
+    views.set(identity(parts), {
+      schema: parts.length === 2 ? parts[0] : undefined,
+      name: parts.at(-1)!,
+      definition: element.properties.get("SelectStatement") ?? element.properties.get("QueryScript"),
+      dependencies: [...new Set([...refs(element, "BodyDependencies"), ...refs(element, "QueryDependencies")]
+        .map(name => displayTable(identifierParts(name))))],
+    });
+  }
+
   const tables = new Map<string, ModelTable>();
   const columns = new Map<string, { table: ModelTable; column: ModelColumn }>();
   for (const element of roots) {
@@ -223,7 +236,7 @@ export async function parseBacpacModel(input: Readable) {
       const description = element.properties.get("Value");
       const host = refs(element, "Host")[0];
       const parts = host ? identifierParts(host) : identifierParts(element.name).slice(0, -1);
-      const target = columns.get(identity(parts))?.column ?? tables.get(identity(parts));
+      const target = columns.get(identity(parts))?.column ?? tables.get(identity(parts)) ?? views.get(identity(parts));
       if (target && description) target.description = description;
     }
   }
@@ -251,7 +264,7 @@ export async function parseBacpacModel(input: Readable) {
 
   const unresolvedForeignKeys =
     roots.filter((element) => element.type === "SqlForeignKeyConstraint").length - relationships.length;
-  return { tables: [...tables.values()], relationships, unresolvedForeignKeys };
+  return { tables: [...tables.values()], relationships, unresolvedForeignKeys, views: [...views.values()] };
 }
 
 export type BacpacModel = Awaited<ReturnType<typeof parseBacpacModel>>;

@@ -1,6 +1,6 @@
-import type { ParsedEnum, ParsedTable } from "@/lib/parser/dsl-parser";
+import type { ParsedEnum, ParsedTable, ParsedProject } from "@/lib/parser/dsl-parser";
 
-export type DocsSearchKind = "Table" | "Column" | "Index" | "Unique constraint" | "Enum";
+export type DocsSearchKind = "Table" | "Column" | "Index" | "Unique constraint" | "Enum" | "View";
 
 type NamedObject = Pick<ParsedTable, "name" | "schema">;
 
@@ -12,6 +12,13 @@ export function docsQualifiedName(object: NamedObject) {
   return object.schema?.name ? [object.schema.name, object.name].join(".") : object.name;
 }
 
+export function findDocsTable(tables: ParsedTable[], name: string | null) {
+  if (!name) return undefined;
+  const qualified = tables.find(table => docsQualifiedName(table) === name);
+  const legacy = tables.filter(table => table.name === name);
+  return qualified ?? (legacy.length === 1 ? legacy[0] : undefined);
+}
+
 export function docsItemId(owner: NamedObject, kind: DocsSearchKind, name: string) {
   return "docs-" + encodeURIComponent(JSON.stringify([owner.schema?.name, owner.name, kind, name]));
 }
@@ -21,10 +28,11 @@ interface SearchEntry {
   name: string;
   id: number;
   owner?: ParsedTable;
+  anchor?: string;
 }
 
 export function searchDocs(
-  tables: ParsedTable[], enums: ParsedEnum[], query: string, schema: string, kind: DocsSearchKind | "",
+  tables: ParsedTable[], enums: ParsedEnum[], query: string, schema: string, kind: DocsSearchKind | "", views: NonNullable<ParsedProject["sqlServerViews"]> = [],
 ) {
   const needle = query.trim().toLowerCase();
   const results: Array<SearchEntry & { rank: number }> = [];
@@ -40,10 +48,10 @@ export function searchDocs(
 
   for (const table of tables) {
     const qualified = docsQualifiedName(table);
-    add({ kind: "Table", name: qualified, id: table.id }, table, table.name, [noteText(table.note)]);
+    add({ kind: "Table", name: qualified, id: table.id }, table, table.name, [noteText(table.note), table.description]);
     for (const column of table.fields) {
       add({ kind: "Column", name: column.name, id: table.id, owner: table }, table,
-        qualified + "." + column.name, [column.type.type_name, noteText(column.note), column.defaultExpression, column.computedExpression]);
+        qualified + "." + column.name, [column.type.type_name, noteText(column.note), column.description, column.defaultExpression, column.computedExpression]);
     }
     for (const index of table.sqlServerIndexes ?? []) {
       add({ kind: index.kind === "index" ? "Index" : "Unique constraint", name: index.name, id: table.id, owner: table },
@@ -53,6 +61,11 @@ export function searchDocs(
   for (const item of enums) {
     add({ kind: "Enum", name: docsQualifiedName(item), id: item.id }, item, item.name,
       [noteText(item.note), ...item.values.map(value => value.name)]);
+  }
+  for (const [id, view] of views.entries()) {
+    const object = { name: view.name, schema: view.schema ? { name: view.schema } : undefined };
+    add({ id, kind: "View", name: docsQualifiedName(object), anchor: docsItemId(object, "View", view.name) },
+      object, view.name, [view.definition, view.description, ...view.dependencies]);
   }
   return results.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
 }

@@ -886,9 +886,10 @@ function BacpacImportTab() {
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const pendingDataRef = useRef<Pick<BacpacModel, "tables" | "relationships">>({
+  const pendingDataRef = useRef<Pick<BacpacModel, "tables" | "relationships" | "views">>({
     tables: [],
     relationships: [],
+    views: [],
   });
   const [preview, setPreview] = useState<
     { tableName: string; columns: string[] }[] | null
@@ -948,11 +949,11 @@ function BacpacImportTab() {
       );
       setStatus("success");
       setMessage(
-        `Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).` +
+        `Found ${rawTables.length} table(s), ${result.views.length} view(s), and ${relationships.length} relationship(s).` +
         (result.unresolvedForeignKeys ? ` Could not resolve ${result.unresolvedForeignKeys} foreign key(s).` : ""),
       );
 
-      pendingDataRef.current = { tables: rawTables, relationships };
+      pendingDataRef.current = { tables: rawTables, relationships, views: result.views };
     } catch (err: any) {
       setStatus("error");
       setMessage(
@@ -962,8 +963,8 @@ function BacpacImportTab() {
   };
 
   const handleImport = () => {
-    const { tables: rawTables, relationships } = pendingDataRef.current;
-    if (rawTables.length === 0) return;
+    const { tables: rawTables, relationships, views } = pendingDataRef.current;
+    if (!rawTables.length && !views.length) return;
 
     const canvasTables: CanvasTable[] = rawTables.map((t, i) => ({
       id: crypto.randomUUID(),
@@ -1020,15 +1021,24 @@ function BacpacImportTab() {
       .filter(Boolean);
 
     layoutAndImport(canvasTables, canvasRelationships);
+    if (views.length) {
+      useCanvasStore.setState(({ project }) => {
+        const byName = new Map((project?.sqlServerViews ?? []).map(view =>
+          [JSON.stringify([view.schema, view.name]), view],
+        ));
+        for (const view of views) byName.set(JSON.stringify([view.schema, view.name]), view);
+        return { project: { ...project, databaseType: project?.databaseType ?? "SQL Server", sqlServerViews: [...byName.values()] } };
+      });
+    }
 
     // Same as the DB tab: the preview is cleared below, so keeping `success`
     // only affects the banner's tone, not what the buttons allow.
     setStatus("success");
     setMessage(
-      `Imported ${canvasTables.length} table(s) and ${canvasRelationships.length} relationship(s).`,
+      `Imported ${canvasTables.length} table(s), ${views.length} view(s), and ${canvasRelationships.length} relationship(s).`,
     );
     setPreview(null);
-    pendingDataRef.current = { tables: [], relationships: [] };
+    pendingDataRef.current = { tables: [], relationships: [], views: [] };
     setFile(null);
   };
 
@@ -1055,7 +1065,7 @@ function BacpacImportTab() {
           </Button>
           <Button
             onClick={handleImport}
-            disabled={status !== "success" || !preview?.length}
+            disabled={status !== "success" || (!preview?.length && !pendingDataRef.current.views.length)}
             size="lg"
             className={IMPORT_ACTION}
           >

@@ -128,6 +128,13 @@ export const create = mutation({
           v.object({
             name: v.optional(v.string()),
             databaseType: v.optional(v.string()),
+            sqlServerViews: v.optional(v.array(v.object({
+              schema: v.optional(v.string()),
+              name: v.string(),
+              definition: v.optional(v.string()),
+              description: v.optional(v.string()),
+              dependencies: v.array(v.string()),
+            }))),
             note: v.optional(v.string()),
           }),
         ),
@@ -399,6 +406,13 @@ export const update = mutation({
       v.object({
         name: v.optional(v.string()),
         databaseType: v.optional(v.string()),
+        sqlServerViews: v.optional(v.array(v.object({
+          schema: v.optional(v.string()),
+          name: v.string(),
+          definition: v.optional(v.string()),
+          description: v.optional(v.string()),
+          dependencies: v.array(v.string()),
+        }))),
         note: v.optional(v.string()),
       }),
     ),

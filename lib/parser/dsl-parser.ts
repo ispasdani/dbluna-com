@@ -7,6 +7,7 @@ import type {
   CanvasTableGroup,
   CanvasProject,
   SqlServerIndex,
+  SqlServerView,
 } from "@/store/useCanvasStore";
 
 // ─────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ export interface ParsedColumn {
   dbdefault?: { value: any };
   defaultExpression?: string;
   computedExpression?: string;
+  description?: string;
   note?: { value: string };
 }
 
@@ -44,6 +46,7 @@ export interface ParsedTable {
   fields: ParsedColumn[];
   indexes?: ParsedIndex[];
   sqlServerIndexes?: SqlServerIndex[];
+  description?: string;
   note?: { value: string };
 }
 
@@ -67,6 +70,7 @@ export interface ParsedTableGroup {
 }
 
 export interface ParsedProject {
+  sqlServerViews?: SqlServerView[];
   name: string;
   note?: string;
   databaseType?: string;

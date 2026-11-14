@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
 import { Eye, Download, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { docsQualifiedName, findDocsTable } from "@/lib/docs-search";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
@@ -43,7 +44,6 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     const dslCode = useMemo(
         () => generateDbmlFromCanvas(canvasTables, canvasRelationships, {
             project: canvasProject,
-            includeDescriptions: true,
             enums: canvasEnums,
             tableGroups: canvasTableGroups,
         }),
@@ -57,49 +57,55 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
             const qualified = table.schema?.name && qualifySqlServerTable(table.schema.name, table.name);
             const canvasTable = (qualified ? byName.get(qualified) : undefined) ?? byName.get(table.name);
             if (!canvasTable) continue;
+            table.description = canvasTable.description;
             table.sqlServerIndexes = canvasTable.sqlServerIndexes;
             const byColumn = new Map(canvasTable.columns.map(column => [column.name, column]));
             for (const field of table.fields) {
                 const column = byColumn.get(field.name);
                 if (!column) continue;
+                field.description = column.description;
                 field.defaultExpression = column.defaultExpression;
                 field.computedExpression = column.computedExpression;
             }
         }
+        if (parsed && canvasProject?.sqlServerViews?.length) {
+            parsed.project = { name: "Database Documentation", ...parsed.project, sqlServerViews: canvasProject.sqlServerViews };
+        }
         setParsedDbml(parsed);
-    }, [canvasTables, dslCode, setParsedDbml]);
+    }, [canvasTables, canvasProject, dslCode, setParsedDbml]);
 
-    // ── Deep-linking (?table=<name>) ─────────────────────────────────────────
-    // Reflect the current selection into the URL. Uses history.replaceState so
-    // it never pushes browser history (safe inside the Desktop/Electron shell)
-    // and stays out of the Next.js router entirely.
     useEffect(() => {
-        if (typeof window === "undefined") return;
-        const name = docTables.find(t => t.id === selectedTableId)?.name ?? null;
-        const url = new URL(window.location.href);
-        if (name) url.searchParams.set(TABLE_PARAM, name);
-        else url.searchParams.delete(TABLE_PARAM);
-        if (url.href !== window.location.href) {
-            window.history.replaceState(window.history.state, "", url);
-        }
-    }, [selectedTableId, docTables]);
-
-    // Restore / reconcile the selection from the URL whenever the tables reparse.
-    // Tables are re-derived (and get fresh AST ids) on every canvas change, so we
-    // re-match by the stable table name to keep the selection — and any shared
-    // link — pointing at the right table. Runs on table changes only, so it never
-    // fights a user click.
-    const lastReconciled = useRef<string | null>(null);
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const name = new URLSearchParams(window.location.search).get(TABLE_PARAM);
-        if (!name) { lastReconciled.current = null; return; }
-        const match = docTables.find(t => t.name === name);
-        if (match && match.id !== useDocumentationStore.getState().selectedTableId) {
-            setSelectedTableId(match.id);
-        }
-        lastReconciled.current = name;
+        const restore = () => {
+            const url = new URL(window.location.href);
+            const table = findDocsTable(docTables, url.searchParams.get(TABLE_PARAM));
+            const member = url.searchParams.get("member");
+            if (table) {
+                setSelectedTableId(table.id);
+                if (member?.startsWith("docs-")) {
+                    requestAnimationFrame(() => document.getElementById(member)?.focus());
+                }
+            }
+        };
+        restore();
+        const restoreHistory = () => {
+            if (!new URLSearchParams(window.location.search).has(TABLE_PARAM)) setSelectedTableId(null);
+            else restore();
+        };
+        window.addEventListener("popstate", restoreHistory);
+        return () => window.removeEventListener("popstate", restoreHistory);
     }, [docTables, setSelectedTableId]);
+
+    useEffect(() => {
+        if (!docTables.length || selectedTableId !== useDocumentationStore.getState().selectedTableId) return;
+        const table = docTables.find(item => item.id === selectedTableId);
+        if (selectedTableId !== null && !table) return;
+        const url = new URL(window.location.href);
+        const previous = url.searchParams.get(TABLE_PARAM);
+        if (table) url.searchParams.set(TABLE_PARAM, docsQualifiedName(table));
+        else url.searchParams.delete(TABLE_PARAM);
+        if (!table || findDocsTable(docTables, previous)?.id !== table.id) url.searchParams.delete("member");
+        if (url.href !== window.location.href) history.replaceState(history.state, "", url);
+    }, [docTables, selectedTableId]);
 
     const handleExport = () => {
         if (readOnly) {
@@ -138,7 +144,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleExport}
-                                disabled={!parsedDbml || docTables.length === 0}
+                                disabled={!parsedDbml || (!docTables.length && !parsedDbml.project?.sqlServerViews?.length)}
                                 className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 shrink-0"
                             >
                                 <Download className="w-3.5 h-3.5 mr-1" />

@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { docsItemId } from "@/lib/docs-search";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { Table as TableIcon, Link2, Hash, Database, Server, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,7 @@ export const ProjectOverview = () => {
     const title = project?.name || "Database Documentation";
     const note = project?.note;
     const dbType = project?.databaseType;
+    const views = project?.sqlServerViews ?? [];
 
     return (
         <div className="max-w-4xl mx-auto py-10 pb-32 animate-in fade-in duration-300">
@@ -196,6 +198,23 @@ export const ProjectOverview = () => {
                         Define tables in the DBML editor on the left, or click <strong>Sync from Canvas</strong> to import your current diagram.
                     </p>
                 </div>
+            )}
+            {!!views.length && (
+                <section className="mt-8 space-y-3">
+                    <h2 className="text-xl font-semibold">SQL Server views</h2>
+                    {views.map(view => {
+                        const owner = { name: view.name, schema: view.schema ? { name: view.schema } : undefined };
+                        const anchor = docsItemId(owner, "View", view.name);
+                        return (
+                            <article key={anchor} id={anchor} tabIndex={-1} className="space-y-2 rounded-md border p-4">
+                                <h3 className="font-mono font-medium">{[view.schema, view.name].filter(Boolean).join(".")}</h3>
+                                {view.description && <p className="whitespace-pre-wrap text-sm">{view.description}</p>}
+                                {!!view.dependencies.length && <p className="text-sm">Dependencies {view.dependencies.join(", ")}</p>}
+                                {view.definition && <pre className="overflow-auto rounded bg-muted p-3 text-xs"><code>{view.definition}</code></pre>}
+                            </article>
+                        );
+                    })}
+                </section>
             )}
         </div>
     );

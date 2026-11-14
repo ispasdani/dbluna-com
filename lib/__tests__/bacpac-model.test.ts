@@ -1,6 +1,8 @@
 import { Readable } from "node:stream";
 import { expect, it } from "vitest";
 import { parseBacpacModel } from "@/lib/parser/bacpac-model";
+import { searchDocs } from "@/lib/docs-search";
+import { generateDocsMarkdown } from "@/lib/generator/docs-markdown";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { parseDbml, parsedRefsToCanvasRelationships, parsedTablesToCanvasTables } from "@/lib/parser/dsl-parser";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -67,6 +69,28 @@ it("resolves ordered foreign keys and descriptions before their table declaratio
 
 it("rejects malformed model XML", async () => {
   await expect(parseBacpacModel(Readable.from(["<Model><Element></Model>"]))).rejects.toThrow();
+});
+
+it("imports a view-only model and documents its available SQL and dependencies", async () => {
+  const model = await parseBacpacModel(Readable.from([`<Model>
+    <Element Type="SqlView" Name="[sales].[OpenOrders]">
+      <Property Name="SelectStatement"><Value><![CDATA[SELECT Id FROM sales.Orders WHERE Closed = 0]]></Value></Property>
+      <Relationship Name="BodyDependencies"><Entry><References Name="[sales].[Orders]"/></Entry></Relationship>
+    </Element>
+    <Element Type="SqlExtendedProperty" Name="[sales].[OpenOrders].[MS_Description]">
+      <Property Name="Value" Value="Orders awaiting fulfillment"/>
+    </Element>
+  </Model>`]));
+
+  expect(model.tables).toEqual([]);
+  expect(model.views).toEqual([{
+    schema: "sales", name: "OpenOrders", description: "Orders awaiting fulfillment",
+    definition: "SELECT Id FROM sales.Orders WHERE Closed = 0", dependencies: ["sales.Orders"],
+  }]);
+  expect(searchDocs([], [], "closed = 0", "sales", "View", model.views)[0]?.name).toBe("sales.OpenOrders");
+  const parsed = parseDbml(generateDbmlFromCanvas([], [], { project: { databaseType: "SQL Server" } }))!;
+  parsed.project = { ...parsed.project!, sqlServerViews: model.views };
+  expect(generateDocsMarkdown(parsed)).toContain("**Dependencies** sales.Orders");
 });
 
 

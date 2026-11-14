@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
-import type { ParsedEnum, ParsedTable } from "@/lib/parser/dsl-parser";
+import type { ParsedEnum, ParsedTable, ParsedProject } from "@/lib/parser/dsl-parser";
 import {
     Search,
     Table as TableIcon,
@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { docsItemId, docsQualifiedName, searchDocs, type DocsSearchKind } from "@/lib/docs-search";
 import { cn } from "@/lib/utils";
+
+const EMPTY_VIEWS: NonNullable<ParsedProject["sqlServerViews"]> = [];
 
 const DEFAULT_SCHEMAS = new Set(["public", "dbo", ""]);
 
@@ -127,13 +129,14 @@ function SidebarFolder({ name, icon: Icon, tables, selectedTableId, onSelect, ac
 export const DocsSidebar = () => {
     const { tables, enums, tableGroups, selectedTableId, setSelectedTableId, selectedEnumId, setSelectedEnumId, searchQuery, setSearchQuery } = useDocumentationStore();
 
+    const views = useDocumentationStore(state => state.project?.sqlServerViews) ?? EMPTY_VIEWS;
     const [schema, setSchema] = useState("");
     const [kind, setKind] = useState<DocsSearchKind | "">("");
-    const schemas = useMemo(() => [...new Set([...tables, ...enums].flatMap(item => item.schema?.name ?? []))].sort(), [tables, enums]);
+    const schemas = useMemo(() => [...new Set([...tables, ...enums].flatMap(item => item.schema?.name ?? []).concat(views.flatMap(view => view.schema ?? [])))].sort(), [tables, enums, views]);
     const isSearching = Boolean(searchQuery.trim() || schema || kind);
     const results = useMemo(
-        () => isSearching ? searchDocs(tables, enums, searchQuery, schema, kind) : [],
-        [tables, enums, searchQuery, schema, kind, isSearching],
+        () => isSearching ? searchDocs(tables, enums, searchQuery, schema, kind, views) : [],
+        [tables, enums, searchQuery, schema, kind, isSearching, views],
     );
 
     // ── Grouping Logic ────────────────────────────────────────────────────────
@@ -237,6 +240,7 @@ export const DocsSidebar = () => {
                         <select aria-label="Filter documentation by object type" value={kind} onChange={event => setKind(event.target.value as DocsSearchKind | "")} className="min-w-0 flex-1 rounded border bg-background p-1 text-xs">
                             <option value="">All types</option>
                             <option value="Table">Tables</option>
+                            <option value="View">Views</option>
                             <option value="Column">Columns</option>
                             <option value="Index">Indexes</option>
                             <option value="Unique constraint">Unique constraints</option>
@@ -249,12 +253,21 @@ export const DocsSidebar = () => {
                                 <li key={JSON.stringify([result.kind, result.id, result.name])}>
                                     <button type="button" className="block w-full break-words rounded p-2 text-left text-sm hover:bg-accent focus-visible:outline focus-visible:outline-primary"
                                         onClick={() => {
+                                            if (result.anchor) {
+                                                flushSync(() => setSelectedTableId(null));
+                                                document.getElementById(result.anchor)?.focus();
+                                                return;
+                                            }
                                             if (result.kind === "Enum") {
                                                 setSelectedEnumId(result.id);
                                                 return;
                                             }
                                             if (result.owner) {
                                                 const target = docsItemId(result.owner, result.kind, result.name);
+                                                const url = new URL(window.location.href);
+                                                url.searchParams.set("table", docsQualifiedName(result.owner));
+                                                url.searchParams.set("member", target);
+                                                if (url.href !== window.location.href) history.pushState(history.state, "", url);
                                                 flushSync(() => setSelectedTableId(result.id));
                                                 document.getElementById(target)?.focus();
                                             } else {

@@ -303,7 +303,8 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       setRelationships(newRelationships);
       setEnums(meta.enums);
       setTableGroups(meta.tableGroups);
-      setProject(meta.project);
+      const sqlServerViews = useCanvasStore.getState().project?.sqlServerViews;
+      setProject(sqlServerViews?.length ? { ...meta.project, sqlServerViews } : meta.project);
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }

@@ -19,12 +19,18 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight">{table.name}</h1>
-                {table.note ? (
+                {table.description && (
+                    <div className="mt-4 text-sm">
+                        <h2 className="font-medium">SQL Server description</h2>
+                        <p className="whitespace-pre-wrap text-muted-foreground">{table.description}</p>
+                    </div>
+                )}
+                {table.note && (
                     <div className="mt-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
+                        <h2>Notes</h2>
                         <ReactMarkdown>{typeof table.note === "string" ? table.note : table.note.value}</ReactMarkdown>
                     </div>
-                ) : (
-                    <p className="mt-2 text-sm text-muted-foreground italic">No description provided.</p>
+
                 )}
             </div>
 
@@ -115,6 +121,11 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                                             )}
                                             {field.computedExpression && (
                                                 <div>Computed <code className="break-all">{field.computedExpression}</code></div>
+                                            )}
+                                            {field.description && (
+                                                <p className="whitespace-pre-wrap text-muted-foreground">
+                                                    <strong>SQL Server description</strong> {field.description}
+                                                </p>
                                             )}
                                             {field.note && (
                                                 <div className="text-muted-foreground prose prose-sm dark:prose-invert">
