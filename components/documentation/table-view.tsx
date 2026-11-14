@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import type { ParsedTable } from "@/lib/parser/dsl-parser";
 import { Key } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
@@ -10,8 +11,8 @@ import {
     HoverCardTrigger,
 } from "@/components/ui/hover-card";
 
-export const TableDocView = ({ table }: { table: any }) => {
-    if (!table) return null;
+export const TableDocView = ({ table }: { table: ParsedTable }) => {
+    const primaryKey = table.indexes?.find((index) => index.pk)?.columns?.map((column) => column.value ?? column.name);
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -19,13 +20,19 @@ export const TableDocView = ({ table }: { table: any }) => {
                 <h1 className="text-3xl font-bold tracking-tight">{table.name}</h1>
                 {table.note ? (
                     <div className="mt-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                        <ReactMarkdown>{table.note?.value ?? table.note}</ReactMarkdown>
+                        <ReactMarkdown>{table.note.value}</ReactMarkdown>
                     </div>
                 ) : (
                     <p className="mt-2 text-sm text-muted-foreground italic">No description provided.</p>
                 )}
             </div>
 
+            {primaryKey && primaryKey.length > 1 && (
+                <div className="text-sm">
+                    <span className="font-medium">Primary key </span>
+                    <span className="font-mono">({primaryKey.join(", ")})</span>
+                </div>
+            )}
             <div className="rounded-md border border-border overflow-hidden">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-sidebar border-b border-border">
@@ -36,7 +43,7 @@ export const TableDocView = ({ table }: { table: any }) => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                        {table.fields.map((field: any) => {
+                        {table.fields.map((field) => {
                             const enums = useDocumentationStore.getState().enums;
                             const matchedEnum = enums.find(e => e.name === field.type.type_name);
 
@@ -104,7 +111,7 @@ export const TableDocView = ({ table }: { table: any }) => {
                                             )}
                                             {field.note && (
                                                 <div className="text-muted-foreground prose prose-sm dark:prose-invert">
-                                                    <ReactMarkdown>{field.note?.value ?? field.note}</ReactMarkdown>
+                                                    <ReactMarkdown>{field.note.value}</ReactMarkdown>
                                                 </div>
                                             )}
                                         </div>

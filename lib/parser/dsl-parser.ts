@@ -382,6 +382,9 @@ export const parsedTablesToCanvasTables = (
     const name = qualifiedTableName(dbTable);
     const existingTable = existingTables.find((t) => t.name === name);
 
+    const keyFields = dbTable.indexes?.find((index) => index.pk)?.columns;
+    const primaryKey = keyFields?.map((field) => field.value ?? field.name)
+      .filter((name): name is string => name !== undefined);
     const columns = dbTable.fields.map((field) => {
       const existingCol = existingTable?.columns.find(
         (c) => c.name === field.name,
@@ -395,10 +398,11 @@ export const parsedTablesToCanvasTables = (
         type: knownEnumNames?.has(field.type.type_name.toLowerCase())
           ? field.type.type_name
           : field.type.type_name.toUpperCase(),
-        isPrimaryKey: field.pk || false,
+        isPrimaryKey: Boolean(field.pk || primaryKey?.includes(field.name)),
         isNotNull: field.not_null || false,
         isUnique: field.unique || false,
         isAutoIncrement: field.increment || false,
+        description: existingCol?.description,
       };
     });
 
@@ -415,6 +419,8 @@ export const parsedTablesToCanvasTables = (
       isLocked: existingTable?.isLocked ?? false,
       // A `Note:` authored in the DBML wins; otherwise keep any existing comment.
       comment: noteText(dbTable.note) ?? existingTable?.comment,
+      description: existingTable?.description,
+      ...(primaryKey?.length && { primaryKey }),
       columns,
     };
   });
@@ -446,10 +452,10 @@ const mapRefAction = (value?: string): Relationship["onDelete"] =>
 const relKey = (
   r: Pick<
     Relationship,
-    "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId"
+    "sourceTableId" | "sourceColumnId" | "targetTableId" | "targetColumnId" | "sourceColumnIds" | "targetColumnIds"
   >,
 ) =>
-  `${r.sourceTableId}:${r.sourceColumnId}->${r.targetTableId}:${r.targetColumnId}`;
+  JSON.stringify([r.sourceTableId, r.sourceColumnIds ?? [r.sourceColumnId], r.targetTableId, r.targetColumnIds ?? [r.targetColumnId]]);
 
 /**
  * Maps parsed DBML `Ref:` lines onto canvas `Relationship[]`, resolving each
@@ -474,9 +480,9 @@ export const parsedRefsToCanvasRelationships = (
       qualifiedNameFromParts(ep.tableName, ep.schemaName),
     );
     if (!table) return null;
-    const column = table.columns.find((c) => c.name === ep.fieldNames[0]);
-    if (!column) return null;
-    return { tableId: table.id, columnId: column.id };
+    const columns = ep.fieldNames.map((name) => table.columns.find((column) => column.name === name));
+    if (!columns.length || !columns.every((column) => column !== undefined)) return null;
+    return { tableId: table.id, columnIds: columns.map((column) => column.id) };
   };
 
   const out: Relationship[] = [];
@@ -486,13 +492,15 @@ export const parsedRefsToCanvasRelationships = (
     const [srcEp, tgtEp] = ref.endpoints;
     const src = resolve(srcEp);
     const tgt = resolve(tgtEp);
-    if (!src || !tgt) continue;
+    if (!src || !tgt || src.columnIds.length !== tgt.columnIds.length) continue;
 
     const endpointIds = {
       sourceTableId: src.tableId,
-      sourceColumnId: src.columnId,
+      sourceColumnId: src.columnIds[0],
+      ...(src.columnIds.length > 1 && { sourceColumnIds: src.columnIds }),
       targetTableId: tgt.tableId,
-      targetColumnId: tgt.columnId,
+      targetColumnId: tgt.columnIds[0],
+      ...(tgt.columnIds.length > 1 && { targetColumnIds: tgt.columnIds }),
     };
     const key = relKey(endpointIds);
     if (seen.has(key)) continue;

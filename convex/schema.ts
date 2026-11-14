@@ -86,6 +86,8 @@ export default defineSchema({
         color: v.string(),
         isLocked: v.optional(v.boolean()),
         comment: v.optional(v.string()),
+        description: v.optional(v.string()),
+        primaryKey: v.optional(v.array(v.string())),
         columns: v.array(
           v.object({
             id: v.string(),
@@ -95,6 +97,7 @@ export default defineSchema({
             isNotNull: v.boolean(),
             isUnique: v.boolean(),
             isAutoIncrement: v.boolean(),
+            description: v.optional(v.string()),
           })
         ),
       })
@@ -109,6 +112,8 @@ export default defineSchema({
         sourceColumnId: v.string(),
         targetTableId: v.string(),
         targetColumnId: v.string(),
+        sourceColumnIds: v.optional(v.array(v.string())),
+        targetColumnIds: v.optional(v.array(v.string())),
         cardinality: v.string(), // "One to one" | "One to many" | ...
         onUpdate: v.string(),
         onDelete: v.string(),
@@ -241,6 +246,8 @@ export default defineSchema({
         color: v.string(),
         isLocked: v.optional(v.boolean()),
         comment: v.optional(v.string()),
+        description: v.optional(v.string()),
+        primaryKey: v.optional(v.array(v.string())),
         columns: v.array(
           v.object({
             id: v.string(),
@@ -250,6 +257,7 @@ export default defineSchema({
             isNotNull: v.boolean(),
             isUnique: v.boolean(),
             isAutoIncrement: v.boolean(),
+            description: v.optional(v.string()),
           })
         ),
       })
@@ -262,6 +270,8 @@ export default defineSchema({
         sourceColumnId: v.string(),
         targetTableId: v.string(),
         targetColumnId: v.string(),
+        sourceColumnIds: v.optional(v.array(v.string())),
+        targetColumnIds: v.optional(v.array(v.string())),
         cardinality: v.string(),
         onUpdate: v.string(),
         onDelete: v.string(),

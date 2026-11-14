@@ -1,5 +1,7 @@
 "use client";
 
+import type { BacpacModel } from "@/lib/parser/bacpac-model";
+
 import { useState, useRef, useCallback, useMemo } from "react";
 import {
   Dialog,
@@ -884,7 +886,7 @@ function BacpacImportTab() {
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const pendingDataRef = useRef<{ tables: any[]; relationships: any[] }>({
+  const pendingDataRef = useRef<Pick<BacpacModel, "tables" | "relationships">>({
     tables: [],
     relationships: [],
   });
@@ -930,7 +932,7 @@ function BacpacImportTab() {
         body: xmlBlob,
       });
 
-      const result = await res.json();
+      const result: ({ success: true } & BacpacModel) | { success: false; error?: string } = await res.json();
       if (!result?.success) {
         throw new Error(result?.error ?? "Unknown error");
       }
@@ -939,14 +941,15 @@ function BacpacImportTab() {
       const relationships = result.relationships ?? [];
 
       setPreview(
-        rawTables.map((t: any) => ({
+        rawTables.map((t) => ({
           tableName: t.name,
-          columns: t.columns.map((c: any) => c.name),
+          columns: t.columns.map((c) => c.name),
         })),
       );
       setStatus("success");
       setMessage(
-        `Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).`,
+        `Found ${rawTables.length} table(s) and ${relationships.length} relationship(s).` +
+        (result.unresolvedForeignKeys ? ` Could not resolve ${result.unresolvedForeignKeys} foreign key(s).` : ""),
       );
 
       pendingDataRef.current = { tables: rawTables, relationships };
@@ -962,43 +965,53 @@ function BacpacImportTab() {
     const { tables: rawTables, relationships } = pendingDataRef.current;
     if (rawTables.length === 0) return;
 
-    const canvasTables: CanvasTable[] = rawTables.map((t: any, i: number) => ({
+    const canvasTables: CanvasTable[] = rawTables.map((t, i) => ({
       id: crypto.randomUUID(),
       name: t.name,
+      description: t.description,
+      primaryKey: t.primaryKey,
       x: 0,
       y: 0,
       color: TABLE_COLORS[i % TABLE_COLORS.length],
-      columns: t.columns.map((c: any) => ({
+      columns: t.columns.map((c) => ({
         id: crypto.randomUUID(),
         name: c.name,
-        type: c.type || "VARCHAR",
+        type: c.type,
+        description: c.description,
         isPrimaryKey: c.isPk ?? false,
         isNotNull: c.isNotNull ?? false,
-        isUnique: false,
-        isAutoIncrement: false,
+        isUnique: c.isUnique,
+        isAutoIncrement: c.isAutoIncrement,
       })),
     }));
 
     const tableMap = new Map(canvasTables.map((t) => [t.name, t]));
     const canvasRelationships = relationships
-      .map((r: any) => {
+      .map((r) => {
         const sTbl = tableMap.get(r.sourceTable);
         const tTbl = tableMap.get(r.targetTable);
         if (!sTbl || !tTbl) return null;
 
-        const sCol = sTbl.columns.find((c) => c.name === r.sourceCol)?.id || "";
-        const tCol = tTbl.columns.find((c) => c.name === r.targetCol)?.id || "";
+        const columnIds = (table: CanvasTable, names: string[]) =>
+          names.map((name) => table.columns.find((column) => column.name === name)?.id);
+        const sourceColumnIds = columnIds(sTbl, r.sourceColumns);
+        const targetColumnIds = columnIds(tTbl, r.targetColumns);
+        if (!sourceColumnIds.length || !targetColumnIds.length ||
+            !sourceColumnIds.every((id) => id !== undefined) ||
+            !targetColumnIds.every((id) => id !== undefined)) return null;
 
         return {
           id: crypto.randomUUID(),
-          name: "",
+          name: r.name,
           sourceTableId: sTbl.id,
-          sourceColumnId: sCol,
+          sourceColumnId: sourceColumnIds[0],
+          ...(sourceColumnIds.length > 1 && { sourceColumnIds }),
           targetTableId: tTbl.id,
-          targetColumnId: tCol,
+          targetColumnId: targetColumnIds[0],
+          ...(targetColumnIds.length > 1 && { targetColumnIds }),
           cardinality: "One to many",
-          onUpdate: "No action",
-          onDelete: "No action",
+          onUpdate: r.onUpdate,
+          onDelete: r.onDelete,
         };
       })
       .filter(Boolean);

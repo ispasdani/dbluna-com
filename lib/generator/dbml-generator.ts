@@ -11,6 +11,7 @@ export interface DbmlSchemaMeta {
     project?: CanvasProject | null;
     enums?: CanvasEnum[];
     tableGroups?: CanvasTableGroup[];
+    includeDescriptions?: boolean;
 }
 
 // Splits a canvas table name like "dbo.Users" / "[Ncr].Orders" into its parts.
@@ -25,7 +26,7 @@ function tableRef(name: string): string {
     return schema ? `"${schema}"."${table}"` : `"${table}"`;
 }
 
-const escapeNote = (value: string) => value.replace(/'/g, "\\'");
+const escapeNote = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
 /**
  * Converts a dbluna Canvas Schema into valid DBML code.
@@ -38,7 +39,7 @@ export function generateDbmlFromCanvas(
     relationships: Relationship[],
     meta: DbmlSchemaMeta = {}
 ): string {
-    const { project, enums = [], tableGroups = [] } = meta;
+    const { project, enums = [], tableGroups = [], includeDescriptions = false } = meta;
 
     let dbml = `// Generated automatically from your workspace schema\n\n`;
 
@@ -74,14 +75,22 @@ export function generateDbmlFromCanvas(
             ? `Table "${schemaName}"."${tableName}" {\n`
             : `Table "${tableName}" {\n`;
 
+        const primaryKey = table.primaryKey?.filter(name =>
+            table.columns.some(column => column.name === name),
+        ) ?? [];
+
         table.columns.forEach(col => {
             let line = `  "${col.name}" ${col.type.replace(/\s+/g, '_')}`;
             const settings: string[] = [];
 
-            if (col.isPrimaryKey) settings.push("primary key");
+            if (col.isPrimaryKey && primaryKey.length < 2) settings.push("primary key");
             if (col.isUnique && !col.isPrimaryKey) settings.push("unique");
             if (col.isNotNull && !col.isPrimaryKey) settings.push("not null");
             if (col.isAutoIncrement) settings.push("increment");
+
+            if (includeDescriptions && col.description) {
+                settings.push(`note: '${escapeNote(col.description)}'`);
+            }
 
             if (settings.length > 0) {
                 line += ` [${settings.join(', ')}]`;
@@ -89,8 +98,14 @@ export function generateDbmlFromCanvas(
             dbml += line + `\n`;
         });
 
-        if (table.comment) {
-            dbml += `  Note: '${escapeNote(table.comment)}'\n`;
+        if (primaryKey.length > 1) {
+            const fields = primaryKey.map(name => `"${name}"`).join(", ");
+            dbml += `  indexes { (${fields}) [pk] }\n`;
+        }
+
+        const note = [table.comment, includeDescriptions && table.description].filter(Boolean).join("\n\n");
+        if (note) {
+            dbml += `  Note: '${escapeNote(note)}'\n`;
         }
 
         dbml += `}\n\n`;
@@ -102,10 +117,16 @@ export function generateDbmlFromCanvas(
         const targetTable = tables.find(t => t.id === rel.targetTableId);
 
         if (sourceTable && targetTable) {
-            const sourceCol = sourceTable.columns.find(c => c.id === rel.sourceColumnId);
-            const targetCol = targetTable.columns.find(c => c.id === rel.targetColumnId);
+            const fields = (table: Table, ids: string[]) => {
+                const columns = ids.map(id => table.columns.find(column => column.id === id));
+                if (!columns.length || !columns.every(column => column !== undefined)) return null;
+                const names = columns.map(column => `"${column.name}"`);
+                return names.length > 1 ? `(${names.join(", ")})` : names[0];
+            };
+            const sourceFields = fields(sourceTable, rel.sourceColumnIds ?? [rel.sourceColumnId]);
+            const targetFields = fields(targetTable, rel.targetColumnIds ?? [rel.targetColumnId]);
 
-            if (sourceCol && targetCol) {
+            if (sourceFields && targetFields) {
                 const srcRef = tableRef(sourceTable.name);
                 const tgtRef = tableRef(targetTable.name);
 
@@ -113,7 +134,10 @@ export function generateDbmlFromCanvas(
                 if (rel.cardinality === "One to one") op = "-";
                 if (rel.cardinality === "Many to one") op = "<";
 
-                dbml += `Ref: ${srcRef}."${sourceCol.name}" ${op} ${tgtRef}."${targetCol.name}"\n`;
+                const actions = rel.onUpdate !== "No action" || rel.onDelete !== "No action"
+                    ? ` [update: ${rel.onUpdate.toLowerCase()}, delete: ${rel.onDelete.toLowerCase()}]`
+                    : "";
+                dbml += `Ref: ${srcRef}.${sourceFields} ${op} ${tgtRef}.${targetFields}${actions}\n`;
             }
         }
     });

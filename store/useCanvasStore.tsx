@@ -15,6 +15,7 @@ export interface Column {
   isNotNull: boolean;
   isUnique: boolean;
   isAutoIncrement: boolean;
+  description?: string;
 }
 
 export interface Table {
@@ -25,7 +26,9 @@ export interface Table {
   color: string;
   isLocked?: boolean;
   comment?: string;
+  description?: string;
   columns: Column[];
+  primaryKey?: string[];
 }
 
 export interface Relationship {
@@ -35,6 +38,8 @@ export interface Relationship {
   sourceColumnId: string;
   targetTableId: string;
   targetColumnId: string;
+  sourceColumnIds?: string[];
+  targetColumnIds?: string[];
   cardinality: "One to one" | "One to many" | "Many to one";
   onUpdate: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";
   onDelete: "No action" | "Restrict" | "Cascade" | "Set null" | "Set default";

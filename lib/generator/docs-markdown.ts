@@ -15,6 +15,8 @@ interface DocRef {
   fromFields: string[];
   toTable: string;
   toFields: string[];
+  onUpdate?: string;
+  onDelete?: string;
 }
 
 // Pull relationships out of the raw @dbml/core AST. Endpoint[0] is the "many"
@@ -22,15 +24,18 @@ interface DocRef {
 function extractRefs(parsed: ParsedDbmlResult): DocRef[] {
   const raw = parsed.raw as any;
   const refs: DocRef[] = [];
+  const qualified = (name: string, schema?: string) => schema && schema !== "public" ? `${schema}.${name}` : name;
   (raw?.schemas ?? []).forEach((schema: any) => {
     (schema.refs ?? []).forEach((ref: any) => {
       const [from, to] = ref.endpoints ?? [];
       if (!from || !to) return;
       refs.push({
-        fromTable: from.tableName,
+        fromTable: qualified(from.tableName, from.schemaName ?? from.fields?.[0]?.table?.schema?.name),
         fromFields: from.fieldNames ?? [],
-        toTable: to.tableName,
+        toTable: qualified(to.tableName, to.schemaName ?? to.fields?.[0]?.table?.schema?.name),
         toFields: to.fieldNames ?? [],
+        onUpdate: ref.onUpdate,
+        onDelete: ref.onDelete,
       });
     });
   });
@@ -77,10 +82,17 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
   if (parsed.tables.length > 0) {
     lines.push("## Tables", "");
     parsed.tables.forEach((table) => {
-      lines.push(`### ${table.name}`, "");
+      const name = table.schema?.name && table.schema.name !== "public" ? `${table.schema.name}.${table.name}` : table.name;
+      lines.push(`### ${name}`, "");
 
       const tableNote = noteText(table.note);
       if (tableNote) lines.push(tableNote, "");
+
+      const primaryKey = table.indexes?.find((index) => index.pk)?.columns;
+      if (primaryKey && primaryKey.length > 1) {
+        const fields = primaryKey.map((column) => column.value ?? column.name);
+        lines.push(`**Primary key** (${fields.join(", ")})`, "");
+      }
 
       lines.push(
         "| Column | Type | Constraints | Note |",
@@ -94,13 +106,14 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
       lines.push("");
 
       const related = refs.filter(
-        (r) => r.fromTable === table.name || r.toTable === table.name,
+        (r) => r.fromTable === name || r.toTable === name,
       );
       if (related.length > 0) {
         lines.push("**Relationships**", "");
         related.forEach((r) => {
           lines.push(
-            `- \`${r.fromTable}.${r.fromFields.join(", ")}\` → \`${r.toTable}.${r.toFields.join(", ")}\``,
+            `- \`${r.fromTable}.${r.fromFields.join(", ")}\` → \`${r.toTable}.${r.toFields.join(", ")}\`` +
+            (r.onUpdate || r.onDelete ? ` (update ${r.onUpdate ?? "no action"}, delete ${r.onDelete ?? "no action"})` : ""),
           );
         });
         lines.push("");

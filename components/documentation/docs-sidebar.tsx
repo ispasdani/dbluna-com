@@ -126,12 +126,12 @@ function SidebarFolder({ name, icon: Icon, tables, selectedTableId, onSelect, ac
 export const DocsSidebar = () => {
     const { tables, enums, tableGroups, selectedTableId, setSelectedTableId, selectedEnumId, setSelectedEnumId, searchQuery, setSearchQuery } = useDocumentationStore();
 
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     const isSearching = query.length > 0;
 
     // ── Search Mode: flat filtered list ──────────────────────────────────────
     const filteredTables = useMemo(() =>
-        isSearching ? tables.filter((t) => t.name.toLowerCase().includes(query)) : [],
+        isSearching ? tables.filter((t) => [t.name, t.schema?.name, t.schema?.name && `${t.schema.name}.${t.name}`, t.note?.value].some(value => value?.toLowerCase().includes(query))) : [],
         [tables, query, isSearching]
     );
 
@@ -140,21 +140,19 @@ export const DocsSidebar = () => {
         [enums, query, isSearching]
     );
 
-    // Column-level matches: fields whose name matches but whose parent table doesn't
+    // Column-level matches by name, type, or description
     const filteredColumns = useMemo(() => {
         if (!isSearching) return [];
-        const tableNameMatches = new Set(filteredTables.map(t => t.id));
         const hits: Array<{ tableId: number; tableName: string; fieldName: string }> = [];
         for (const table of tables) {
-            if (tableNameMatches.has(table.id)) continue; // already shown under table match
             for (const field of table.fields ?? []) {
-                if (field.name.toLowerCase().includes(query)) {
+                if ([field.name, field.type.type_name, field.note?.value].some(value => value?.toLowerCase().includes(query))) {
                     hits.push({ tableId: table.id, tableName: table.name, fieldName: field.name });
                 }
             }
         }
         return hits;
-    }, [tables, filteredTables, query, isSearching]);
+    }, [tables, query, isSearching]);
 
     // ── Grouping Logic ────────────────────────────────────────────────────────
     const { explicitGroups, schemaGroups, orphans, groupingMode } = useMemo(() => {

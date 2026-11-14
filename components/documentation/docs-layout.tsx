@@ -42,6 +42,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     const dslCode = useMemo(
         () => generateDbmlFromCanvas(canvasTables, canvasRelationships, {
             project: canvasProject,
+            includeDescriptions: true,
             enums: canvasEnums,
             tableGroups: canvasTableGroups,
         }),

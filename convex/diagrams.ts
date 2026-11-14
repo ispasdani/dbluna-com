@@ -29,6 +29,8 @@ export const create = mutation({
             color: v.string(),
             isLocked: v.optional(v.boolean()),
             comment: v.optional(v.string()),
+            description: v.optional(v.string()),
+            primaryKey: v.optional(v.array(v.string())),
             columns: v.array(
               v.object({
                 id: v.string(),
@@ -38,6 +40,7 @@ export const create = mutation({
                 isNotNull: v.boolean(),
                 isUnique: v.boolean(),
                 isAutoIncrement: v.boolean(),
+                description: v.optional(v.string()),
               }),
             ),
           }),
@@ -50,6 +53,8 @@ export const create = mutation({
             sourceColumnId: v.string(),
             targetTableId: v.string(),
             targetColumnId: v.string(),
+            sourceColumnIds: v.optional(v.array(v.string())),
+            targetColumnIds: v.optional(v.array(v.string())),
             cardinality: v.string(),
             onUpdate: v.string(),
             onDelete: v.string(),
@@ -275,6 +280,8 @@ export const update = mutation({
           color: v.string(),
           isLocked: v.optional(v.boolean()),
           comment: v.optional(v.string()),
+          description: v.optional(v.string()),
+          primaryKey: v.optional(v.array(v.string())),
           columns: v.array(
             v.object({
               id: v.string(),
@@ -284,6 +291,7 @@ export const update = mutation({
               isNotNull: v.boolean(),
               isUnique: v.boolean(),
               isAutoIncrement: v.boolean(),
+              description: v.optional(v.string()),
             }),
           ),
         }),
@@ -298,6 +306,8 @@ export const update = mutation({
           sourceColumnId: v.string(),
           targetTableId: v.string(),
           targetColumnId: v.string(),
+          sourceColumnIds: v.optional(v.array(v.string())),
+          targetColumnIds: v.optional(v.array(v.string())),
           cardinality: v.string(),
           onUpdate: v.string(),
           onDelete: v.string(),
