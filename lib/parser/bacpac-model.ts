@@ -1,4 +1,5 @@
 import sax from "sax";
+import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import type { Readable } from "node:stream";
 import type { Relationship } from "@/store/useCanvasStore";
 
@@ -17,6 +18,8 @@ interface ModelColumn {
   isNotNull: boolean;
   isUnique: boolean;
   isAutoIncrement: boolean;
+  defaultExpression?: string;
+  computedExpression?: string;
   description?: string;
 }
 
@@ -34,7 +37,8 @@ function identifierParts(name: string) {
 }
 
 const identity = (parts: string[]) => JSON.stringify(parts);
-const displayTable = (parts: string[]) => parts.join(".");
+const displayTable = (parts: string[]) =>
+  parts.length === 2 ? qualifySqlServerTable(parts[0], parts[1]) : parts.join(".");
 const refs = (element: ModelElement, name: string) => element.references.get(name) ?? [];
 const children = (element: ModelElement, name: string) => element.children.get(name) ?? [];
 const flag = (element: ModelElement, name: string) =>
@@ -154,6 +158,9 @@ export async function parseBacpacModel(input: Readable) {
       isPk: false, isUnique: false,
       isNotNull: element.properties.get("IsNullable")?.toLowerCase() === "false",
       isAutoIncrement: flag(element, "IsIdentity"),
+      computedExpression: element.type === "SqlComputedColumn"
+        ? element.properties.get("ExpressionScript")
+        : undefined,
     };
     tables.set(tableKey, table);
     table.columns.push(column);
@@ -185,6 +192,11 @@ export async function parseBacpacModel(input: Readable) {
         if (element.type === "SqlPrimaryKeyConstraint") match.column.isPk = true;
         else if (keyColumns.length === 1) match.column.isUnique = true;
       }
+    }
+    if (element.type === "SqlDefaultConstraint") {
+      const target = lookupColumn(refs(element, "Column")[0] ?? "");
+      const expression = element.properties.get("DefaultExpressionScript");
+      if (target && expression !== undefined) target.column.defaultExpression = expression;
     }
     if (element.type === "SqlExtendedProperty" && identifierParts(element.name).at(-1)?.toLowerCase() === "ms_description") {
       const description = element.properties.get("Value");

@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import { expect, it } from "vitest";
 import { parseBacpacModel } from "@/lib/parser/bacpac-model";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
-import { parseDbml, parsedRefsToCanvasRelationships } from "@/lib/parser/dsl-parser";
+import { parseDbml, parsedRefsToCanvasRelationships, parsedTablesToCanvasTables } from "@/lib/parser/dsl-parser";
 import type { Relationship, Table } from "@/store/useCanvasStore";
 
 it("resolves ordered foreign keys and descriptions before their table declarations", async () => {
@@ -69,3 +69,42 @@ it("rejects malformed model XML", async () => {
   await expect(parseBacpacModel(Readable.from(["<Model><Element></Model>"]))).rejects.toThrow();
 });
 
+
+it("preserves bracketed schema names and SQL expressions", async () => {
+  const model = await parseBacpacModel(Readable.from([`<Model>
+    <Element Type="SqlDefaultConstraint" Name="[ops.eu].[DF_Total]">
+      <Property Name="DefaultExpressionScript"><Value><![CDATA[((0))]]></Value></Property>
+      <Relationship Name="Column"><Entry><References Name="[ops.eu].[Totals]]].[Total]"/></Entry></Relationship>
+    </Element>
+    <Element Type="SqlTable" Name="[ops.eu].[Totals]]]">
+      <Relationship Name="Columns">
+        <Entry><Element Type="SqlSimpleColumn" Name="[ops.eu].[Totals]]].[Total]"/></Entry>
+        <Entry><Element Type="SqlComputedColumn" Name="[ops.eu].[Totals]]].[Double]">
+          <Property Name="ExpressionScript"><Value><![CDATA[([Total]*(2))]]></Value></Property>
+        </Element></Entry>
+      </Relationship>
+    </Element>
+  </Model>`]));
+  expect(model.tables).toHaveLength(1);
+  expect(model.tables[0].name).toBe("[ops.eu].[Totals]]]");
+  expect(model.tables[0].columns).toMatchObject([
+    { name: "Total", defaultExpression: "((0))" },
+    { name: "Double", computedExpression: "([Total]*(2))" },
+  ]);
+  const tables: Table[] = model.tables.map(table => ({
+    ...table, id: table.name, x: 0, y: 0, color: "#000",
+    columns: table.columns.map(column => ({
+      ...column, id: column.name, isPrimaryKey: column.isPk,
+    })),
+  }));
+  const parsed = parseDbml(generateDbmlFromCanvas(tables, []));
+  expect(parsed?.tables[0]).toMatchObject({ name: "Totals]", schema: { name: "ops.eu" } });
+  const restored = parsedTablesToCanvasTables(parsed!.tables, {
+    existingTables: tables, originX: 0, originY: 0,
+  });
+  expect(restored[0].name).toBe(tables[0].name);
+  expect(restored[0].columns).toMatchObject([
+    { name: "Total", defaultExpression: "((0))" },
+    { name: "Double", computedExpression: "([Total]*(2))" },
+  ]);
+});

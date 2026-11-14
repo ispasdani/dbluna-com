@@ -97,6 +97,8 @@ export default defineSchema({
             isNotNull: v.boolean(),
             isUnique: v.boolean(),
             isAutoIncrement: v.boolean(),
+            defaultExpression: v.optional(v.string()),
+            computedExpression: v.optional(v.string()),
             description: v.optional(v.string()),
           })
         ),
@@ -257,6 +259,8 @@ export default defineSchema({
             isNotNull: v.boolean(),
             isUnique: v.boolean(),
             isAutoIncrement: v.boolean(),
+            defaultExpression: v.optional(v.string()),
+            computedExpression: v.optional(v.string()),
             description: v.optional(v.string()),
           })
         ),

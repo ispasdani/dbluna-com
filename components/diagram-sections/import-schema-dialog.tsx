@@ -978,6 +978,8 @@ function BacpacImportTab() {
         name: c.name,
         type: c.type,
         description: c.description,
+        defaultExpression: c.defaultExpression,
+        computedExpression: c.computedExpression,
         isPrimaryKey: c.isPk ?? false,
         isNotNull: c.isNotNull ?? false,
         isUnique: c.isUnique,

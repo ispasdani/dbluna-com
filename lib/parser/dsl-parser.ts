@@ -1,4 +1,5 @@
 import { Parser } from "@dbml/core";
+import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import type {
   Table,
   Relationship,
@@ -20,6 +21,8 @@ export interface ParsedColumn {
   not_null: boolean;
   increment: boolean;
   dbdefault?: { value: any };
+  defaultExpression?: string;
+  computedExpression?: string;
   note?: { value: string };
 }
 
@@ -380,7 +383,9 @@ export const parsedTablesToCanvasTables = (
 ): Table[] => {
   return parsedTables.map((dbTable, index) => {
     const name = qualifiedTableName(dbTable);
-    const existingTable = existingTables.find((t) => t.name === name);
+    const explicitName = dbTable.schema?.name ? qualifySqlServerTable(dbTable.schema.name, dbTable.name) : name;
+    const existingTable = existingTables.find((t) => t.name === explicitName)
+      ?? existingTables.find((t) => t.name === name);
 
     const keyFields = dbTable.indexes?.find((index) => index.pk)?.columns;
     const primaryKey = keyFields?.map((field) => field.value ?? field.name)
@@ -403,6 +408,8 @@ export const parsedTablesToCanvasTables = (
         isUnique: field.unique || false,
         isAutoIncrement: field.increment || false,
         description: existingCol?.description,
+        defaultExpression: existingCol?.defaultExpression,
+        computedExpression: existingCol?.computedExpression,
       };
     });
 
@@ -412,7 +419,7 @@ export const parsedTablesToCanvasTables = (
 
     return {
       id: existingTable?.id ?? crypto.randomUUID(),
-      name,
+      name: existingTable?.name ?? name,
       x: existingTable?.x ?? defaultX,
       y: existingTable?.y ?? defaultY,
       color: existingTable?.color ?? DEFAULT_TABLE_COLOR,
@@ -476,9 +483,8 @@ export const parsedRefsToCanvasRelationships = (
   );
 
   const resolve = (ep: ParsedRefEndpoint) => {
-    const table = tablesByName.get(
-      qualifiedNameFromParts(ep.tableName, ep.schemaName),
-    );
+    const table = (ep.schemaName ? tablesByName.get(qualifySqlServerTable(ep.schemaName, ep.tableName)) : undefined)
+      ?? tablesByName.get(qualifiedNameFromParts(ep.tableName, ep.schemaName));
     if (!table) return null;
     const columns = ep.fieldNames.map((name) => table.columns.find((column) => column.name === name));
     if (!columns.length || !columns.every((column) => column !== undefined)) return null;

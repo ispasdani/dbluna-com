@@ -15,6 +15,8 @@ export interface Column {
   isNotNull: boolean;
   isUnique: boolean;
   isAutoIncrement: boolean;
+  defaultExpression?: string;
+  computedExpression?: string;
   description?: string;
 }
 

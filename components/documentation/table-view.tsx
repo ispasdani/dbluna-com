@@ -109,6 +109,12 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                                                     {field.dbdefault && <span className="bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded text-[10px] tracking-wider font-mono">def: {field.dbdefault.value}</span>}
                                                 </div>
                                             )}
+                                            {field.defaultExpression && (
+                                                <div>Default <code className="break-all">{field.defaultExpression}</code></div>
+                                            )}
+                                            {field.computedExpression && (
+                                                <div>Computed <code className="break-all">{field.computedExpression}</code></div>
+                                            )}
                                             {field.note && (
                                                 <div className="text-muted-foreground prose prose-sm dark:prose-invert">
                                                     <ReactMarkdown>{field.note.value}</ReactMarkdown>

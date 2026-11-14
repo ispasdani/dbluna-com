@@ -8,6 +8,7 @@ import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { useCanvasStore } from "@/store/useCanvasStore";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
+import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import { generateDocsMarkdown } from "@/lib/generator/docs-markdown";
 import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { Button } from "@/components/ui/button";
@@ -50,8 +51,22 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     );
 
     useEffect(() => {
-        setParsedDbml(parseDbml(dslCode));
-    }, [dslCode, setParsedDbml]);
+        const parsed = parseDbml(dslCode);
+        const byName = new Map(canvasTables.map(table => [table.name, table]));
+        for (const table of parsed?.tables ?? []) {
+            const qualified = table.schema?.name && qualifySqlServerTable(table.schema.name, table.name);
+            const canvasTable = (qualified ? byName.get(qualified) : undefined) ?? byName.get(table.name);
+            if (!canvasTable) continue;
+            const byColumn = new Map(canvasTable.columns.map(column => [column.name, column]));
+            for (const field of table.fields) {
+                const column = byColumn.get(field.name);
+                if (!column) continue;
+                field.defaultExpression = column.defaultExpression;
+                field.computedExpression = column.computedExpression;
+            }
+        }
+        setParsedDbml(parsed);
+    }, [canvasTables, dslCode, setParsedDbml]);
 
     // ── Deep-linking (?table=<name>) ─────────────────────────────────────────
     // Reflect the current selection into the URL. Uses history.replaceState so

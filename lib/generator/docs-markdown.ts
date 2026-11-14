@@ -48,12 +48,14 @@ function columnConstraints(col: ParsedColumn): string {
   if (col.unique && !col.pk) parts.push("unique");
   if (col.not_null && !col.pk) parts.push("not null");
   if (col.increment) parts.push("auto-increment");
+  if (col.defaultExpression) parts.push("default " + col.defaultExpression);
+  if (col.computedExpression) parts.push("computed " + col.computedExpression);
   return parts.join(", ");
 }
 
 // Escape pipes so column names/notes don't break Markdown tables.
 const cell = (value: string | undefined): string =>
-  (value ?? "").replace(/\|/g, "\\|");
+  (value ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 
 /**
  * Renders a parsed DBML schema as human-readable Markdown documentation:
