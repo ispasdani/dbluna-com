@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import type { ParsedEnum, ParsedTable } from "@/lib/parser/dsl-parser";
 import {
@@ -14,10 +15,10 @@ import {
     Layers,
     Box,
     Tag,
-    Hash,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { docsItemId, docsQualifiedName, searchDocs, type DocsSearchKind } from "@/lib/docs-search";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_SCHEMAS = new Set(["public", "dbo", ""]);
@@ -126,33 +127,14 @@ function SidebarFolder({ name, icon: Icon, tables, selectedTableId, onSelect, ac
 export const DocsSidebar = () => {
     const { tables, enums, tableGroups, selectedTableId, setSelectedTableId, selectedEnumId, setSelectedEnumId, searchQuery, setSearchQuery } = useDocumentationStore();
 
-    const query = searchQuery.trim().toLowerCase();
-    const isSearching = query.length > 0;
-
-    // ── Search Mode: flat filtered list ──────────────────────────────────────
-    const filteredTables = useMemo(() =>
-        isSearching ? tables.filter((t) => [t.name, t.schema?.name, t.schema?.name && `${t.schema.name}.${t.name}`, t.note?.value, ...((t.sqlServerIndexes ?? []).map(index => index.name))].some(value => value?.toLowerCase().includes(query))) : [],
-        [tables, query, isSearching]
+    const [schema, setSchema] = useState("");
+    const [kind, setKind] = useState<DocsSearchKind | "">("");
+    const schemas = useMemo(() => [...new Set([...tables, ...enums].flatMap(item => item.schema?.name ?? []))].sort(), [tables, enums]);
+    const isSearching = Boolean(searchQuery.trim() || schema || kind);
+    const results = useMemo(
+        () => isSearching ? searchDocs(tables, enums, searchQuery, schema, kind) : [],
+        [tables, enums, searchQuery, schema, kind, isSearching],
     );
-
-    const filteredEnums = useMemo(() =>
-        isSearching ? enums.filter((e) => e.name.toLowerCase().includes(query)) : [],
-        [enums, query, isSearching]
-    );
-
-    // Column-level matches by name, type, or description
-    const filteredColumns = useMemo(() => {
-        if (!isSearching) return [];
-        const hits: Array<{ tableId: number; tableName: string; fieldName: string }> = [];
-        for (const table of tables) {
-            for (const field of table.fields ?? []) {
-                if ([field.name, field.type.type_name, field.note?.value].some(value => value?.toLowerCase().includes(query))) {
-                    hits.push({ tableId: table.id, tableName: table.name, fieldName: field.name });
-                }
-            }
-        }
-        return hits;
-    }, [tables, query, isSearching]);
 
     // ── Grouping Logic ────────────────────────────────────────────────────────
     const { explicitGroups, schemaGroups, orphans, groupingMode } = useMemo(() => {
@@ -247,63 +229,47 @@ export const DocsSidebar = () => {
             <ScrollArea className="flex-1">
                 <div className="p-2 space-y-0.5">
 
-                    {/* ── Search Results ─────────────────────────────────── */}
+                    <div className="mb-2 flex gap-2">
+                        <select aria-label="Filter documentation by schema" value={schema} onChange={event => setSchema(event.target.value)} className="min-w-0 flex-1 rounded border bg-background p-1 text-xs">
+                            <option value="">All schemas</option>
+                            {schemas.map(name => <option key={name}>{name}</option>)}
+                        </select>
+                        <select aria-label="Filter documentation by object type" value={kind} onChange={event => setKind(event.target.value as DocsSearchKind | "")} className="min-w-0 flex-1 rounded border bg-background p-1 text-xs">
+                            <option value="">All types</option>
+                            <option value="Table">Tables</option>
+                            <option value="Column">Columns</option>
+                            <option value="Index">Indexes</option>
+                            <option value="Unique constraint">Unique constraints</option>
+                            <option value="Enum">Enums</option>
+                        </select>
+                    </div>
                     {isSearching && (
-                        <>
-                            {filteredTables.length > 0 && (
-                                <>
-                                    <SectionHeader icon={<TableIcon className="w-3 h-3" />} label={`Tables (${filteredTables.length})`} />
-                                    {filteredTables.map((table) => (
-                                        <TableButton
-                                            key={table.id}
-                                            table={table}
-                                            isActive={selectedTableId === table.id}
-                                            onSelect={setSelectedTableId}
-                                        />
-                                    ))}
-                                </>
-                            )}
-                            {filteredEnums.length > 0 && (
-                                <>
-                                    <SectionHeader icon={<Tag className="w-3 h-3" />} label={`Enums (${filteredEnums.length})`} />
-                                    {filteredEnums.map((e) => (
-                                        <EnumButton
-                                            key={e.id}
-                                            enumItem={e}
-                                            isActive={selectedEnumId === e.id}
-                                            onSelect={setSelectedEnumId}
-                                        />
-                                    ))}
-                                </>
-                            )}
-                            {filteredColumns.length > 0 && (
-                                <>
-                                    <SectionHeader icon={<Hash className="w-3 h-3" />} label={`Columns (${filteredColumns.length})`} />
-                                    {filteredColumns.map((hit, i) => (
-                                        <button
-                                            key={i}
-                                            onClick={() => setSelectedTableId(hit.tableId)}
-                                            className={cn(
-                                                "w-full text-left py-1.5 px-2 text-[13px] rounded-md flex items-center gap-1.5 transition-colors",
-                                                selectedTableId === hit.tableId
-                                                    ? "bg-primary/10 text-primary font-medium"
-                                                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                                            )}
-                                        >
-                                            <TableIcon className="w-3 h-3 shrink-0 opacity-50" />
-                                            <span className="opacity-70 text-[12px]">{hit.tableName}</span>
-                                            <span className="opacity-40 text-[11px]">·</span>
-                                            <span className="font-mono text-[12px]">{hit.fieldName}</span>
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-                            {filteredTables.length === 0 && filteredEnums.length === 0 && filteredColumns.length === 0 && (
-                                <div className="px-2 py-4 text-xs text-center text-muted-foreground italic">
-                                    No results found.
-                                </div>
-                            )}
-                        </>
+                        <ul aria-label="Documentation search results" className="space-y-1">
+                            {results.map(result => (
+                                <li key={JSON.stringify([result.kind, result.id, result.name])}>
+                                    <button type="button" className="block w-full break-words rounded p-2 text-left text-sm hover:bg-accent focus-visible:outline focus-visible:outline-primary"
+                                        onClick={() => {
+                                            if (result.kind === "Enum") {
+                                                setSelectedEnumId(result.id);
+                                                return;
+                                            }
+                                            if (result.owner) {
+                                                const target = docsItemId(result.owner, result.kind, result.name);
+                                                flushSync(() => setSelectedTableId(result.id));
+                                                document.getElementById(target)?.focus();
+                                            } else {
+                                                setSelectedTableId(result.id);
+                                            }
+                                        }}>
+                                        <span className="block font-medium">{result.name}</span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {result.kind}{result.owner && ` · ${docsQualifiedName(result.owner)}`}
+                                        </span>
+                                    </button>
+                                </li>
+                            ))}
+                            {!results.length && <li className="p-2 text-xs text-muted-foreground">No results found.</li>}
+                        </ul>
                     )}
 
                     {/* ── Grouped Browse View ────────────────────────────── */}

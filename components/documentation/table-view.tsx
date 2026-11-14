@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import { docsItemId } from "@/lib/docs-search";
 import type { ParsedTable } from "@/lib/parser/dsl-parser";
 import { Key } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,7 +21,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                 <h1 className="text-3xl font-bold tracking-tight">{table.name}</h1>
                 {table.note ? (
                     <div className="mt-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                        <ReactMarkdown>{table.note.value}</ReactMarkdown>
+                        <ReactMarkdown>{typeof table.note === "string" ? table.note : table.note.value}</ReactMarkdown>
                     </div>
                 ) : (
                     <p className="mt-2 text-sm text-muted-foreground italic">No description provided.</p>
@@ -48,7 +49,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                             const matchedEnum = enums.find(e => e.name === field.type.type_name);
 
                             return (
-                                <tr key={field.id} className="hover:bg-accent/50 transition-colors bg-background">
+                                <tr key={field.id} id={docsItemId(table, "Column", field.name)} tabIndex={-1} className="hover:bg-accent/50 transition-colors bg-background">
                                     <td className="px-4 py-3 flex items-center font-mono text-[13px]">
                                         <span className={cn("font-medium", field.pk ? "text-primary" : "text-foreground")}>
                                             {field.name}
@@ -117,7 +118,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                                             )}
                                             {field.note && (
                                                 <div className="text-muted-foreground prose prose-sm dark:prose-invert">
-                                                    <ReactMarkdown>{field.note.value}</ReactMarkdown>
+                                                    <ReactMarkdown>{typeof field.note === "string" ? field.note : field.note.value}</ReactMarkdown>
                                                 </div>
                                             )}
                                         </div>
@@ -133,7 +134,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                     <h2 className="text-xl font-semibold">Indexes and unique constraints</h2>
                     <ul className="space-y-2">
                         {table.sqlServerIndexes.map(index => (
-                            <li key={index.name} className="rounded-md border p-3 text-sm">
+                            <li key={JSON.stringify([index.kind, index.name])} id={docsItemId(table, index.kind === "index" ? "Index" : "Unique constraint", index.name)} tabIndex={-1} className="rounded-md border p-3 text-sm">
                                 <code className="font-medium">{index.name}</code>
                                 <span className="ml-2 text-muted-foreground">
                                     {index.kind === "index" && index.unique ? "unique index" : index.kind}
