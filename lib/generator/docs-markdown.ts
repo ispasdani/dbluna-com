@@ -24,7 +24,7 @@ interface DocRef {
 function extractRefs(parsed: ParsedDbmlResult): DocRef[] {
   const raw = parsed.raw as any;
   const refs: DocRef[] = [];
-  const qualified = (name: string, schema?: string) => schema && schema !== "public" ? `${schema}.${name}` : name;
+  const qualified = (name: string, schema?: string) => schema && (schema !== "public" || parsed.tables.some(table => table.name === name && table.explicitDefaultSchema)) ? `${schema}.${name}` : name;
   (raw?.schemas ?? []).forEach((schema: any) => {
     (schema.refs ?? []).forEach((ref: any) => {
       const [from, to] = ref.endpoints ?? [];
@@ -84,7 +84,7 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
   if (parsed.tables.length > 0) {
     lines.push("## Tables", "");
     parsed.tables.forEach((table) => {
-      const name = table.schema?.name && table.schema.name !== "public" ? `${table.schema.name}.${table.name}` : table.name;
+      const name = table.schema?.name && (table.schema.name !== "public" || table.explicitDefaultSchema) ? `${table.schema.name}.${table.name}` : table.name;
       lines.push(`### ${name}`, "");
 
       const tableNote = noteText(table.note);

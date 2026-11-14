@@ -54,7 +54,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
         const parsed = parseDbml(dslCode);
         const byName = new Map(canvasTables.map(table => [table.name, table]));
         for (const table of parsed?.tables ?? []) {
-            const qualified = table.schema?.name && qualifySqlServerTable(table.schema.name, table.name);
+            const qualified = table.schema?.name && (table.schema.name !== "public" || table.explicitDefaultSchema) && qualifySqlServerTable(table.schema.name, table.name);
             const canvasTable = (qualified ? byName.get(qualified) : undefined) ?? byName.get(table.name);
             if (!canvasTable) continue;
             table.description = canvasTable.description;

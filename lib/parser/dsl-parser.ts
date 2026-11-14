@@ -40,6 +40,7 @@ export interface ParsedIndex {
 }
 
 export interface ParsedTable {
+  explicitDefaultSchema?: boolean;
   id: number;
   name: string;
   schema?: { name: string };
@@ -229,6 +230,10 @@ export const parseSchemaSource = (
     database.schemas.forEach((schema: any) => {
       if (schema.tables) {
         schema.tables.forEach((t: any) => {
+          if (format === "dbml" && schema.name === "public" && typeof t.token?.start?.offset === "number") {
+            const declaration = source.slice(t.token.start.offset, t.token.end.offset);
+            t.explicitDefaultSchema = /^Table\s+(?:"public"|public)\s*\./i.test(declaration);
+          }
           tables.push(t);
         });
       }
@@ -372,8 +377,8 @@ export interface ParsedToCanvasOptions {
  */
 const qualifiedTableName = (table: ParsedTable): string => {
   const schema = table.schema?.name;
-  return schema && schema !== DEFAULT_PARSE_SCHEMA
-    ? `${schema}.${table.name}`
+  return schema && (schema !== DEFAULT_PARSE_SCHEMA || table.explicitDefaultSchema)
+    ? qualifySqlServerTable(schema, table.name)
     : table.name;
 };
 
@@ -389,9 +394,7 @@ export const parsedTablesToCanvasTables = (
 ): Table[] => {
   return parsedTables.map((dbTable, index) => {
     const name = qualifiedTableName(dbTable);
-    const explicitName = dbTable.schema?.name ? qualifySqlServerTable(dbTable.schema.name, dbTable.name) : name;
-    const existingTable = existingTables.find((t) => t.name === explicitName)
-      ?? existingTables.find((t) => t.name === name);
+    const existingTable = existingTables.find((t) => t.name === name);
 
     const keyFields = dbTable.indexes?.find((index) => index.pk)?.columns;
     const primaryKey = keyFields?.map((field) => field.value ?? field.name)

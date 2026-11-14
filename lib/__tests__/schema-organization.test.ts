@@ -254,10 +254,8 @@ describe("moveTableToSchema", () => {
   });
 });
 
-describe("the reserved schema is genuinely not round-trip safe", () => {
-  it("loses an explicit `public.` prefix through generate -> parse", () => {
-    // This is why validateSchemaName rejects it: the canvas would silently
-    // disagree with the DBML the moment the Code tab re-parsed.
+describe("explicit default schema round-trip", () => {
+  it("preserves an explicit `public.` prefix through generate -> parse", () => {
     const tables = [table(qualifySchemaName(DEFAULT_SCHEMA, "Users"))];
     expect(tables[0].name).toBe("public.Users");
 
@@ -270,7 +268,7 @@ describe("the reserved schema is genuinely not round-trip safe", () => {
       originY: 0,
     });
 
-    expect(back[0].name).toBe("Users");
+    expect(back[0].name).toBe("public.Users");
   });
 
   it("keeps a non-default prefix through the same round-trip", () => {
