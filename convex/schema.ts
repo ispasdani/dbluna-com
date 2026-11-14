@@ -202,6 +202,14 @@ export default defineSchema({
           description: v.optional(v.string()),
           dependencies: v.array(v.string()),
         }))),
+        sqlServerObjects: v.optional(v.array(v.object({
+          kind: v.optional(v.union(v.literal("Type"), v.literal("Procedure"), v.literal("Function"), v.literal("Trigger"), v.literal("Sequence"), v.literal("Synonym"))),
+          schema: v.optional(v.string()),
+          name: v.string(),
+          definition: v.optional(v.string()),
+          description: v.optional(v.string()),
+          dependencies: v.array(v.string()),
+        }))),
         note: v.optional(v.string()),
       })
     ),
@@ -364,6 +372,14 @@ export default defineSchema({
         name: v.optional(v.string()),
         databaseType: v.optional(v.string()),
         sqlServerViews: v.optional(v.array(v.object({
+          schema: v.optional(v.string()),
+          name: v.string(),
+          definition: v.optional(v.string()),
+          description: v.optional(v.string()),
+          dependencies: v.array(v.string()),
+        }))),
+        sqlServerObjects: v.optional(v.array(v.object({
+          kind: v.optional(v.union(v.literal("Type"), v.literal("Procedure"), v.literal("Function"), v.literal("Trigger"), v.literal("Sequence"), v.literal("Synonym"))),
           schema: v.optional(v.string()),
           name: v.string(),
           definition: v.optional(v.string()),

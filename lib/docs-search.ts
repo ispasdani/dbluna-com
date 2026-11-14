@@ -1,6 +1,6 @@
 import type { ParsedEnum, ParsedTable, ParsedProject } from "@/lib/parser/dsl-parser";
 
-export type DocsSearchKind = "Table" | "Column" | "Index" | "Unique constraint" | "Enum" | "View";
+export type DocsSearchKind = "Table" | "Column" | "Index" | "Unique constraint" | "Enum" | "View" | NonNullable<NonNullable<ParsedProject["sqlServerObjects"]>[number]["kind"]>;
 
 type NamedObject = Pick<ParsedTable, "name" | "schema">;
 
@@ -32,7 +32,7 @@ interface SearchEntry {
 }
 
 export function searchDocs(
-  tables: ParsedTable[], enums: ParsedEnum[], query: string, schema: string, kind: DocsSearchKind | "", views: NonNullable<ParsedProject["sqlServerViews"]> = [],
+  tables: ParsedTable[], enums: ParsedEnum[], query: string, schema: string, kind: DocsSearchKind | "", views: NonNullable<ParsedProject["sqlServerObjects"]> = [],
 ) {
   const needle = query.trim().toLowerCase();
   const results: Array<SearchEntry & { rank: number }> = [];
@@ -64,7 +64,7 @@ export function searchDocs(
   }
   for (const [id, view] of views.entries()) {
     const object = { name: view.name, schema: view.schema ? { name: view.schema } : undefined };
-    add({ id, kind: "View", name: docsQualifiedName(object), anchor: docsItemId(object, "View", view.name) },
+    add({ id, kind: view.kind ?? "View", name: docsQualifiedName(object), anchor: docsItemId(object, view.kind ?? "View", view.name) },
       object, view.name, [view.definition, view.description, ...view.dependencies]);
   }
   return results.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));

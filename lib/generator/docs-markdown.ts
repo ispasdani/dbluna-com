@@ -137,10 +137,11 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
     });
   }
 
-  if (parsed.project?.sqlServerViews?.length) {
-    lines.push("## SQL Server views", "");
-    for (const view of parsed.project.sqlServerViews) {
+  if (parsed.project?.sqlServerObjects?.length) {
+    lines.push("## SQL Server objects", "");
+    for (const view of parsed.project.sqlServerObjects) {
       lines.push("### " + [view.schema, view.name].filter(Boolean).join("."), "");
+      lines.push("**" + (view.kind ?? "View") + "**", "");
       if (view.description) lines.push(view.description, "");
       if (view.dependencies.length) lines.push("**Dependencies** " + view.dependencies.join(", "), "");
       if (view.definition) {

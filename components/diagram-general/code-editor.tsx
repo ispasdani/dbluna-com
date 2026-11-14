@@ -303,8 +303,9 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
       setRelationships(newRelationships);
       setEnums(meta.enums);
       setTableGroups(meta.tableGroups);
-      const sqlServerViews = useCanvasStore.getState().project?.sqlServerViews;
-      setProject(sqlServerViews?.length ? { ...meta.project, sqlServerViews } : meta.project);
+      const project = useCanvasStore.getState().project;
+      const sqlServerObjects = project?.sqlServerObjects ?? project?.sqlServerViews;
+      setProject(sqlServerObjects?.length ? { ...meta.project, sqlServerObjects } : meta.project);
     } catch (e: any) {
       // Errors are handled by the linter; leave isTypingRef as-is while code is invalid
     }

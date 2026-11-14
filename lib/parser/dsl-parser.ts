@@ -7,7 +7,7 @@ import type {
   CanvasTableGroup,
   CanvasProject,
   SqlServerIndex,
-  SqlServerView,
+  SqlServerObject,
 } from "@/store/useCanvasStore";
 
 // ─────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export interface ParsedTableGroup {
 }
 
 export interface ParsedProject {
-  sqlServerViews?: SqlServerView[];
+  sqlServerObjects?: SqlServerObject[];
   name: string;
   note?: string;
   databaseType?: string;

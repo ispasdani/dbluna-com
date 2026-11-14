@@ -1,7 +1,7 @@
 import sax from "sax";
 import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import type { Readable } from "node:stream";
-import type { Relationship, SqlServerIndex, SqlServerView } from "@/store/useCanvasStore";
+import type { Relationship, SqlServerIndex, SqlServerObject } from "@/store/useCanvasStore";
 
 interface ModelElement {
   type: string;
@@ -139,15 +139,23 @@ export async function parseBacpacModel(input: Readable) {
     input.pipe(parser);
   });
 
-  const views = new Map<string, SqlServerView>();
+  const objectKinds = new Map<string, NonNullable<SqlServerObject["kind"]>>([
+    ["SqlUserDefinedDataType", "Type"], ["SqlUserDefinedType", "Type"], ["SqlTableType", "Type"],
+    ["SqlProcedure", "Procedure"], ["SqlScalarFunction", "Function"], ["SqlTableValuedFunction", "Function"],
+    ["SqlDmlTrigger", "Trigger"], ["SqlDdlTrigger", "Trigger"],
+    ["SqlSequence", "Sequence"], ["SqlSynonym", "Synonym"],
+  ]);
+  const objects = new Map<string, SqlServerObject>();
   for (const element of roots) {
-    if (element.type !== "SqlView" || !element.name) continue;
+    const kind = objectKinds.get(element.type);
+    if ((!kind && element.type !== "SqlView") || !element.name) continue;
     const parts = identifierParts(element.name);
-    views.set(identity(parts), {
+    objects.set(identity(parts), {
+      ...(kind && { kind }),
       schema: parts.length === 2 ? parts[0] : undefined,
       name: parts.at(-1)!,
-      definition: element.properties.get("SelectStatement") ?? element.properties.get("QueryScript"),
-      dependencies: [...new Set([...refs(element, "BodyDependencies"), ...refs(element, "QueryDependencies")]
+      definition: element.properties.get("SelectStatement") ?? element.properties.get("QueryScript") ?? element.properties.get("BodyScript") ?? element.properties.get("Body"),
+      dependencies: [...new Set([...refs(element, "BodyDependencies"), ...refs(element, "QueryDependencies"), ...refs(element, "BaseObject"), ...refs(element, "Type"), ...refs(element, "TriggerObject")]
         .map(name => displayTable(identifierParts(name))))],
     });
   }
@@ -236,7 +244,7 @@ export async function parseBacpacModel(input: Readable) {
       const description = element.properties.get("Value");
       const host = refs(element, "Host")[0];
       const parts = host ? identifierParts(host) : identifierParts(element.name).slice(0, -1);
-      const target = columns.get(identity(parts))?.column ?? tables.get(identity(parts)) ?? views.get(identity(parts));
+      const target = columns.get(identity(parts))?.column ?? tables.get(identity(parts)) ?? objects.get(identity(parts));
       if (target && description) target.description = description;
     }
   }
@@ -264,7 +272,16 @@ export async function parseBacpacModel(input: Readable) {
 
   const unresolvedForeignKeys =
     roots.filter((element) => element.type === "SqlForeignKeyConstraint").length - relationships.length;
-  return { tables: [...tables.values()], relationships, unresolvedForeignKeys, views: [...views.values()] };
+  const unsupported = roots.filter((element) =>
+    /^Sql.*(?:Index|Constraint|Function|Trigger|Procedure|Type)$/.test(element.type) &&
+    !objectKinds.has(element.type) &&
+    !["SqlIndex", "SqlPrimaryKeyConstraint", "SqlUniqueConstraint", "SqlForeignKeyConstraint", "SqlDefaultConstraint"].includes(element.type),
+  );
+  return {
+    tables: [...tables.values()], relationships, unresolvedForeignKeys, objects: [...objects.values()],
+    unsupportedObjects: unsupported.length,
+    unsupportedExamples: unsupported.slice(0, 3).map(element => element.name || element.type),
+  };
 }
 
 export type BacpacModel = Awaited<ReturnType<typeof parseBacpacModel>>;

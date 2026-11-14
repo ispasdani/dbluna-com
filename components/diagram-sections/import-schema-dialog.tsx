@@ -886,10 +886,10 @@ function BacpacImportTab() {
   const [message, setMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const pendingDataRef = useRef<Pick<BacpacModel, "tables" | "relationships" | "views">>({
+  const pendingDataRef = useRef<Pick<BacpacModel, "tables" | "relationships" | "objects">>({
     tables: [],
     relationships: [],
-    views: [],
+    objects: [],
   });
   const [preview, setPreview] = useState<
     { tableName: string; columns: string[] }[] | null
@@ -949,11 +949,12 @@ function BacpacImportTab() {
       );
       setStatus("success");
       setMessage(
-        `Found ${rawTables.length} table(s), ${result.views.length} view(s), and ${relationships.length} relationship(s).` +
-        (result.unresolvedForeignKeys ? ` Could not resolve ${result.unresolvedForeignKeys} foreign key(s).` : ""),
+        `Found ${rawTables.length} table(s), ${result.objects.length} other schema object(s), and ${relationships.length} relationship(s).` +
+        (result.unresolvedForeignKeys ? ` Could not resolve ${result.unresolvedForeignKeys} foreign key(s).` : "") +
+        (result.unsupportedObjects ? ` Skipped ${result.unsupportedObjects} unsupported object(s), including ${result.unsupportedExamples.join(", ")}.` : ""),
       );
 
-      pendingDataRef.current = { tables: rawTables, relationships, views: result.views };
+      pendingDataRef.current = { tables: rawTables, relationships, objects: result.objects };
     } catch (err: any) {
       setStatus("error");
       setMessage(
@@ -963,8 +964,8 @@ function BacpacImportTab() {
   };
 
   const handleImport = () => {
-    const { tables: rawTables, relationships, views } = pendingDataRef.current;
-    if (!rawTables.length && !views.length) return;
+    const { tables: rawTables, relationships, objects } = pendingDataRef.current;
+    if (!rawTables.length && !objects.length) return;
 
     const canvasTables: CanvasTable[] = rawTables.map((t, i) => ({
       id: crypto.randomUUID(),
@@ -1021,13 +1022,14 @@ function BacpacImportTab() {
       .filter(Boolean);
 
     layoutAndImport(canvasTables, canvasRelationships);
-    if (views.length) {
+    if (objects.length) {
       useCanvasStore.setState(({ project }) => {
-        const byName = new Map((project?.sqlServerViews ?? []).map(view =>
-          [JSON.stringify([view.schema, view.name]), view],
+        const byName = new Map((project?.sqlServerObjects ?? project?.sqlServerViews ?? []).map(view =>
+          [JSON.stringify([view.kind, view.schema, view.name]), view],
         ));
-        for (const view of views) byName.set(JSON.stringify([view.schema, view.name]), view);
-        return { project: { ...project, databaseType: project?.databaseType ?? "SQL Server", sqlServerViews: [...byName.values()] } };
+        for (const view of objects) byName.set(JSON.stringify([view.kind, view.schema, view.name]), view);
+        const { sqlServerViews: legacyViews, ...metadata } = project ?? {};
+        return { project: { ...metadata, databaseType: project?.databaseType ?? "SQL Server", sqlServerObjects: [...byName.values()] } };
       });
     }
 
@@ -1035,10 +1037,10 @@ function BacpacImportTab() {
     // only affects the banner's tone, not what the buttons allow.
     setStatus("success");
     setMessage(
-      `Imported ${canvasTables.length} table(s), ${views.length} view(s), and ${canvasRelationships.length} relationship(s).`,
+      `Imported ${canvasTables.length} table(s), ${objects.length} other schema object(s), and ${canvasRelationships.length} relationship(s).`,
     );
     setPreview(null);
-    pendingDataRef.current = { tables: [], relationships: [], views: [] };
+    pendingDataRef.current = { tables: [], relationships: [], objects: [] };
     setFile(null);
   };
 
@@ -1065,7 +1067,7 @@ function BacpacImportTab() {
           </Button>
           <Button
             onClick={handleImport}
-            disabled={status !== "success" || (!preview?.length && !pendingDataRef.current.views.length)}
+            disabled={status !== "success" || (!preview?.length && !pendingDataRef.current.objects.length)}
             size="lg"
             className={IMPORT_ACTION}
           >

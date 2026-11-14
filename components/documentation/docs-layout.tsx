@@ -68,8 +68,9 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                 field.computedExpression = column.computedExpression;
             }
         }
-        if (parsed && canvasProject?.sqlServerViews?.length) {
-            parsed.project = { name: "Database Documentation", ...parsed.project, sqlServerViews: canvasProject.sqlServerViews };
+        const objects = canvasProject?.sqlServerObjects ?? canvasProject?.sqlServerViews;
+        if (parsed && objects?.length) {
+            parsed.project = { name: "Database Documentation", ...parsed.project, sqlServerObjects: objects };
         }
         setParsedDbml(parsed);
     }, [canvasTables, canvasProject, dslCode, setParsedDbml]);
@@ -144,7 +145,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleExport}
-                                disabled={!parsedDbml || (!docTables.length && !parsedDbml.project?.sqlServerViews?.length)}
+                                disabled={!parsedDbml || (!docTables.length && !parsedDbml.project?.sqlServerObjects?.length)}
                                 className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 shrink-0"
                             >
                                 <Download className="w-3.5 h-3.5 mr-1" />

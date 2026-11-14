@@ -83,14 +83,25 @@ it("imports a view-only model and documents its available SQL and dependencies",
   </Model>`]));
 
   expect(model.tables).toEqual([]);
-  expect(model.views).toEqual([{
+  expect(model.objects).toEqual([{
     schema: "sales", name: "OpenOrders", description: "Orders awaiting fulfillment",
     definition: "SELECT Id FROM sales.Orders WHERE Closed = 0", dependencies: ["sales.Orders"],
   }]);
-  expect(searchDocs([], [], "closed = 0", "sales", "View", model.views)[0]?.name).toBe("sales.OpenOrders");
+  expect(searchDocs([], [], "closed = 0", "sales", "View", model.objects)[0]?.name).toBe("sales.OpenOrders");
   const parsed = parseDbml(generateDbmlFromCanvas([], [], { project: { databaseType: "SQL Server" } }))!;
-  parsed.project = { ...parsed.project!, sqlServerViews: model.views };
+  parsed.project = { ...parsed.project!, sqlServerObjects: model.objects };
   expect(generateDocsMarkdown(parsed)).toContain("**Dependencies** sales.Orders");
+});
+
+it("inventories supported SQL Server object kinds and reports unsupported constraints", async () => {
+  const types = ["SqlUserDefinedDataType", "SqlProcedure", "SqlScalarFunction", "SqlDmlTrigger", "SqlSequence", "SqlSynonym"];
+  const model = await parseBacpacModel(Readable.from([
+    "<Model>" + types.map(type => '<Element Type="' + type + '" Name="[dbo].[' + type + ']"/>').join("") +
+    '<Element Type="SqlCheckConstraint" Name="[dbo].[CK_Total]"/></Model>',
+  ]));
+  expect(model.objects.map(object => object.kind)).toEqual(["Type", "Procedure", "Function", "Trigger", "Sequence", "Synonym"]);
+  expect(model.unsupportedObjects).toBe(1);
+  expect(model.unsupportedExamples).toEqual(["[dbo].[CK_Total]"]);
 });
 
 

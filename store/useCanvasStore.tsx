@@ -80,7 +80,8 @@ export interface CanvasTableGroup {
   tableNames: string[];
 }
 
-export interface SqlServerView {
+export interface SqlServerObject {
+  kind?: "Type" | "Procedure" | "Function" | "Trigger" | "Sequence" | "Synonym";
   schema?: string;
   name: string;
   definition?: string;
@@ -89,7 +90,8 @@ export interface SqlServerView {
 }
 
 export interface CanvasProject {
-  sqlServerViews?: SqlServerView[];
+  sqlServerObjects?: SqlServerObject[];
+  sqlServerViews?: SqlServerObject[];
   name?: string;
   databaseType?: string;
   note?: string;

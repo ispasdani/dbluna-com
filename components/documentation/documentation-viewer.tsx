@@ -36,7 +36,7 @@ export const DocumentationViewer = () => {
 
     // Docs reflect the canvas, which can't produce invalid DBML — so an empty
     // result means the canvas has no tables yet, not a syntax error.
-    if (!parsedDbml || (!tables.length && !parsedDbml.project?.sqlServerViews?.length)) {
+    if (!parsedDbml || (!tables.length && !parsedDbml.project?.sqlServerObjects?.length)) {
         return (
             <div className="h-full flex items-center justify-center flex-col gap-3 text-muted-foreground">
                 <TableIcon className="w-8 h-8 opacity-50" />
