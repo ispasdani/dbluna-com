@@ -43,3 +43,9 @@ A user imports a SQL Server BACPAC, opens **DBML Docs**, and can browse the data
 | Broader object coverage | Views, indexes, types, and constraints appear in browse, search, and export. Routines, triggers, sequences, and synonyms gain dedicated views where their metadata is available. Unsupported or unresolved objects are visible in the import coverage summary. |
 
 Use a synthetic `model.xml` fixture for parser edge cases and a small SQL Server-generated BACPAC for end-to-end verification. Compare the generated reference with the source database catalog for names, type declarations, column order, constraints, actions, and descriptions. Exercise malformed XML, absent descriptions, dangling references, and legacy diagrams. Measure import time, search index build time, and keystroke latency on a representative large schema before deciding whether search needs a worker or results need virtualization.
+ 
+## Verification status
+
+- The parser processed Microsoft's Wide World Importers Standard BACPAC and found 48 tables, 98 foreign keys with zero unresolved, 41 column defaults, 111 indexes and unique constraints, and 76 additional schema objects.
+- The JSON regression test checks preservation of imported object metadata. The synthetic search benchmark averaged about 5.9 ms for a fully qualified name and 2.0 ms for a filtered description across 1,000 tables and 30,000 columns. These timings measure the search function.
+- The authenticated browser flow, cloud save and restore, and comparison with a running SQL Server catalog still require end-to-end verification.

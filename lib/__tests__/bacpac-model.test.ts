@@ -115,7 +115,7 @@ it("preserves bracketed schema names and SQL expressions", async () => {
   const model = await parseBacpacModel(Readable.from([`<Model>
     <Element Type="SqlDefaultConstraint" Name="[ops.eu].[DF_Total]">
       <Property Name="DefaultExpressionScript"><Value><![CDATA[((0))]]></Value></Property>
-      <Relationship Name="Column"><Entry><References Name="[ops.eu].[Totals]]].[Total]"/></Entry></Relationship>
+      <Relationship Name="ForColumn"><Entry><References Name="[ops.eu].[Totals]]].[Total]"/></Entry></Relationship>
     </Element>
     <Element Type="SqlTable" Name="[ops.eu].[Totals]]]">
       <Relationship Name="Columns">

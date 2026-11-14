@@ -154,7 +154,9 @@ export async function parseBacpacModel(input: Readable) {
       ...(kind && { kind }),
       schema: parts.length === 2 ? parts[0] : undefined,
       name: parts.at(-1)!,
-      definition: element.properties.get("SelectStatement") ?? element.properties.get("QueryScript") ?? element.properties.get("BodyScript") ?? element.properties.get("Body"),
+      definition: element.properties.get("SelectStatement") ?? element.properties.get("QueryScript") ??
+        element.properties.get("BodyScript") ?? children(element, "FunctionBody")[0]?.properties.get("BodyScript") ??
+        element.properties.get("Body"),
       dependencies: [...new Set([...refs(element, "BodyDependencies"), ...refs(element, "QueryDependencies"), ...refs(element, "BaseObject"), ...refs(element, "Type"), ...refs(element, "TriggerObject")]
         .map(name => displayTable(identifierParts(name))))],
     });
@@ -236,7 +238,7 @@ export async function parseBacpacModel(input: Readable) {
       }
     }
     if (element.type === "SqlDefaultConstraint") {
-      const target = lookupColumn(refs(element, "Column")[0] ?? "");
+      const target = lookupColumn(refs(element, "ForColumn")[0] ?? refs(element, "Column")[0] ?? "");
       const expression = element.properties.get("DefaultExpressionScript");
       if (target && expression !== undefined) target.column.defaultExpression = expression;
     }
