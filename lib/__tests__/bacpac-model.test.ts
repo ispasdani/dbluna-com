@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { parseBacpacModel } from "@/lib/parser/bacpac-model";
 import { searchDocs } from "@/lib/docs-search";
 import { generateDocsMarkdown } from "@/lib/generator/docs-markdown";
+import { parseDiagramEnvelope } from "@/lib/diagram-envelope";
 import { generateDbmlFromCanvas } from "@/lib/generator/dbml-generator";
 import { parseDbml, parsedRefsToCanvasRelationships, parsedTablesToCanvasTables } from "@/lib/parser/dsl-parser";
 import type { Relationship, Table } from "@/store/useCanvasStore";
@@ -102,6 +103,11 @@ it("inventories supported SQL Server object kinds and reports unsupported constr
   expect(model.objects.map(object => object.kind)).toEqual(["Type", "Procedure", "Function", "Trigger", "Sequence", "Synonym"]);
   expect(model.unsupportedObjects).toBe(1);
   expect(model.unsupportedExamples).toEqual(["[dbo].[CK_Total]"]);
+  const envelope = JSON.parse(JSON.stringify({
+    v: 1, tables: [], notes: [], areas: [], relationships: [],
+    project: { databaseType: "SQL Server", sqlServerObjects: model.objects },
+  }));
+  expect(parseDiagramEnvelope(envelope, "Imported")?.project?.sqlServerObjects).toEqual(envelope.project.sqlServerObjects);
 });
 
 
