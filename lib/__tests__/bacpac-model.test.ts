@@ -84,6 +84,20 @@ it("preserves bracketed schema names and SQL expressions", async () => {
         </Element></Entry>
       </Relationship>
     </Element>
+    <Element Type="SqlIndex" Name="[ops.eu].[Totals]]].[IX_Total]">
+      <Property Name="Unique" Value="True"/>
+      <Property Name="FilterPredicate"><Value><![CDATA[([Total]>(0))]]></Value></Property>
+      <Relationship Name="Columns"><Entry><Element Type="SqlIndexedColumnSpecification">
+        <Relationship Name="Column"><Entry><References Name="[ops.eu].[Totals]]].[Total]"/></Entry></Relationship>
+      </Element></Entry></Relationship>
+      <Relationship Name="IncludedColumns"><Entry><References Name="[ops.eu].[Totals]]].[Double]"/></Entry></Relationship>
+    </Element>
+    <Element Type="SqlUniqueConstraint" Name="[ops.eu].[UQ_DoubleTotal]">
+      <Relationship Name="Columns">
+        <Entry><References Name="[ops.eu].[Totals]]].[Double]"/></Entry>
+        <Entry><References Name="[ops.eu].[Totals]]].[Total]"/></Entry>
+      </Relationship>
+    </Element>
   </Model>`]));
   expect(model.tables).toHaveLength(1);
   expect(model.tables[0].name).toBe("[ops.eu].[Totals]]]");
@@ -103,6 +117,11 @@ it("preserves bracketed schema names and SQL expressions", async () => {
     existingTables: tables, originX: 0, originY: 0,
   });
   expect(restored[0].name).toBe(tables[0].name);
+  expect(model.tables[0].sqlServerIndexes).toMatchObject([
+    { name: "IX_Total", kind: "index", unique: true, columns: ["Total"], includedColumns: ["Double"], filter: "([Total]>(0))" },
+    { name: "UQ_DoubleTotal", kind: "unique constraint", unique: true, columns: ["Double", "Total"], includedColumns: [] },
+  ]);
+  expect(restored[0].sqlServerIndexes).toEqual(model.tables[0].sqlServerIndexes);
   expect(restored[0].columns).toMatchObject([
     { name: "Total", defaultExpression: "((0))" },
     { name: "Double", computedExpression: "([Total]*(2))" },

@@ -31,6 +31,14 @@ export const create = mutation({
             comment: v.optional(v.string()),
             description: v.optional(v.string()),
             primaryKey: v.optional(v.array(v.string())),
+            sqlServerIndexes: v.optional(v.array(v.object({
+              name: v.string(),
+              kind: v.union(v.literal("index"), v.literal("unique constraint")),
+              columns: v.array(v.string()),
+              includedColumns: v.array(v.string()),
+              unique: v.boolean(),
+              filter: v.optional(v.string()),
+            }))),
             columns: v.array(
               v.object({
                 id: v.string(),
@@ -284,6 +292,14 @@ export const update = mutation({
           comment: v.optional(v.string()),
           description: v.optional(v.string()),
           primaryKey: v.optional(v.array(v.string())),
+          sqlServerIndexes: v.optional(v.array(v.object({
+            name: v.string(),
+            kind: v.union(v.literal("index"), v.literal("unique constraint")),
+            columns: v.array(v.string()),
+            includedColumns: v.array(v.string()),
+            unique: v.boolean(),
+            filter: v.optional(v.string()),
+          }))),
           columns: v.array(
             v.object({
               id: v.string(),

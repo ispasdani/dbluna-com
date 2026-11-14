@@ -131,7 +131,7 @@ export const DocsSidebar = () => {
 
     // ── Search Mode: flat filtered list ──────────────────────────────────────
     const filteredTables = useMemo(() =>
-        isSearching ? tables.filter((t) => [t.name, t.schema?.name, t.schema?.name && `${t.schema.name}.${t.name}`, t.note?.value].some(value => value?.toLowerCase().includes(query))) : [],
+        isSearching ? tables.filter((t) => [t.name, t.schema?.name, t.schema?.name && `${t.schema.name}.${t.name}`, t.note?.value, ...((t.sqlServerIndexes ?? []).map(index => index.name))].some(value => value?.toLowerCase().includes(query))) : [],
         [tables, query, isSearching]
     );
 

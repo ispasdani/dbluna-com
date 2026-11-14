@@ -128,6 +128,26 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                     </tbody>
                 </table>
             </div>
+            {!!table.sqlServerIndexes?.length && (
+                <section className="space-y-3">
+                    <h2 className="text-xl font-semibold">Indexes and unique constraints</h2>
+                    <ul className="space-y-2">
+                        {table.sqlServerIndexes.map(index => (
+                            <li key={index.name} className="rounded-md border p-3 text-sm">
+                                <code className="font-medium">{index.name}</code>
+                                <span className="ml-2 text-muted-foreground">
+                                    {index.kind === "index" && index.unique ? "unique index" : index.kind}
+                                </span>
+                                <div>Key columns <code>{index.columns.join(", ")}</code></div>
+                                {!!index.includedColumns.length && (
+                                    <div>Included columns <code>{index.includedColumns.join(", ")}</code></div>
+                                )}
+                                {index.filter && <div>Filter <code>{index.filter}</code></div>}
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
         </div>
     );
 };

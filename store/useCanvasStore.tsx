@@ -20,6 +20,15 @@ export interface Column {
   description?: string;
 }
 
+export interface SqlServerIndex {
+  name: string;
+  kind: "index" | "unique constraint";
+  columns: string[];
+  includedColumns: string[];
+  unique: boolean;
+  filter?: string;
+}
+
 export interface Table {
   id: string;
   name: string;
@@ -31,6 +40,7 @@ export interface Table {
   description?: string;
   columns: Column[];
   primaryKey?: string[];
+  sqlServerIndexes?: SqlServerIndex[];
 }
 
 export interface Relationship {

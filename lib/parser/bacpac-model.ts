@@ -1,7 +1,7 @@
 import sax from "sax";
 import { qualifySqlServerTable } from "@/lib/schema-namespace";
 import type { Readable } from "node:stream";
-import type { Relationship } from "@/store/useCanvasStore";
+import type { Relationship, SqlServerIndex } from "@/store/useCanvasStore";
 
 interface ModelElement {
   type: string;
@@ -27,6 +27,7 @@ interface ModelTable {
   name: string;
   columns: ModelColumn[];
   primaryKey?: string[];
+  sqlServerIndexes?: SqlServerIndex[];
   description?: string;
 }
 
@@ -176,21 +177,41 @@ export async function parseBacpacModel(input: Readable) {
 
   const lookupColumn = (name: string) => columns.get(identity(identifierParts(name)));
   for (const element of roots) {
-    if (element.type === "SqlPrimaryKeyConstraint" || element.type === "SqlUniqueConstraint") {
+    const isUniqueConstraint = element.type === "SqlUniqueConstraint";
+    const isIndex = element.type === "SqlIndex";
+    if (element.type === "SqlPrimaryKeyConstraint" || isUniqueConstraint || isIndex) {
       const keyColumns = refs(element, "ColumnSpecifications").concat(
         children(element, "ColumnSpecifications").flatMap((child) => refs(child, "Column")),
         refs(element, "Columns"),
+        children(element, "Columns").flatMap((child) => refs(child, "Column")),
       );
       const first = lookupColumn(keyColumns[0] ?? "");
       if (element.type === "SqlPrimaryKeyConstraint" && first &&
           keyColumns.every((name) => lookupColumn(name)?.table === first.table)) {
         first.table.primaryKey = keyColumns.map((name) => identifierParts(name).at(-1)!);
       }
+      if ((isIndex || isUniqueConstraint) && first && keyColumns.every((name) =>
+        lookupColumn(name)?.table === first.table,
+      )) {
+        const includedColumns = refs(element, "IncludedColumns")
+          .map((name) => lookupColumn(name))
+          .filter((entry) => entry?.table === first.table)
+          .map((entry) => entry!.column.name);
+        const index: SqlServerIndex = {
+          name: identifierParts(element.name).at(-1) ?? element.name,
+          kind: isUniqueConstraint ? "unique constraint" : "index",
+          columns: keyColumns.map((name) => lookupColumn(name)!.column.name),
+          includedColumns,
+          unique: isUniqueConstraint || flag(element, "IsUnique") || flag(element, "Unique"),
+          filter: element.properties.get("FilterPredicate"),
+        };
+        (first.table.sqlServerIndexes ??= []).push(index);
+      }
       for (const name of keyColumns) {
         const match = lookupColumn(name);
         if (!match) continue;
         if (element.type === "SqlPrimaryKeyConstraint") match.column.isPk = true;
-        else if (keyColumns.length === 1) match.column.isUnique = true;
+        else if (isUniqueConstraint && keyColumns.length === 1) match.column.isUnique = true;
       }
     }
     if (element.type === "SqlDefaultConstraint") {

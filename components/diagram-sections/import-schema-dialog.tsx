@@ -970,6 +970,7 @@ function BacpacImportTab() {
       name: t.name,
       description: t.description,
       primaryKey: t.primaryKey,
+      sqlServerIndexes: t.sqlServerIndexes,
       x: 0,
       y: 0,
       color: TABLE_COLORS[i % TABLE_COLORS.length],

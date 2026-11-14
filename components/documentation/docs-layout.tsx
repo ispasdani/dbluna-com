@@ -57,6 +57,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
             const qualified = table.schema?.name && qualifySqlServerTable(table.schema.name, table.name);
             const canvasTable = (qualified ? byName.get(qualified) : undefined) ?? byName.get(table.name);
             if (!canvasTable) continue;
+            table.sqlServerIndexes = canvasTable.sqlServerIndexes;
             const byColumn = new Map(canvasTable.columns.map(column => [column.name, column]));
             for (const field of table.fields) {
                 const column = byColumn.get(field.name);

@@ -107,6 +107,19 @@ export function generateDocsMarkdown(parsed: ParsedDbmlResult): string {
       });
       lines.push("");
 
+      if (table.sqlServerIndexes?.length) {
+        lines.push("**Indexes and unique constraints**", "");
+        for (const index of table.sqlServerIndexes) {
+          const kind = index.kind === "index" && index.unique ? "unique index" : index.kind;
+          const included = index.includedColumns.length
+            ? " · Includes " + index.includedColumns.join(", ")
+            : "";
+          const predicate = index.filter ? " · Filter " + index.filter : "";
+          lines.push("- " + index.name + " (" + kind + ") · " + index.columns.join(", ") + included + predicate);
+        }
+        lines.push("");
+      }
+
       const related = refs.filter(
         (r) => r.fromTable === name || r.toTable === name,
       );

@@ -6,6 +6,7 @@ import type {
   CanvasEnum,
   CanvasTableGroup,
   CanvasProject,
+  SqlServerIndex,
 } from "@/store/useCanvasStore";
 
 // ─────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export interface ParsedTable {
   schema?: { name: string };
   fields: ParsedColumn[];
   indexes?: ParsedIndex[];
+  sqlServerIndexes?: SqlServerIndex[];
   note?: { value: string };
 }
 
@@ -413,6 +415,11 @@ export const parsedTablesToCanvasTables = (
       };
     });
 
+    const columnNames = new Set(columns.map((column) => column.name));
+    const sqlServerIndexes = existingTable?.sqlServerIndexes?.filter((index) =>
+      [...index.columns, ...index.includedColumns].every((name) => columnNames.has(name)),
+    );
+
     // Use nullish coalescing (??) so x=0 / y=0 are treated as valid positions.
     const defaultX = originX - 110 + index * 40;
     const defaultY = originY - 60 + index * 40;
@@ -427,6 +434,7 @@ export const parsedTablesToCanvasTables = (
       // A `Note:` authored in the DBML wins; otherwise keep any existing comment.
       comment: noteText(dbTable.note) ?? existingTable?.comment,
       description: existingTable?.description,
+      ...(sqlServerIndexes?.length && { sqlServerIndexes }),
       ...(primaryKey?.length && { primaryKey }),
       columns,
     };
