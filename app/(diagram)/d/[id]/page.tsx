@@ -183,7 +183,7 @@ export default function DiagramPage({ params }: PageProps) {
         </DebugProfiler>
 
         {/* Work area */}
-        <div className="relative flex-1 overflow-hidden w-full flex">
+        <div className="relative min-h-0 flex-1 overflow-hidden w-full flex">
           {!showDocs && (
             <>
               {/* Canvas is ALWAYS full size (fixed) */}

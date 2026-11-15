@@ -17,7 +17,6 @@ import {
     Tag,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { docsItemId, docsQualifiedName, searchDocs, type DocsSearchKind } from "@/lib/docs-search";
 import { cn } from "@/lib/utils";
 
@@ -201,7 +200,7 @@ export const DocsSidebar = () => {
     ];
 
     return (
-        <div className="flex flex-col h-full bg-sidebar">
+        <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
             {/* Home button */}
             <button
                 onClick={() => { setSelectedTableId(null); setSelectedEnumId(null); }}
@@ -229,7 +228,7 @@ export const DocsSidebar = () => {
                 </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <div className="min-h-0 flex-1 overflow-auto">
                 <div className="p-2 space-y-0.5">
 
                     <div className="mb-2 flex gap-2">
@@ -369,7 +368,7 @@ export const DocsSidebar = () => {
                         </>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     );
 };

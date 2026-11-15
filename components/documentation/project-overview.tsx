@@ -165,7 +165,7 @@ export const ProjectOverview = () => {
                         <TableIcon className="w-4 h-4" />
                         Table Index
                     </h2>
-                    <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="overflow-x-auto rounded-lg border border-border">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-sidebar border-b border-border">
                                 <tr>

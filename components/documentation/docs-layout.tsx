@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
 import { sql } from "@codemirror/lang-sql";
-import { Eye, Download, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Eye, Download, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { docsQualifiedName, findDocsTable } from "@/lib/docs-search";
 import { parseDbml } from "@/lib/parser/dsl-parser";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
@@ -15,6 +15,7 @@ import { dbmlCodeMirrorTheme } from "@/lib/codemirror/dbml-theme";
 import { Button } from "@/components/ui/button";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
+import { ReportingHandoffDialog } from "./reporting-handoff-dialog";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
 // Query param used to deep-link a specific table, e.g. ?table=orders
@@ -26,6 +27,9 @@ interface DocsLayoutProps {
 
 export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     const [codeOpen, setCodeOpen] = useState(true);
+    const [sidebarWidth, setSidebarWidth] = useState(300);
+    const resizeStart = useRef({ x: 0, width: 0 });
+    const resizeSidebar = (width: number) => setSidebarWidth(Math.max(240, Math.min(720, width)));
 
     const setParsedDbml = useDocumentationStore(s => s.setParsedDbml);
     const parsedDbml = useDocumentationStore(s => s.parsedDbml);
@@ -126,7 +130,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     };
 
     return (
-        <div className="flex h-full w-full bg-background border-t border-border overflow-hidden">
+        <div className="flex h-full min-h-0 w-full bg-background border-t border-border overflow-hidden">
             {/* Editor Pane (Left) — collapsible read-only preview of the generated DBML */}
             <div className={`${codeOpen ? "w-1/3" : "w-10"} border-r border-border flex flex-col bg-[#1e1e1e] shrink-0 transition-all duration-200`}>
                 <div className="px-2 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between gap-2">
@@ -187,13 +191,50 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
             </div>
 
             {/* Sidebar Pane (Middle) */}
-            <div className="w-64 border-r border-border bg-sidebar flex-shrink-0">
+            <div className="relative flex min-h-0 shrink-0 flex-col border-r border-border bg-sidebar" style={{ width: sidebarWidth, maxWidth: codeOpen ? "40%" : "60%" }}>
                <DocsSidebar />
+               <div
+                   role="separator"
+                   aria-label="Resize documentation sidebar"
+                   aria-orientation="vertical"
+                   aria-valuemin={240}
+                   aria-valuemax={720}
+                   aria-valuenow={sidebarWidth}
+                   tabIndex={0}
+                   className="group absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none focus-visible:outline focus-visible:outline-primary"
+                   onPointerDown={event => {
+                       if (event.button !== 0) return;
+                       resizeStart.current = { x: event.clientX, width: event.currentTarget.parentElement!.offsetWidth };
+                       event.currentTarget.setPointerCapture(event.pointerId);
+                   }}
+                   onPointerMove={event => {
+                       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                           resizeSidebar(resizeStart.current.width + event.clientX - resizeStart.current.x);
+                       }
+                   }}
+                   onKeyDown={event => {
+                       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                       event.preventDefault();
+                       const width = event.currentTarget.parentElement!.offsetWidth;
+                       resizeSidebar(width + (event.key === "ArrowLeft" ? -20 : 20));
+                   }}
+               >
+                   <span className="pointer-events-none absolute left-1/2 top-1/2 flex h-6 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border bg-background text-muted-foreground shadow-sm group-hover:text-foreground">
+                       <GripVertical className="h-3 w-3" />
+                   </span>
+               </div>
             </div>
 
             {/* Content Pane (Right) */}
-            <div className="flex-1 overflow-auto bg-background p-8">
-               <DocumentationViewer />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+                {!readOnly && parsedDbml && (
+                    <div className="flex shrink-0 justify-end border-b border-border px-3 py-1">
+                        <ReportingHandoffDialog parsed={parsedDbml} />
+                    </div>
+                )}
+                <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-8">
+                    <DocumentationViewer />
+                </div>
             </div>
         </div>
     );
