@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { DocsSidebar } from "./docs-sidebar";
 import { DocumentationViewer } from "./documentation-viewer";
 import { ReportingHandoffDialog } from "./reporting-handoff-dialog";
+import styles from "./docs.module.scss";
 import { useUpgradeToastStore } from "@/store/useUpgradeToastStore";
 
 // Query param used to deep-link a specific table, e.g. ?table=orders
@@ -130,10 +131,10 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
     };
 
     return (
-        <div className="flex h-full min-h-0 w-full bg-background border-t border-border overflow-hidden">
+        <div className={styles.layout}>
             {/* Editor Pane (Left) — collapsible read-only preview of the generated DBML */}
-            <div className={`${codeOpen ? "w-1/3" : "w-10"} border-r border-border flex flex-col bg-[#1e1e1e] shrink-0 transition-all duration-200`}>
-                <div className="px-2 py-2 border-b border-border bg-sidebar shrink-0 text-xs text-muted-foreground font-medium flex items-center justify-between gap-2">
+            <div className={styles.codePane} data-open={codeOpen}>
+                <div className={styles.toolbar}>
                     {codeOpen && (
                         <div className="flex items-center gap-3 min-w-0">
                             <span>DBML</span>
@@ -160,7 +161,9 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
                             variant="ghost"
                             size="sm"
                             onClick={() => setCodeOpen(o => !o)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                            className="h-7 w-7 rounded-[7px] p-0 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                            aria-label={codeOpen ? "Collapse DBML pane" : "Expand DBML pane"}
+                            aria-expanded={codeOpen}
                             title={codeOpen ? "Collapse DBML pane" : "Expand DBML pane"}
                         >
                             {codeOpen
@@ -191,7 +194,7 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
             </div>
 
             {/* Sidebar Pane (Middle) */}
-            <div className="relative flex min-h-0 shrink-0 flex-col border-r border-border bg-sidebar" style={{ width: sidebarWidth, maxWidth: codeOpen ? "40%" : "60%" }}>
+            <div className={styles.sidebarPane} style={{ width: sidebarWidth, maxWidth: codeOpen ? "40%" : "60%" }}>
                <DocsSidebar />
                <div
                    role="separator"
@@ -226,13 +229,14 @@ export const DocsLayout = ({ readOnly = false }: DocsLayoutProps) => {
             </div>
 
             {/* Content Pane (Right) */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+            <div className={styles.contentPane}>
                 {!readOnly && parsedDbml && (
-                    <div className="flex shrink-0 justify-end border-b border-border px-3 py-1">
+                    <div className={styles.contentToolbar}>
+                        <span className={styles.toolbarTitle}>Documentation</span>
                         <ReportingHandoffDialog parsed={parsedDbml} />
                     </div>
                 )}
-                <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-8">
+                <div className={styles.content}>
                     <DocumentationViewer />
                 </div>
             </div>

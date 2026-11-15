@@ -1,0 +1,146 @@
+// Documentation shares the editor's palette and compact panel vocabulary.
+.layout {
+  --docs-sub: color-mix(in oklab, var(--foreground) 3%, var(--background));
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+
+  button:focus-visible, select:focus-visible, [tabindex="-1"]:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}
+
+.codePane {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 40px;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--dock-bg);
+
+  &[data-open="true"] { width: clamp(240px, 27%, 440px); }
+}
+
+.toolbar, .contentToolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--dock-header);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+
+  button { border-radius: 7px; }
+}
+
+.toolbarTitle { color: var(--foreground); }
+.sidebarPane {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--background);
+}
+
+.navigation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--background);
+
+  > button { min-height: 44px; font-size: 13px; }
+  button { overflow-wrap: anywhere; }
+  button[aria-current="page"] {
+    border-radius: 7px;
+    box-shadow: inset 2px 0 var(--primary);
+  }
+}
+
+.contentPane { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.content {
+  container-type: inline-size;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px clamp(16px, 3vw, 40px);
+  background: var(--docs-sub);
+  scrollbar-width: thin;
+}
+.document {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 8px 0 64px;
+  overflow-wrap: anywhere;
+
+  h2 { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+  h3 { font-size: 13px; }
+  pre { overflow-wrap: normal; }
+}
+.pageHeader { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; }
+.pageTitle { font-size: 26px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.25; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+.tableCard {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+
+  table { min-width: 480px; }
+  thead { background: var(--docs-sub); }
+  th { font-size: 11.5px; font-weight: 500; }
+  td { font-size: 12.5px; }
+  tbody tr:last-child { border-bottom: 0; }
+}
+.linkCard {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  text-align: left;
+  overflow-wrap: anywhere;
+
+  &:hover:not(:disabled) { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 4%, var(--card)); }
+}
+@container (max-width: 650px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .codePane[data-open="true"] { width: 240px; }
+  .sidebarPane { width: 220px !important; }
+}
+@media (max-width: 760px) {
+  .layout { flex-wrap: wrap; overflow: auto; }
+  .codePane { width: 40px; height: 220px; }
+  .codePane[data-open="true"] { width: 100%; height: 220px; }
+  .sidebarPane { flex: 1; width: auto !important; max-width: none !important; height: 220px; }
+  .contentPane { flex: 1 0 100%; min-height: 440px; }
+  .content { padding: 16px; }
+  .contentToolbar { flex-wrap: wrap; }
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import ReactMarkdown from "react-markdown";
 import { ObjectDependencies } from "./object-dependencies";
 import { docsItemId } from "@/lib/docs-search";
@@ -16,7 +18,7 @@ function StatCard({ icon: Icon, label, value, color }: {
     color: string;
 }) {
     return (
-        <div className="flex items-center gap-4 p-4 rounded-lg border border-border bg-sidebar">
+        <div className={styles.statCard}>
             <div className={cn("w-9 h-9 rounded-md flex items-center justify-center shrink-0", color)}>
                 <Icon className="w-4.5 h-4.5" />
             </div>
@@ -104,12 +106,12 @@ export const ProjectOverview = () => {
     const views = project?.sqlServerObjects ?? [];
 
     return (
-        <div className="max-w-4xl mx-auto py-10 pb-32 animate-in fade-in duration-300">
+        <div className={styles.document}>
 
             {/* Header */}
-            <div className="flex items-start justify-between mb-2">
+            <div className={styles.pageHeader}>
                 <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-foreground">{title}</h1>
+                    <h1 className={styles.pageTitle}>{title}</h1>
                     {dbType && (
                         <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                             <Server className="w-3.5 h-3.5" />
@@ -131,7 +133,7 @@ export const ProjectOverview = () => {
             )}
 
             {/* Stats Row */}
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={styles.stats}>
                 <StatCard
                     icon={TableIcon}
                     label="Tables"
@@ -165,7 +167,7 @@ export const ProjectOverview = () => {
                         <TableIcon className="w-4 h-4" />
                         Table Index
                     </h2>
-                    <div className="overflow-x-auto rounded-lg border border-border">
+                    <div className={styles.tableCard}>
                         <table className="w-full text-sm text-left">
                             <thead className="bg-sidebar border-b border-border">
                                 <tr>
@@ -196,7 +198,7 @@ export const ProjectOverview = () => {
                     <TableIcon className="w-10 h-10 opacity-30" />
                     <p className="text-sm">No tables defined yet.</p>
                     <p className="text-xs text-center max-w-xs">
-                        Define tables in the DBML editor on the left, or click <strong>Sync from Canvas</strong> to import your current diagram.
+                        Add tables on the canvas and your documentation will appear here automatically.
                     </p>
                 </div>
             )}

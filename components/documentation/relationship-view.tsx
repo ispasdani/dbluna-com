@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { ArrowLeftRight, Link as LinkIcon } from "lucide-react";
 import type { ParsedRefEndpoint, ParsedTable } from "@/lib/parser/dsl-parser";
@@ -40,7 +42,7 @@ export const RelationshipDocView = ({ table }: { table: ParsedTable }) => {
               key={index}
               type="button"
               disabled={!otherTable}
-              className="p-4 text-left rounded-lg border border-border bg-sidebar hover:bg-accent/50 transition-colors group"
+              className={`${styles.linkCard} group`}
               onClick={() => otherTable && setSelectedTableId(otherTable.id)}
             >
               <div className="flex items-center justify-between gap-2 text-sm">

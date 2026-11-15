@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import { useState, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
@@ -33,9 +35,10 @@ function TableButton({ table, isActive, onSelect, indent = false }: {
 }) {
     return (
         <button
+            aria-current={isActive ? "page" : undefined}
             onClick={() => onSelect(table.id)}
             className={cn(
-                "w-full text-left py-1.5 text-[13px] rounded-md flex items-center transition-colors",
+                "w-full break-words text-left py-2 text-[13px] rounded-md flex items-center transition-colors",
                 indent ? "pl-6 pr-2" : "px-2",
                 isActive
                     ? "bg-primary/10 text-primary font-medium"
@@ -56,9 +59,10 @@ function EnumButton({ enumItem, isActive, onSelect }: {
 }) {
     return (
         <button
+            aria-current={isActive ? "page" : undefined}
             onClick={() => onSelect(enumItem.id)}
             className={cn(
-                "w-full text-left py-1.5 px-2 text-[13px] rounded-md flex items-center transition-colors",
+                "w-full break-words text-left py-2 px-2 text-[13px] rounded-md flex items-center transition-colors",
                 isActive
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -200,7 +204,7 @@ export const DocsSidebar = () => {
     ];
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col bg-sidebar">
+        <div className={styles.navigation}>
             {/* Home button */}
             <button
                 onClick={() => { setSelectedTableId(null); setSelectedEnumId(null); }}
@@ -223,7 +227,8 @@ export const DocsSidebar = () => {
                         placeholder="Search tables, columns..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9 bg-background h-8 text-xs"
+                        aria-label="Search documentation"
+                        className="pl-9 rounded-[8px] bg-background h-8 text-xs"
                     />
                 </div>
             </div>
@@ -232,11 +237,11 @@ export const DocsSidebar = () => {
                 <div className="p-2 space-y-0.5">
 
                     <div className="mb-2 flex gap-2">
-                        <select aria-label="Filter documentation by schema" value={schema} onChange={event => setSchema(event.target.value)} className="min-w-0 flex-1 rounded border bg-background p-1 text-xs">
+                        <select aria-label="Filter documentation by schema" value={schema} onChange={event => setSchema(event.target.value)} className="min-w-0 flex-1 rounded-[7px] border bg-background p-1.5 text-xs">
                             <option value="">All schemas</option>
                             {schemas.map(name => <option key={name}>{name}</option>)}
                         </select>
-                        <select aria-label="Filter documentation by object type" value={kind} onChange={event => setKind(event.target.value as DocsSearchKind | "")} className="min-w-0 flex-1 rounded border bg-background p-1 text-xs">
+                        <select aria-label="Filter documentation by object type" value={kind} onChange={event => setKind(event.target.value as DocsSearchKind | "")} className="min-w-0 flex-1 rounded-[7px] border bg-background p-1.5 text-xs">
                             <option value="">All types</option>
                             <option value="Table">Tables</option>
                             <option value="View">Views</option>

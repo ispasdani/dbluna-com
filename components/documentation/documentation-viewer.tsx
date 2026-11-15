@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import { useDocumentationStore } from "@/store/useDocumentationStore";
 import { TableDocView } from "./table-view";
 import { RelationshipDocView } from "./relationship-view";
@@ -52,7 +54,7 @@ export const DocumentationViewer = () => {
     if (selectedEnumId) {
         const activeEnum = enums.find(e => e.id === selectedEnumId);
         return (
-            <div className="max-w-4xl mx-auto py-10 pb-32">
+            <div className={styles.document}>
                 <Breadcrumb label={activeEnum?.name ?? "Enum"} icon={Tag} isEnum />
                 <EnumDocView />
             </div>
@@ -68,7 +70,7 @@ export const DocumentationViewer = () => {
     if (!activeTable) return null;
 
     return (
-        <div className="max-w-4xl mx-auto py-10 pb-32">
+        <div className={styles.document}>
             <Breadcrumb label={activeTable.name} icon={TableIcon} />
             <TableDocView table={activeTable} />
             <RelationshipDocView table={activeTable} />

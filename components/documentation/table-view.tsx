@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import ReactMarkdown from "react-markdown";
 import { ObjectDependencies } from "./object-dependencies";
 import { docsItemId } from "@/lib/docs-search";
@@ -19,7 +21,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
     return (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">{table.name}</h1>
+                <h1 className={styles.pageTitle}>{table.name}</h1>
                 {table.description && (
                     <div className="mt-4 text-sm">
                         <h2 className="font-medium">SQL Server description</h2>
@@ -41,7 +43,7 @@ export const TableDocView = ({ table }: { table: ParsedTable }) => {
                     <span className="font-mono">({primaryKey.join(", ")})</span>
                 </div>
             )}
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className={styles.tableCard}>
                 <table className="w-full text-sm text-left">
                     <thead className="bg-sidebar border-b border-border">
                         <tr>

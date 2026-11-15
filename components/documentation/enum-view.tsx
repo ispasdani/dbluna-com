@@ -1,5 +1,7 @@
 "use client";
 
+import styles from "./docs.module.scss";
+
 import ReactMarkdown from "react-markdown";
 import { Tag } from "lucide-react";
 import { useDocumentationStore } from "@/store/useDocumentationStore";
@@ -12,7 +14,7 @@ export const EnumDocView = () => {
   const note = enumItem.note?.value ?? (enumItem.note as any as string) ?? null;
 
   return (
-    <div className="max-w-4xl mx-auto py-10 pb-32 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1">
@@ -21,7 +23,7 @@ export const EnumDocView = () => {
             Enum
           </span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight font-mono">
+        <h1 className={styles.pageTitle}>
           {enumItem.name}
         </h1>
         {note ? (
@@ -36,7 +38,7 @@ export const EnumDocView = () => {
       </div>
 
       {/* Values table */}
-      <div className="rounded-md border border-border overflow-hidden">
+      <div className={styles.tableCard}>
         <table className="w-full text-sm text-left">
           <thead className="bg-sidebar border-b border-border">
             <tr>
