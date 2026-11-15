@@ -71,3 +71,44 @@ it("includes selected view definitions and descriptions only when requested", ()
   expect(detailed).toContain("Reviewed description");
   expect(detailed).not.toContain("private.Hidden");
 });
+
+it("documents column semantics, scoped relationships, context gaps, and export provenance", () => {
+  const parsed = parseDbml(`
+    Enum sales.State {
+      open
+      closed
+    }
+    Table sales.Parent {
+      id int [pk]
+    }
+    Table sales.Child {
+      id int [pk, increment]
+      parent_id int [not null]
+      state sales.State [default: 'open']
+      score int [default: 0]
+    }
+    Ref: sales.Child.parent_id > sales.Parent.id
+  `)!;
+  const sources = reportingSources(parsed);
+  const selected = Object.fromEntries(sources.map(source => [source.key, ""]));
+  const html = generateReportingHandoff(parsed, {
+    ...emptyReportingBrief, title: "Review", question: "Which records need review?",
+    audience: "Operations <team>", output: "Weekly counts", owner: "Schema owner", version: "v2", projectName: "Action model",
+  }, selected, "", { includeNotes: false, includeSql: false, exportedAt: "2026-11-15T12:00:00.000Z" });
+  expect(html).toContain("Not nullable");
+  expect(html).toContain("Nullable");
+  expect(html).toContain("Auto-increment");
+  expect(html).toContain("Default: <code>0</code>");
+  expect(html).toContain("Allowed values: <code>open</code>, <code>closed</code>");
+  expect(html).toContain('Foreign key → <a href="#source-1">sales.Parent.id</a>');
+  expect(html).toContain("can repeat rows from the one side");
+  expect(html).toContain("No validation example");
+  expect(html).toContain("2 sources have no row description");
+  expect(html).toContain("Operations &lt;team&gt;");
+  expect(html).toContain("Action model");
+  expect(html).toContain('datetime="2026-11-15T12:00:00.000Z"');
+  expect(html).toContain('data-copy="sales.Child.parent_id"');
+  expect(html).toContain('id="theme"');
+  expect(html).toContain('id="search-matches"');
+  expect(() => new Script(html.match(/<script>([\s\S]+)<\/script>/)![1])).not.toThrow();
+});
