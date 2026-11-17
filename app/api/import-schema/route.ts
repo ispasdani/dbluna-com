@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { EDITING_GATE_ENABLED } from "@/lib/feature-flags";
+import { resolvePublicHost } from "@/lib/network-guard";
 
 type Engine = "postgresql" | "sqlserver";
 
@@ -215,7 +220,33 @@ function groupColumns(
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
+// This route makes the server open a connection to a host the caller names,
+// and `proxy.ts` leaves every /api route public, so it does its own checks:
+// signed in, Pro (the same rule as the Import menu, which is hidden from
+// anyone who can't edit the canvas), a sane port, and in production only a
+// public address — pinned to the IP that was checked.
 export async function POST(req: NextRequest) {
+  const { userId, getToken } = await auth();
+  if (!userId) {
+    return NextResponse.json(
+      { success: false, error: "Sign in to import a schema." },
+      { status: 401 },
+    );
+  }
+
+  // Mirrors canEditCanvas on /d/[id]: with the gate off, every signed-in user
+  // has Pro capabilities and may import.
+  if (EDITING_GATE_ENABLED) {
+    const token = (await getToken({ template: "convex" })) ?? undefined;
+    const { isPro } = await fetchQuery(api.users.getCurrentUserPlan, {}, { token });
+    if (!isPro) {
+      return NextResponse.json(
+        { success: false, error: "Upgrade to Pro to import from a database." },
+        { status: 403 },
+      );
+    }
+  }
+
   let body: ImportSchemaBody;
   try {
     body = await req.json();
@@ -227,6 +258,35 @@ export async function POST(req: NextRequest) {
   }
 
   const { engine } = body;
+
+  if (typeof body.host !== "string") {
+    return NextResponse.json(
+      { success: false, error: "Host is required." },
+      { status: 400 },
+    );
+  }
+
+  if (!Number.isInteger(body.port) || body.port < 1 || body.port > 65535) {
+    return NextResponse.json(
+      { success: false, error: "Port must be a number between 1 and 65535." },
+      { status: 400 },
+    );
+  }
+
+  // In production the server is ours (Vercel), so "localhost" or a private
+  // address would reach our own infrastructure, never the user's machine.
+  // Connect only to public addresses, and to the exact IP that was checked so
+  // DNS can't change in between. Local dev keeps localhost working.
+  if (process.env.NODE_ENV === "production") {
+    try {
+      body = { ...body, host: await resolvePublicHost(body.host) };
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: (err as Error).message },
+        { status: 400 },
+      );
+    }
+  }
 
   try {
     let result: { tables: TableInfo[]; relationships: Relationship[] };
