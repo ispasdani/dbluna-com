@@ -9,7 +9,7 @@ const ALL_TAB_IDS = TABS.map((t) => t.id) as TabId[];
 // `editingReadOnly` boolean now that Free gets partial edit rights (the DBML
 // Code tab only). This is a client-side render gate — the same trust model the
 // app already used for `editingReadOnly` — not a security boundary. See
-// free-tier-code-only-editing-plan.md §2.
+// docs/archive/plans/free-tier-code-only-editing-plan.md §2.
 export interface DiagramCapabilities {
   isPro: boolean;
   // False while the plan query is still in-flight; true once we have a real answer.

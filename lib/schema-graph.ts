@@ -8,7 +8,7 @@ import type { TableGrouping } from "@/lib/table-grouping";
  *
  * Store-free so it can be unit-tested under vitest's `node` environment, the
  * same reasoning as lib/auto-arrange.ts. See
- * release-1-0/schemas-tab-and-visibility-plan.md Phases 3 and 6.
+ * docs/archive/release-1-0/schemas-tab-and-visibility-plan.md Phases 3 and 6.
  */
 
 export interface GroupGraphNode {

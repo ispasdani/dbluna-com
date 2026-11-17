@@ -199,7 +199,7 @@ type CanvasState = {
   // those are handled at the UI layer (TopNavbar/My Diagrams) since they're a
   // different kind of "edit" than canvas content. Set from
   // app/(diagram)/d/[id]/page.tsx based on EDITING_GATE_ENABLED + plan status;
-  // see release-1-0/paid-editing-access-plan.md §2. This is a UX guard, not a
+  // see docs/archive/release-1-0/paid-editing-access-plan.md §2. This is a UX guard, not a
   // security boundary — see that plan's "Hardening note".
   readOnly: boolean;
   setReadOnly: (v: boolean) => void;
@@ -385,7 +385,7 @@ export const useCanvasStore = create<CanvasState>()(
         // Plan-agnostic on purpose — the diagram-count cap lives in the
         // callers (they know the plan), so both tiers can create local
         // diagrams up to their own limit. See
-        // free-tier-code-only-editing-plan.md §4.
+        // docs/archive/plans/free-tier-code-only-editing-plan.md §4.
         const newId = crypto.randomUUID();
         const trimmed = name.trim() || "Untitled diagram";
         set((s) => ({

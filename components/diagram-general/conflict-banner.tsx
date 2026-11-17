@@ -8,7 +8,7 @@ import { useEditorStore } from "@/store/useEditorStore";
 import { pullCloudDiagram } from "@/lib/diagram-persistence";
 import { clearCloudSyncConflict } from "@/hooks/use-cloud-autosave";
 
-// Deliberately no auto-merge (release-1-0/collaboration-plan.md Phase B §3) —
+// Deliberately no auto-merge (docs/archive/release-1-0/collaboration-plan.md Phase B §3) —
 // this is the one place a rejected push (diagrams.update's "CONFLICT") ends
 // up visible to the user, since use-cloud-autosave.ts halts its own debounce
 // loop the moment it sees one rather than silently overwriting a

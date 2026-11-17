@@ -7,6 +7,6 @@
 //   - constants/pricing.tsx marketing copy
 //
 // Free diagrams never reach Convex, so there is no server-side enforcement of
-// these yet — see free-tier-code-only-editing-plan.md "Non-goals".
+// these yet — see docs/archive/plans/free-tier-code-only-editing-plan.md "Non-goals".
 export const FREE_MAX_TABLES_PER_DIAGRAM = 10;
 export const FREE_MAX_DIAGRAMS = 5;

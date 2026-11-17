@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireProDiagramEditor, requireProDiagramViewer } from "./guards";
 
-// ai-chat-credits-and-sync-plan.md, Phase 2. Append-only by design — reuses
+// docs/archive/plans/ai-chat-credits-and-sync-plan.md, Phase 2. Append-only by design — reuses
 // guards.ts's existing diagram-role guards verbatim, nothing new needed there.
 
 export const list = query({

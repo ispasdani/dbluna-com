@@ -1,32 +1,64 @@
-# Convex Architecture Overview
+# Architecture
 
-This document provides a high-level overview of the backend architecture for dbluna.com, built on [Convex](https://convex.dev/).
+How data moves through DBLuna. As of 16 Nov 2026.
 
-## Core Components
+## Two places a diagram can live
 
-The backend consists of three main pillars:
+```
+                ┌──────────── browser ────────────┐
+ canvas / code ─┤ useCanvasStore (Zustand)        │
+ / docs panels  │   └─ persist → IndexedDB        │  ← every diagram, every user
+                │                                 │
+                │ hooks/use-cloud-*               │  ← only diagrams saved to the cloud
+                └───────────────┬─────────────────┘
+                                │ useQuery / useMutation (Clerk JWT)
+                ┌───────────────▼─────────────────┐
+                │ Convex: guards → functions → DB │
+                │ http /clerk  ← Clerk webhooks   │
+                └─────────────────────────────────┘
+```
 
-1.  **Data Layer (Schema)**: A reactive, document-oriented database that stores user data, diagrams, and application state.
-2.  **Logic Layer (Functions)**: Serverless functions (Queries, Mutations, Actions) that handle business logic and data access.
-3.  **Security Layer (Auth & Guards)**: Integration with Clerk for authentication and custom authorization logic to protect resources.
+- **Local** (everyone): the diagram is a Zustand store persisted to IndexedDB with a debounced write. It never leaves the browser unless shared or saved to the cloud.
+- **Cloud** (Pro, per diagram): `diagrams.create` copies it to Convex. From then on `use-cloud-autosave` debounces `diagrams.update`, and `use-cloud-reconciliation` subscribes to the Convex copy so collaborators' saves appear live. The local copy stays. A save made against an old `updatedAt` is refused with `CONFLICT` and the conflict banner asks what to do.
+- **Share link**: no server at all. The diagram is compressed into the URL fragment and opened read-only at `/d/view`.
 
-## Data Flow
+## Auth and billing
 
-1.  **Client-Side**: The Next.js frontend uses Convex React hooks (`useQuery`, `useMutation`) to interact with the backend.
-2.  **Authentication**: Requests are authenticated via Clerk. The `convex/auth.config.ts` file configures the issuer.
-3.  **Authorization**: Functions use helper guards (in `convex/guards.ts`) to enforce permissions (e.g., `requireSignedIn`, `requireDiagramOwnerOrAdmin`).
-4.  **Database Operations**: Mutations perform transactional updates (e.g., creating a diagram, updating a node position), while Queries provide real-time data subscriptions.
+1. Clerk signs the user in. The Convex client sends Clerk's `convex` JWT; `convex/auth.config.ts` trusts `CLERK_JWT_ISSUER_DOMAIN`.
+2. Clerk's webhook calls `POST /clerk` on Convex for user and subscription events; `users` gets the plan and billing period.
+3. Each function starts with a guard (`convex/guards.ts`) that finds the `users` row from the JWT subject and checks role and Pro.
+4. In the browser, `components/diagram-general/capabilities-context.tsx` turns the plan into what the UI shows (which panels, whether the canvas is editable, the Free limits). That only shapes the UI; Convex repeats the checks.
 
-## Key Directories & Files
+## AI assistant
 
-- `convex/schema.ts`: Defines the database schema, tables, and indexes.
-- `convex/diagrams.ts`: specific logic for Diagram CRUD operations.
-- `convex/users.ts`: User management (syncing with Clerk, profile updates).
-- `convex/guards.ts`: Reusable authorization checks.
-- `convex/auth.config.ts`: Auth configuration.
+```
+browser ─► /api/ai-chat ─► users.reserveAiCredit (Convex)
+                │
+                ├─► Gemini, streaming, with 9 diagram tools (lib/ai/tools.ts)
+                │       tool calls are applied to the canvas in the browser (lib/ai/tool-executor.ts)
+                │
+                └─► users.settleAiCredits (Convex) ─► aiChatSpend
+```
 
-## Design Patterns
+On cloud diagrams `use-cloud-ai-chat-sync` stores messages in `aiChatMessages`.
 
-- **Optimistic Updates**: The frontend leverages Convex's optimistic updates for instant feedback on UI actions (like moving a node).
-- **Single Source of Truth**: The Convex database is the authoritative state for all diagram data.
-- **Idempotency**: User creation and updates are designed to be idempotent to handle webhook retries gracefully.
+## Import
+
+- **PostgreSQL / SQL Server**: `/api/import-schema` (signed in and Pro) connects with `pg` or `mssql` from the server and reads the catalog. In production `lib/network-guard.ts` refuses private and internal addresses.
+- **BACPAC**: `/api/import-bacpac` unzips with `jszip` and reads `model.xml` with `sax` (`lib/parser/bacpac-model.ts`). Table data in the archive is never read.
+- **CSV, JSON, DBML, SQL**: parsed in the browser.
+
+Every source returns tables and relationships that are laid out with dagre and merged onto the canvas.
+
+## Key files
+
+| File | Role |
+|---|---|
+| `convex/schema.ts` | Tables and indexes. See [schema.md](schema.md). |
+| `convex/guards.ts` | Access checks. See [api.md](api.md). |
+| `convex/http.ts` | Clerk webhook. |
+| `convex/crons.ts` | Stale presence cleanup, every 10 minutes. |
+| `lib/subscription-rules.ts` | Who has paid access, and which webhook event wins. |
+| `lib/ai-credits.ts` | Model, prices, allowance, limits. |
+| `store/useCanvasStore.tsx` | The diagram in the browser, its persistence and the read-only guard. |
+| `lib/diagram-envelope.ts`, `lib/share-link.ts` | The JSON format shared by file export, import and share links. |

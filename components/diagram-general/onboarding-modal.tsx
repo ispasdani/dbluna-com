@@ -104,7 +104,7 @@ function PageHead({ title, children }: { title: string; children: React.ReactNod
 // (backdrop, Esc, button). Auto-shows once per browser (see the first-mount
 // effect in app/(diagram)/d/[id]/page.tsx); the TopNavbar help icon reopens it
 // anytime. The first page differs by plan; Pro-only features are tagged on
-// Free. See free-tier-code-only-editing-plan.md §8.
+// Free. See docs/archive/plans/free-tier-code-only-editing-plan.md §8.
 export function OnboardingModal() {
   const { isOpen, close } = useOnboardingStore();
   const { isPro } = useCapabilities();

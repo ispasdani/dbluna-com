@@ -264,7 +264,7 @@ export function MyDiagramsDialog({ open, onOpenChange, readOnly = false }: MyDia
     if (target?.storage === "cloud" && target.cloudId) {
       const result = await softDeleteCloudDiagram(target.cloudId);
       if (!result.ok) {
-        // The orphan guard (release-1-0/collaboration-plan.md Phase A §6) is a
+        // The orphan guard (docs/archive/release-1-0/collaboration-plan.md Phase A §6) is a
         // deliberate rejection, not a reachability problem — removing the
         // local entry anyway would strand the owner's own access to a
         // diagram that's still fully alive in the cloud with active

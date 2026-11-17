@@ -219,7 +219,7 @@ export const get = query({
       )
       .unique();
 
-    // Returns null rather than throwing (release-1-0/collaboration-plan.md
+    // Returns null rather than throwing (docs/archive/release-1-0/collaboration-plan.md
     // Phase B §2) — this query is used reactively via useQuery, where a
     // thrown error surfaces as an uncaught render-time exception instead
     // of a value the caller can branch on. The one caller
@@ -231,7 +231,7 @@ export const get = query({
   },
 });
 
-// Non-throwing membership lookup for UI copy only (release-1-0/collaboration-plan.md
+// Non-throwing membership lookup for UI copy only (docs/archive/release-1-0/collaboration-plan.md
 // Phase A §5) — lets the read-only upgrade prompt say "you were invited" for a
 // collaborator instead of the owner-framed default, without gating anything.
 export const getMyRole = query({
@@ -446,7 +446,7 @@ export const update = mutation({
       args.diagramId,
     );
 
-    // Optimistic-lock check (release-1-0/collaboration-plan.md Phase B §1):
+    // Optimistic-lock check (docs/archive/release-1-0/collaboration-plan.md Phase B §1):
     // the client's snapshot must still be current, or this push would
     // silently overwrite a collaborator's edit that landed since the
     // client last synced. Client-side comparisons alone can't catch this
@@ -517,7 +517,7 @@ export const deleteDiagram = mutation({
     // Shared by "delete for real" (My Diagrams) and "make local-only"
     // (useCloudSync) — both sever this Convex row, so both must be
     // blocked while other members exist, or a collaborator's access gets
-    // silently cut off with no warning to anyone (release-1-0/collaboration-plan.md
+    // silently cut off with no warning to anyone (docs/archive/release-1-0/collaboration-plan.md
     // Phase A §6).
     const allMembers = await ctx.db
       .query("diagramMembers")

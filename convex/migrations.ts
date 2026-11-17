@@ -4,7 +4,7 @@ import { internalMutation } from "./_generated/server";
  * One-time, manually-triggered mutation: grandfathers every existing user
  * with no subscriptionStatus onto Pro, so nobody who could already edit
  * their diagrams gets locked out the moment the editing gate ships (see
- * release-1-0/paid-editing-access-plan.md §3).
+ * docs/archive/release-1-0/paid-editing-access-plan.md §3).
  *
  * Run once via `npx convex run migrations:grandfatherExistingUsersToPro`
  * after the PRO plan has been seeded (convex/plans.ts:seed) — not wired to

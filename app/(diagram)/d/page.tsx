@@ -12,7 +12,7 @@ import { useStoreHydration } from "@/hooks/use-store-hydration";
 // sign-up). This is what Clerk's post-sign-up redirect and every marketing
 // CTA ("Open editor" / "Try it now") point at.
 // Sign-in is enforced by proxy.ts's "everything under /d/* except /d/view"
-// rule. See free-tier-code-only-editing-plan.md §5.
+// rule. See docs/archive/plans/free-tier-code-only-editing-plan.md §5.
 
 // How long to let router.replace() commit before giving up on it. A soft
 // navigation to /d/[id] normally commits in well under this; the fallback

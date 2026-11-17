@@ -4,7 +4,7 @@ import type { Relationship } from "@/store/useCanvasStore";
  * Foreign-key clusters: groups of tables that reference each other more than
  * they reference anything else — the grouping a database without schemas
  * (MySQL, SQLite: the database *is* the schema) never provides. See
- * release-1-0/schemas-tab-and-visibility-plan.md Phase 6.
+ * docs/archive/release-1-0/schemas-tab-and-visibility-plan.md Phase 6.
  *
  * Louvain community detection over the undirected relationship graph. It never
  * joins disconnected tables, so connected components come for free, and it

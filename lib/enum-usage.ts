@@ -56,7 +56,7 @@ export function findEnumUsage(tables: Table[], enumName: string): EnumUsageSite[
  *
  * Callers must memoize this on a structural signature of `tables`, never on the
  * array identity: `updateTablePos` / `moveTables` replace `tables` on every
- * pointermove of a canvas drag. See release-1-0/schema-tab-plan.md §6.
+ * pointermove of a canvas drag. See docs/archive/release-1-0/schema-tab-plan.md §6.
  */
 export function buildEnumUsageIndex(
   tables: Table[],

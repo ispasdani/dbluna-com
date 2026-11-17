@@ -31,7 +31,7 @@ export const DockPanel = forwardRef<HTMLDivElement, DockPanelProps>(
     // Render-time gate only: the dock store still tracks open/closed/side for
     // every tab (so persistence is untouched), but a tab the
     // current plan can't see is never rendered. See
-    // free-tier-code-only-editing-plan.md §2.
+    // docs/archive/plans/free-tier-code-only-editing-plan.md §2.
     const filteredTabs = tabs.filter((t) => visibleTabs.includes(t));
     const effectiveActiveTab =
       activeTab && filteredTabs.includes(activeTab)

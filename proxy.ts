@@ -30,7 +30,7 @@ const isPublicRoute = createRouteMatcher([
   "/clerk(.*)",
 
   // ✅ read-only share-link viewer — must never require sign-in, that's the
-  // whole point of an anonymous share link (see release-1-0/share-via-url-plan.md)
+  // whole point of an anonymous share link (see docs/archive/release-1-0/share-via-url-plan.md)
   "/d/view(.*)",
 
   // If you want *some* API public, keep it narrow:

@@ -3,7 +3,7 @@ import type { Area, Relationship, Table } from "@/store/useCanvasStore";
 /**
  * Group visibility — which groups of tables the canvas shows. View state, not
  * content: the hidden set lives in `useEditorStore` and never reaches the model,
- * the DBML or the cloud. See release-1-0/schemas-tab-and-visibility-plan.md D2.
+ * the DBML or the cloud. See docs/archive/release-1-0/schemas-tab-and-visibility-plan.md D2.
  *
  * A "group" is whatever the active source says it is — a schema, a DBML
  * TableGroup or a foreign-key cluster (lib/table-grouping.ts). Everything here

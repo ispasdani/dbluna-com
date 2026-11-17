@@ -204,7 +204,7 @@ function AiChatPanelInner({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // ai-chat-credits-and-sync-plan.md, Phase 1: live balance for the header
+  // docs/archive/plans/ai-chat-credits-and-sync-plan.md, Phase 1: live balance for the header
   // counter and the "out of credits" composer state. The route independently
   // re-checks and spends a credit server-side on every send — this query is
   // UX only, never the enforcement boundary.
@@ -277,7 +277,7 @@ function AiChatPanelInner({
 
   const creditsLabel = `${creditsPercent}% of this month's AI allowance left — resets ${refillsOn}`;
 
-  // ai-chat-credits-and-sync-plan.md, Phase 2: no-op unless this diagram is
+  // docs/archive/plans/ai-chat-credits-and-sync-plan.md, Phase 2: no-op unless this diagram is
   // cloud-synced. Pull/merge happens inside the hook; push fires below once
   // a turn actually completes.
   const pushMessages = useCloudAiChatSync(diagramId, setMessages);

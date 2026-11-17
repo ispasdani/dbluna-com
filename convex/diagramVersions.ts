@@ -5,7 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireProDiagramViewer, requireProDiagramEditor } from "./guards";
 
-// release-1-0/version-history-plan.md — decisions: 30 min auto-snapshot gap
+// docs/archive/release-1-0/version-history-plan.md — decisions: 30 min auto-snapshot gap
 // (resets on any save, auto or manual), 20-version cap on auto snapshots
 // only (manual/promotion snapshots are never pruned).
 const AUTO_SNAPSHOT_GAP_MS = 30 * 60 * 1000;
@@ -102,7 +102,7 @@ export const list = query({
   },
 });
 
-// Any editor can restore (release-1-0/version-history-plan.md decisions) —
+// Any editor can restore (docs/archive/release-1-0/version-history-plan.md decisions) —
 // restoring can't destroy any existing version row (see below), so it's no
 // more dangerous than a normal edit and needs no stricter guard than one.
 export const restore = mutation({

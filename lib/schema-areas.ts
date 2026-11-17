@@ -4,7 +4,7 @@ import type { SchemaBlock } from "@/lib/auto-arrange";
 /**
  * One Area per schema, drawn by `arrange by schema` so a field of hundreds of
  * cards reads as districts even with nothing hidden. See
- * release-1-0/schemas-tab-and-visibility-plan.md Phase 5.
+ * docs/archive/release-1-0/schemas-tab-and-visibility-plan.md Phase 5.
  *
  * Store-free so it can be unit-tested under vitest's `node` environment.
  *

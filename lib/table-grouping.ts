@@ -5,7 +5,7 @@ import { findFkClusters } from "@/lib/fk-clusters";
 /**
  * What "a group of tables" means for visibility, the schema graph and the
  * toolbar's switcher. Three sources, one shape, one visibility model — see
- * release-1-0/schemas-tab-and-visibility-plan.md D6 and Phase 6:
+ * docs/archive/release-1-0/schemas-tab-and-visibility-plan.md D6 and Phase 6:
  *
  * - `schema`     — the `schema.` prefix on table names (derived, from the database)
  * - `tableGroup` — DBML `TableGroup` blocks (explicit, authored in the Code tab)

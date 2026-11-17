@@ -79,7 +79,7 @@ export const getMe = query({
 });
 
 /**
- * Non-throwing plan check for UI gating (release-1-0/paid-editing-access-plan.md
+ * Non-throwing plan check for UI gating (docs/archive/release-1-0/paid-editing-access-plan.md
  * §2) — signed-out or not-yet-synced users just resolve to `{ isPro: false }`
  * instead of an error state, since "not pro" is the correct read-only default
  * for both cases.

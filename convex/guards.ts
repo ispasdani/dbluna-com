@@ -126,7 +126,7 @@ export async function requireSignedInPro(ctx: MutationCtx | QueryCtx) {
   return { user, plan };
 }
 
-// Version history's viewer gate (release-1-0/version-history-plan.md §5):
+// Version history's viewer gate (docs/archive/release-1-0/version-history-plan.md §5):
 // unlike requireDiagramViewer, this checks the *requesting* user's own plan,
 // not the diagram owner's — a Free-tier collaborator on someone else's Pro
 // diagram gets no history access at all, only ever the diagram's latest
@@ -146,7 +146,7 @@ export async function requireProDiagramViewer(
 // (the same way Figma/Notion/Linear scope billing to the file/workspace owner),
 // which is what makes the invite dialog's "editor"/"admin" roles actually work
 // for a Free-plan collaborator on a Pro owner's diagram. See
-// free-tier-code-only-editing-plan.md §7. Consequence: if an owner's Pro lapses,
+// docs/archive/plans/free-tier-code-only-editing-plan.md §7. Consequence: if an owner's Pro lapses,
 // every collaborator (owner included) loses edit rights on that diagram until
 // it's renewed.
 export async function requireProDiagramEditor(

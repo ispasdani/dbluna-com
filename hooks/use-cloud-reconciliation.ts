@@ -18,7 +18,7 @@ const INITIAL_LOAD_TIMEOUT_MS = 3000;
  * itself, since that component is reused verbatim by the anonymous
  * share-link viewer, which must never touch Convex.
  *
- * Phase B §2 (release-1-0/collaboration-plan.md): this used to be a one-shot
+ * Phase B §2 (docs/archive/release-1-0/collaboration-plan.md): this used to be a one-shot
  * pull-on-mount. It's now a reactive useQuery subscription — a
  * collaborator's push shows up here within one round-trip instead of only at
  * the next time this diagram is opened. CanvasStage's own setDiagramId

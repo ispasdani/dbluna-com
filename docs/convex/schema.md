@@ -1,83 +1,82 @@
-# Convex Database Schema
+# Convex schema
 
-The database schema is defined in `convex/schema.ts`. It includes tables for users, diagrams, memberships, and user preferences.
+Defined in `convex/schema.ts`, which is the source of truth; this is a map of it. 11 tables, as of 16 Nov 2026.
 
-## Tables
+| Table | One row per | Indexes |
+|---|---|---|
+| `users` | Clerk user | `by_clerk_id`, `by_email` |
+| `plans` | Billing plan (`free`, `pro`) | `by_slug` |
+| `diagrams` | Cloud-synced diagram | `by_owner`, `by_publicId` |
+| `diagramMembers` | Person with access to a diagram | `by_diagram`, `by_user`, `by_diagram_and_user` |
+| `diagramInvites` | Pending or used email invite | `by_token`, `by_diagram` |
+| `diagramPresence` | Person currently viewing a diagram | `by_diagram`, `by_diagram_and_user` |
+| `diagramVersions` | Saved version of a diagram | `by_diagram`, `by_diagram_and_created` |
+| `aiChatMessages` | Chat message on a cloud diagram | `by_diagram`, `by_diagram_and_created` |
+| `aiChatReservations` | Started AI turn | `by_user_and_created` |
+| `aiChatSpend` | Calendar month of org-wide AI spend | `by_period` |
+| `userPreferences` | User's editor settings | `by_user` |
 
-### Users (`users`)
+Local diagrams don't appear here at all: they exist only in the browser's IndexedDB until someone saves them to the cloud.
 
-Manages user profiles and authentication data (linked to Clerk).
+## `users`
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `clerkId` | `string` | Unique identifier from Clerk (indexed). |
-| `email` | `string` | User's email address (indexed). |
-| `firstName` | `string` | User's first name. |
-| `lastName` | `string` (optional) | User's last name. |
-| `imageUrl` | `string` (optional) | URL to user's profile image. |
-| `credits` | `number` (optional) | Available credits. |
-| `subscriptionId` | `string` (optional) | Stripe Subscription ID. |
-| `subscriptionStatus` | `string` (optional) | Status (active, canceled, etc.). |
-| `createdAt` | `number` | Timestamp of creation. |
-| `updatedAt` | `number` (optional) | Timestamp of last update. |
+Written by the Clerk webhook (`createUser`, `updateUser`, `applySubscriptionEvent`, `deleteUser`) and by the AI credit mutations.
 
-**Indexes:**
-- `by_clerk_id`: Lookup by Clerk ID.
-- `by_email`: Lookup by email.
+| Field | Notes |
+|---|---|
+| `clerkId`, `email`, `firstName`, `lastName?`, `imageUrl?` | From Clerk. `firstName` falls back to "User". |
+| `createdAt`, `updatedAt?` | |
+| `planId?` | → `plans`. New users get the `free` plan if it's seeded; unset reads as Free. |
+| `subscriptionId?`, `subscriptionStatus?`, `currentPeriodStart?`, `currentPeriodEnd?`, `cancelAtPeriodEnd?` | From Clerk Billing events. Read only through `hasActivePaidAccess`. |
+| `credits?`, `creditsPeriodKey?` | This month's AI allowance and the `"YYYY-MM"` it belongs to. A past month means it has refilled. |
+| `aiTurnWindowStart?`, `aiTurnsInWindow?` | AI rate limit, a fixed one-minute window. Kept on the user row so the check is in the same transaction as the reservation. |
 
-### Diagrams (`diagrams`)
+## `plans`
 
-Stores the core diagram data, including visual elements and metadata.
+`name` (`FREE` / `PRO`), `slug` (must match the Clerk Billing plan slug), `features?` (metadata, kept in line with `lib/plan-limits.ts` by `plans:seed`), `createdAt`.
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `ownerId` | `Id<"users">` | Reference to the creator (indexed). |
-| `name` | `string` | Name of the diagram. |
-| `publicId` | `string` (optional) | Public identifier for sharing (indexed). |
-| `tables` | `array` | List of table objects (positions, columns, etc.). |
-| `relationships` | `array` | List of relationship objects. |
-| `areas` | `array` | List of visual groupings/areas. |
-| `notes` | `array` | List of sticky notes. |
-| `camera` | `object` | Camera position `{x, y, zoom}`. |
-| `isDeleted` | `boolean` (optional) | Soft delete flag. |
-| `createdAt` | `number` | Timestamp of creation. |
-| `updatedAt` | `number` | Timestamp of last update. |
+## `diagrams`
 
-**Indexes:**
-- `by_owner`: Lookup by owner ID.
-- `by_publicId`: Lookup by public sharing ID.
+| Field | Notes |
+|---|---|
+| `ownerId`, `name`, `createdAt`, `updatedAt` | `updatedAt` is also the conflict check: `update` needs the caller's `expectedUpdatedAt` to match. |
+| `publicId?` | Indexed; not used by share links, which never touch Convex. |
+| `tables[]` | `id, name, x, y, color, isLocked?, comment?, description?, primaryKey?, sqlServerIndexes?, columns[]`. A column is `id, name, type, isPrimaryKey, isNotNull, isUnique, isAutoIncrement, defaultExpression?, computedExpression?, description?`. |
+| `relationships[]` | `sourceTableId/ColumnId`, `targetTableId/ColumnId`, optional multi-column `sourceColumnIds`/`targetColumnIds`, `cardinality`, `onUpdate`, `onDelete`. |
+| `areas[]`, `notes[]` | Position, size, title, colour, lock; areas have `zIndex`, notes have `content`. |
+| `camera` | `x, y, zoom`. |
+| `enums?`, `tableGroups?` | From DBML. |
+| `project?` | `name?`, `databaseType?`, `note?`, and from BACPAC import `sqlServerViews?` and `sqlServerObjects?` (types, procedures, functions, triggers, sequences, synonyms), each with `definition?`, `description?` and `dependencies[]`. |
+| `isDeleted?` | Soft delete. |
 
-### Diagram Members (`diagramMembers`)
+## `diagramMembers`
 
-Manages access control and collaboration roles.
+`diagramId`, `userId`, `role` (`owner` / `admin` / `editor` / `viewer`), `invitedAt`, `acceptedAt?`, `updatedAt?`. The owner is also recognised from `diagrams.ownerId`. `admin` can't be granted from the UI.
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `diagramId` | `Id<"diagrams">` | Reference to the diagram (indexed). |
-| `userId` | `Id<"users">` | Reference to the user (indexed). |
-| `role` | `string` | Role: "owner", "admin", "editor", "viewer". |
-| `invitedAt` | `number` | Timestamp when invitation was sent. |
-| `acceptedAt` | `number` (optional) | Timestamp when invitation was accepted. |
+## `diagramInvites`
 
-**Indexes:**
-- `by_diagram`: List members of a diagram.
-- `by_user`: List diagrams a user is a member of.
-- `by_diagram_and_user`: Check specific membership.
+`diagramId`, `token`, `invitedEmail`, `role` (`admin` / `editor` / `viewer`), `createdBy`, `createdAt`, `expiresAt` (7 days), `usedAt?`. No `userId`: the invitee may not have an account yet.
 
-### User Preferences (`userPreferences`)
+## `diagramPresence`
 
-Stores user-specific settings.
+`diagramId`, `userId`, `lastSeenAt`. Refreshed by `heartbeat`; rows are removed by a cron every 10 minutes once stale.
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| `userId` | `Id<"users">` | Reference to the user (indexed). |
-| `theme` | `string` (optional) | UI theme preference. |
-| `defaultView` | `string` (optional) | Default view mode. |
-| `snapToGrid` | `boolean` (optional) | Snap to grid enabled. |
-| `showGrid` | `boolean` (optional) | Grid visibility. |
+## `diagramVersions`
 
-**Indexes:**
-- `by_user`: Lookup by user ID.
+`diagramId`, `createdAt`, `createdBy`, `kind` (`promotion` when first saved to the cloud, `auto`, `manual`), `label?` (manual only), then a full copy of the diagram's content fields (same shapes as `diagrams`). Only the newest 20 `auto` versions are kept.
 
-### Plans (`plans`)
-Stores subscription plan definitions.
+## `aiChatMessages`
+
+`diagramId`, `messageId` (the client's message id, used to ignore duplicates), `role`, `parts` (`v.any()`: AI SDK message parts), `createdBy`, `createdAt`. One row per message because messages are only ever appended.
+
+## `aiChatReservations`
+
+`userId`, `credits` (taken up front), `createdAt`, `consumedAt?`. Settlement must consume one unused reservation, so a client can't report spend for a turn that never passed the Pro gate and rate limit, or report it twice.
+
+## `aiChatSpend`
+
+`periodKey` (`"YYYY-MM"`, UTC), `credits`, `updatedAt`. Checked against the global monthly ceiling before every turn.
+
+## `userPreferences`
+
+`userId`, `theme?`, `defaultView?`, `snapToGrid?`, `showGrid?`. Unused: no function reads or writes it. The editor keeps these settings in local stores.

@@ -39,7 +39,7 @@ function relativeTime(t: number): string {
   return new Date(t).toLocaleDateString();
 }
 
-// Cloud + Pro only (release-1-0/version-history-plan.md) — mirrors
+// Cloud + Pro only (docs/archive/release-1-0/version-history-plan.md) — mirrors
 // InviteDialog's structure exactly: a local diagram gets a "sync to cloud
 // first" step, not a hidden button (matches Export/Share/Invite's existing
 // "gate on click, not on visibility" pattern). A Free user hits the same
@@ -129,7 +129,7 @@ export function HistoryDialog({ open, onOpenChange, localId }: HistoryDialogProp
     setErrorMessage(null);
     try {
       // No local store update here — the reactive cloud-reconciliation
-      // subscription (release-1-0/collaboration-plan.md Phase B §2) picks up
+      // subscription (docs/archive/release-1-0/collaboration-plan.md Phase B §2) picks up
       // the resulting updatedAt bump and merges the restored content in on
       // its own, on every connected device.
       await restoreVersion({ diagramId: cloudId, versionId });

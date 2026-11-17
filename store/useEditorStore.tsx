@@ -56,7 +56,7 @@ type EditorState = {
   // are group keys (lib/table-grouping.ts; for schemas, the bare `schemaKey`),
   // never table ids: visibility is view state, not content, so it is private
   // to this browser and never synced. See
-  // release-1-0/schemas-tab-and-visibility-plan.md D2. The name predates the
+  // docs/archive/release-1-0/schemas-tab-and-visibility-plan.md D2. The name predates the
   // other grouping sources; keys from every source share this one list. All
   // actions act on `activeDiagramId`.
   hiddenSchemas: Record<string, readonly string[]>;

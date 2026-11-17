@@ -1,7 +1,7 @@
 // Single source of truth for AI chat unit economics. Everything here is
 // derived from two inputs — the model's published price and the AI budget we
 // allow ourselves out of the $10 Pro price — so the two can't drift apart the
-// way they did before (ai-chat-credits-and-sync-plan.md costed 500 credits
+// way they did before (docs/archive/plans/ai-chat-credits-and-sync-plan.md costed 500 credits
 // against Gemini 2.5 Flash-Lite's $0.10/$0.40 while the route actually called
 // the floating `gemini-flash-lite-latest` alias, which had already moved to a
 // tier with 6x the output price).

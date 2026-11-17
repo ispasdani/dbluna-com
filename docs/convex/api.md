@@ -1,36 +1,88 @@
-# Convex API & Security
+# Convex functions and guards
 
-This document outlines the API functions available in the Convex backend and the security model used to protect them.
+Every public function, the check it runs first, and what it does. As of 16 Nov 2026. "Internal" functions can only be called from other Convex functions, the CLI (`npx convex run`) or the dashboard.
 
-## Security Model (`guards.ts`)
+## Guards (`convex/guards.ts`)
 
-Access control is enforced using helper functions in `convex/guards.ts`. These guards are called at the beginning of mutations and queries.
+| Guard | Passes when |
+|---|---|
+| `requireSignedIn` | There's a Clerk identity with a `users` row. Throws `ERR_AUTH_REQUIRED` otherwise. |
+| `requireSignedInPro` | Signed in and `isPro`. |
+| `isPro` / `requirePro` | `hasActivePaidAccess` (`lib/subscription-rules.ts`): a paid plan slug (`pro`, `enterprise`), an active status, and a period end not more than 3 days past. |
+| `requireDiagramRole(ctx, id, roles)` | The caller is the diagram's owner (`diagrams.ownerId`) or has a `diagramMembers` row with one of `roles`. |
+| `requireDiagramViewer` / `Editor` / `OwnerOrAdmin` | `requireDiagramRole` with any role / owner, admin or editor / owner or admin. |
+| `requireProDiagramViewer` / `Editor` | The same, plus the caller is Pro. |
 
-- **`requireSignedIn(ctx)`**: Ensures the request is from an authenticated user (via Clerk). Throws `ERR_AUTH_REQUIRED` if not.
-- **`requireDiagramRole(ctx, diagramId, allowedRoles)`**: Ensures the authenticated user has a specific role (e.g., "owner", "editor") on the target diagram.
-    - Checks if the user is the **owner** (direct check on `diagrams` table).
-    - Checks if the user is a **member** with a matching role (via `diagramMembers` table).
+## Diagrams (`convex/diagrams.ts`)
 
-## API Modules
+| Function | Type | Check | What |
+|---|---|---|---|
+| `create` | mutation | `requireSignedInPro` | Saves a local diagram to the cloud and records a `promotion` version. |
+| `get` | query | Owner or member | The diagram, or `null` (not an error) when the caller has no access, so the page can show its own message. |
+| `getMyRole` | query | None (signed-in) | The caller's role or `null`. For wording in the UI only; gates nothing. |
+| `list` | query | Signed in | The caller's diagrams. |
+| `update` | mutation | `requireProDiagramEditor` | Replaces the diagram's content. Refuses with `CONFLICT` if `expectedUpdatedAt` is stale. May take an `auto` version. |
+| `deleteDiagram` | mutation | Owner | Soft delete. |
 
-### Diagrams (`convex/diagrams.ts`)
+## Collaboration
 
-| Function | Type | Access Level | Description |
-| :--- | :--- | :--- | :--- |
-| `create` | Mutation | Authenticated | Creates a new diagram. The creator becomes the "owner". |
-| `get` | Query | Member | Fetches a diagram by ID. Requires "viewer" role or higher. |
-| `list` | Query | Authenticated | Lists all diagrams the user is a member of. |
-| `update` | Mutation | Editor+ | Updates diagram content (tables, relationships, notes). Requires "editor" role or higher. |
-| `deleteDiagram` | Mutation | Owner | Soft-deletes a diagram. Only the "owner" can perform this. |
+| Function | Type | Check | What |
+|---|---|---|---|
+| `diagramInvites.create` | mutation | Owner or admin, Pro | Invites an email as editor or viewer; 7-day token; at most 5 members. |
+| `diagramInvites.revoke` | mutation | Owner or admin | Removes a pending invite. |
+| `diagramInvites.listForDiagram` | query | Owner or admin | Pending invites (used ones drop out). |
+| `diagramInvites.accept` | mutation | Signed in | Turns a valid token into a `diagramMembers` row. |
+| `diagramPresence.heartbeat` | mutation | Viewer | Marks the caller as present. |
+| `diagramPresence.listActive` | query | Viewer | Who's here, with name, email and `isSelf`. |
+| `diagramPresence.cleanupStale` | internal | | Cron, every 10 minutes. |
 
-### Users (`convex/users.ts`)
+## Versions (`convex/diagramVersions.ts`)
 
-| Function | Type | Access Level | Description |
-| :--- | :--- | :--- | :--- |
-| `getMe` | Query | Authenticated | Returns the current user's profile. |
-| `getUserByClerkId` | Query | Public | Fetches a user by their Clerk ID. |
-| `createUser` | Internal Mutation | Admin/Webhook | Creates a new user. Called by Clerk webhooks. |
-| `updateUser` | Internal Mutation | Admin/Webhook | Updates an existing user. Called by Clerk webhooks. |
-| `deleteUser` | Internal Mutation | Admin/Webhook | Deletes a user. Called by Clerk webhooks. |
+| Function | Type | Check | What |
+|---|---|---|---|
+| `list` | query | `requireProDiagramViewer` | The diagram's versions, newest first. |
+| `restore` | mutation | `requireProDiagramEditor` | Writes a version back as the current state. Every existing version is kept. |
 
-*Note: `internalMutation` functions are only accessible from within the Convex deployment (e.g., other actions or scheduling) and cannot be called directly from the client.*
+`insertVersion`, `maybeAutoSnapshot` and `pruneOldAutoVersions` are helpers called by `diagrams.create` and `update`.
+
+## Users and AI credits (`convex/users.ts`)
+
+| Function | Type | Check | What |
+|---|---|---|---|
+| `getMe` | query | Signed in | The caller's `users` row. |
+| `getCurrentUserPlan` | query | Signed in | The caller's plan and whether they're Pro. |
+| `reserveAiCredit` | mutation | `requireSignedInPro` | Before a turn: rate limit, global ceiling, refills the month if needed, takes credits up front and creates a reservation. Errors: `OUT_OF_CREDITS`, `REQUEST_TOO_LARGE_FOR_BALANCE`, `RATE_LIMITED`, `CAPACITY_REACHED`. |
+| `settleAiCredits` | mutation | Signed in (deliberately not Pro, so a turn that started before a lapse still settles) | Consumes the reservation and charges the real cost, capped at one turn. |
+| `getByClerkIdInternal` | internal | | |
+| `createUser`, `updateUser`, `applySubscriptionEvent`, `deleteUser` | internal | | Called by the Clerk webhook. |
+
+## AI chat history (`convex/aiChatMessages.ts`)
+
+| Function | Type | Check | What |
+|---|---|---|---|
+| `list` | query | `requireProDiagramViewer` | Messages for a cloud diagram. |
+| `append` | mutation | `requireProDiagramEditor` | Adds messages; duplicates by `messageId` are ignored. |
+
+`convex/aiSpend.ts` holds helpers (`assertGlobalCapacity`, `recordSpend`), not functions.
+
+## Plans, setup and test tools
+
+| Function | Type | What |
+|---|---|---|
+| `plans.seed` | internal | Creates the `free` and `pro` rows. Run once per deployment. |
+| `plans.getBySlug`, `plans.getByIdInternal` | internal | |
+| `migrations.grandfatherExistingUsersToPro` | internal | Moves every existing user to Pro; was used when the editing gate went live. |
+| `devBilling.setSubscription` | internal | Sets a subscription preset on a user by email: for testing Pro, lapsed, grace and failed payment states without Clerk. Dev deployments only. |
+| `devBilling.setCredits`, `showUser`, `showSpend` | internal | Set a user's credits; show a user or the month's spend. |
+
+## HTTP (`convex/http.ts`)
+
+`POST /clerk`: the Clerk webhook, verified with `svix` and `CLERK_WEBHOOK_SECRET`. Handles `user.created`, `user.updated`, `user.deleted` and the Billing `subscription.*` / `subscriptionItem.*` events. The decisions about which event wins are in `lib/subscription-rules.ts`.
+
+## Next.js API routes (outside Convex)
+
+| Route | Check | What |
+|---|---|---|
+| `POST /api/ai-chat` | Clerk `auth()`, then `reserveAiCredit` | Streams the Gemini reply with the diagram tools, then settles credits. |
+| `POST /api/import-bacpac` | Clerk `auth()` | Parses an uploaded BACPAC. |
+| `POST /api/import-schema` | Clerk `auth()`, then Pro via `getCurrentUserPlan` (while `EDITING_GATE_ENABLED`); in production, `resolvePublicHost` | Connects to a PostgreSQL or SQL Server host and reads its schema. In production only public addresses, pinned to the checked IP. |

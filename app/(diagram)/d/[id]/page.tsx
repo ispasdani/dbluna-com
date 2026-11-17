@@ -39,7 +39,7 @@ function clamp(n: number, min: number, max: number) {
 
 const ALL_TAB_IDS = TABS.map((t) => t.id) as TabId[];
 // Free plan sees only the DBML Code tab. Everything else is hidden, not just
-// disabled — see free-tier-code-only-editing-plan.md Goals.
+// disabled — see docs/archive/plans/free-tier-code-only-editing-plan.md Goals.
 const FREE_TAB_IDS: TabId[] = ["code"];
 
 interface PageProps {
@@ -59,7 +59,7 @@ export default function DiagramPage({ params }: PageProps) {
   // old `editingReadOnly` computation had. `getCurrentUserPlan` is undefined
   // until it resolves; treat that (and pre-hydration) as "not Pro" so a Free
   // user is never briefly shown Pro affordances. See
-  // free-tier-code-only-editing-plan.md §2.
+  // docs/archive/plans/free-tier-code-only-editing-plan.md §2.
   const planQuery = useQuery(api.users.getCurrentUserPlan);
   const gateActive = EDITING_GATE_ENABLED;
   const planResolved = planQuery !== undefined;
@@ -93,7 +93,7 @@ export default function DiagramPage({ params }: PageProps) {
   // Onboarding modal: auto-show once per browser, after the plan resolves so
   // the right variant (Free vs Pro) renders. The TopNavbar help icon reopens
   // it anytime regardless of this flag. See
-  // free-tier-code-only-editing-plan.md §8.
+  // docs/archive/plans/free-tier-code-only-editing-plan.md §8.
   const openOnboarding = useOnboardingStore((s) => s.open);
   useEffect(() => {
     if (!planResolved) return;

@@ -7,7 +7,7 @@ import { ConvexError } from "convex/values";
 import { convex } from "@/lib/convex-client";
 import { api } from "@/convex/_generated/api";
 
-// Accepting a collaboration invite (release-1-0/collaboration-plan.md Phase A).
+// Accepting a collaboration invite (docs/archive/release-1-0/collaboration-plan.md Phase A).
 // Distinct from app/(diagram)/d/cloud/[cloudId]/page.tsx's cross-device
 // bootstrap: that route is for the owner opening a diagram they already have
 // access to on a new device; this route is the one place a *token* turns into

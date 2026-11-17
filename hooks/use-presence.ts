@@ -10,7 +10,7 @@ const HEARTBEAT_INTERVAL_MS = 10_000;
 // Heartbeats presence for a cloud diagram while its editor is mounted — no
 // explicit "leave" mutation, the 30s staleness window in
 // diagramPresence.listActive handles disconnects/closed tabs for free
-// (release-1-0/collaboration-plan.md Phase B §4).
+// (docs/archive/release-1-0/collaboration-plan.md Phase B §4).
 export function usePresence(cloudId: string | null | undefined) {
   const heartbeat = useMutation(api.diagramPresence.heartbeat);
 

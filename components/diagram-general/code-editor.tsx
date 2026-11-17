@@ -130,7 +130,7 @@ export function CodeEditor({ readOnly = false }: CodeEditorProps) {
   const [copied, setCopied] = useState(false);
   // Set when a parsed edit would push the table count past the plan cap — the
   // edit is not committed to the store, but the typed text is kept so nothing
-  // is lost. See free-tier-code-only-editing-plan.md §3.
+  // is lost. See docs/archive/plans/free-tier-code-only-editing-plan.md §3.
   const [capError, setCapError] = useState<string | null>(null);
 
   const debouncedCode = useDebounce(code, 400);

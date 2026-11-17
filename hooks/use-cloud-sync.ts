@@ -6,7 +6,7 @@ import { useEditorStore } from "@/store/useEditorStore";
 import { createCloudDiagram, pullCloudDiagram, softDeleteCloudDiagram } from "@/lib/diagram-persistence";
 
 // "Save to cloud" / "Make local-only" actions for a single local diagram id.
-// Opt-in, per-diagram — see release-1-0/paid-editing-access-plan.md's
+// Opt-in, per-diagram — see docs/archive/release-1-0/paid-editing-access-plan.md's
 // Phase 3 plan for why this isn't automatic for every Pro diagram.
 export function useCloudSync(localId: string) {
   const storage = useCanvasStore((s) => s.diagrams[localId]?.storage ?? "local");

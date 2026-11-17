@@ -14,7 +14,7 @@ import DbLuna from "@/components/uiJsxAssets/dbluna-logo";
 // diagrams: the decoded data is staged under a throwaway id (cleaned up on
 // unmount/pagehide) so it renders through the same CanvasStage the real
 // editor uses, without ever being folded into the visitor's persisted
-// `diagrams` record. See release-1-0/share-via-url-plan.md.
+// `diagrams` record. See docs/archive/release-1-0/share-via-url-plan.md.
 export default function ShareViewPage() {
   const router = useRouter();
   const hasHydrated = useStoreHydration();

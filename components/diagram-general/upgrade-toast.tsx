@@ -16,7 +16,7 @@ export function UpgradeToast() {
   const nonce = useUpgradeToastStore((s) => s.nonce);
   const dismiss = useUpgradeToastStore((s) => s.dismiss);
 
-  // Role-aware copy (release-1-0/collaboration-plan.md Phase A §5): every
+  // Role-aware copy (docs/archive/release-1-0/collaboration-plan.md Phase A §5): every
   // read-only-gated action in the app funnels through this single toast, so
   // branching the subtitle here — rather than threading a "why" through each
   // of the ~30 call sites — is the only change needed to stop an invited,

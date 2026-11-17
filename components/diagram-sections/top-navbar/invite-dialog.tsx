@@ -26,7 +26,7 @@ const ROLES: { id: InviteRole; label: string; hint: string; icon: typeof Pencil 
   { id: "viewer", label: "Viewer", hint: "Can only look", icon: Eye },
 ];
 
-// Separate from ShareDialog on purpose (release-1-0/collaboration-plan.md
+// Separate from ShareDialog on purpose (docs/archive/release-1-0/collaboration-plan.md
 // Phase A §2): ShareDialog produces an anonymous, read-only, no-account link.
 // This produces a link that, once opened by a signed-in user whose email
 // matches, grants real diagramMembers access.

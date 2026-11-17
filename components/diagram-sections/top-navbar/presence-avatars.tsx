@@ -23,7 +23,7 @@ function fullName(firstName: string, lastName?: string) {
   return `${firstName}${lastName ? ` ${lastName}` : ""}`;
 }
 
-// Who else is currently viewing this diagram (release-1-0/collaboration-plan.md
+// Who else is currently viewing this diagram (docs/archive/release-1-0/collaboration-plan.md
 // Phase B §4) — purely a presence signal, no live cursors. Renders nothing for
 // local-only diagrams or when you're the only one here.
 export function PresenceAvatars({ cloudId }: PresenceAvatarsProps) {

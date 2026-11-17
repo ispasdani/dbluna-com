@@ -14,7 +14,7 @@ function toUIMessage(row: { messageId: string; role: StoredRole; parts: unknown 
 }
 
 /**
- * Convex sync for AI chat history (ai-chat-credits-and-sync-plan.md, Phase 2).
+ * Convex sync for AI chat history (docs/archive/plans/ai-chat-credits-and-sync-plan.md, Phase 2).
  * No-op unless the diagram is already cloud-synced (same opt-in
  * `storage === "cloud"` condition hooks/use-cloud-autosave.ts checks) — a
  * diagram that hasn't opted into cloud sync makes zero Convex calls here,

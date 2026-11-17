@@ -401,7 +401,7 @@ export default defineSchema({
     .index("by_diagram", ["diagramId"])
     .index("by_diagram_and_user", ["diagramId", "userId"]),
 
-  // AI chat history sync (ai-chat-credits-and-sync-plan.md, Phase 2). One row
+  // AI chat history sync (docs/archive/plans/ai-chat-credits-and-sync-plan.md, Phase 2). One row
   // per message, not one row per diagram with an embedded array like
   // `diagrams` — messages are append-only, so there's no last-write-wins
   // conflict to design around the way diagram edits need.

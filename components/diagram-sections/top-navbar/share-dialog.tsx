@@ -8,7 +8,7 @@ import { encodeDiagramForShare, estimateShareLinkSize } from "@/lib/share-link";
 import { cn } from "@/lib/utils";
 import styles from "./small-dialog.module.scss";
 
-// Matches artifacts/local_first_sharing_plan.md's Phase 2 thresholds: past the
+// Matches docs/archive/desktop-and-local-first/local_first_sharing_plan.md's Phase 2 thresholds: past the
 // soft limit some messengers start mangling long links; past the hard limit
 // they break outright. The ephemeral-snapshot fallback for oversized diagrams
 // is Phase 4 — for now, sharing is simply disabled above the hard limit.

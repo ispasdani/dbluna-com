@@ -4,7 +4,7 @@ import type { UIMessage } from "ai";
 import { createDebouncedStorage } from "./debounced-storage";
 
 // Local-only for v1, consistent with the rest of the app's local-first
-// philosophy (see ai-chat-implementation-plan.md). Keyed by diagram id, same
+// philosophy (see docs/archive/plans/ai-chat-implementation-plan.md). Keyed by diagram id, same
 // "Record<diagramId, ...>" shape useEditorStore uses for per-diagram cameras.
 type AiChatState = {
   hasHydrated: boolean;

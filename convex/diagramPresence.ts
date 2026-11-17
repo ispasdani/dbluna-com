@@ -70,7 +70,7 @@ export const listActive = query({
 
 // Hygiene only, not load-bearing for correctness — listActive's STALE_AFTER_MS
 // filter already hides stale rows from the UI. This just keeps the table from
-// growing unbounded (release-1-0/collaboration-plan.md Phase B §4).
+// growing unbounded (docs/archive/release-1-0/collaboration-plan.md Phase B §4).
 export const cleanupStale = internalMutation({
   args: {},
   handler: async (ctx) => {
